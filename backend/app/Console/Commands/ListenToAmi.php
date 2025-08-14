@@ -346,9 +346,11 @@ use App\Events\CallStatusUpdated;
                  'status' => 'completed'
              ];
 
-             if ($callLog->start_time) {
-                 $updateData['duration'] = now()->diffInSeconds($callLog->start_time);
-             }
+            if ($callLog->start_time) {
+                $start = $callLog->start_time;
+                $end = now();
+                $updateData['duration'] = max(0, $start->diffInSeconds($end, true));
+            }
 
              $callLog->fill($updateData)->save();
 
