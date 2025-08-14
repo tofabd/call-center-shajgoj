@@ -72,7 +72,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['searchProducts', debouncedSearchTerm, currentPage],
     queryFn: async (): Promise<Product[]> => {
-      const response = await api.get('/woocom/test/search-products', {
+      const response = await api.get('/woocom/search-products', {
         params: { q: debouncedSearchTerm, page: currentPage, per_page: 15 }
       });
       return response.data;
@@ -101,7 +101,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
       if (entries[0].isIntersecting && hasMoreProducts && !isLoadingMore && debouncedSearchTerm.length > 3) {
         setIsLoadingMore(true);
         try {
-          const response = await api.get('/woocom/test/search-products', {
+          const response = await api.get('/woocom/search-products', {
             params: { q: debouncedSearchTerm, page: currentPage + 1, per_page: 15 }
           });
           

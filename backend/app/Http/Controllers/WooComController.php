@@ -16,6 +16,32 @@ class WooComController extends Controller
         $this->wooComService = $wooComService;
     }
 
+    public function searchProducts(Request $request)
+    {
+        try {
+            $query = $request->input('q', '');
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 10);
+
+            if (empty($query)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Search query is required'
+                ], 400);
+            }
+
+            $response = $this->wooComService->searchProducts($query, $page, $perPage);
+
+            if (isset($response['error'])) {
+                return response()->json(['message' => $response['error']], 500);
+            }
+
+            return response()->json($response);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     public function updateOrder(Request $request)
     {
         $request->validate([
@@ -503,7 +529,7 @@ class WooComController extends Controller
             }
             return response()->json(['data' => $notes, 'success' => true]);
         } catch (\Exception $e) {
-            \Log::error('Error fetching WooCommerce order notes: ' . $e->getMessage());
+            Log::error('Error fetching WooCommerce order notes: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -529,7 +555,7 @@ class WooComController extends Controller
             }
             return response()->json(['data' => $result, 'success' => true]);
         } catch (\Exception $e) {
-            \Log::error('Error adding WooCommerce order note: ' . $e->getMessage());
+            Log::error('Error adding WooCommerce order note: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }

@@ -41,11 +41,6 @@ const menuItems = [
     name: 'Follow-ups',
     icon: CheckSquare,
     path: '/follow-ups'
-  },
-  {
-    name: 'Test',
-    icon: LayoutDashboard,
-    path: '/test'
   }
 ];
 

@@ -8,9 +8,8 @@ use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\FollowUpTemplateController;
 
 use App\Http\Controllers\WooComController;
-use App\Http\Controllers\WooComTestController;
 use App\Http\Controllers\WooComUserController;
- 
+
 
 // Public routes (no authentication required)
 Route::post('/login', [AuthController::class, 'login']);
@@ -78,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/orders-paginated', [WooComController::class, 'getPaginatedOrders']);
         Route::get('/orders/{orderId}/notes', [WooComController::class, 'getOrderNotes']);
         Route::post('/orders/{orderId}/notes', [WooComController::class, 'addOrderNote']);
+        Route::get('/search-products', [WooComController::class, 'searchProducts']);
 
         // Customer management
         Route::post('/create-customer', [WooComController::class, 'createCustomer']);
@@ -94,13 +94,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/customers/{id}', [WooComUserController::class, 'updateUser']);
         Route::delete('/customers/{id}', [WooComUserController::class, 'deleteUser']);
 
-        // Test routes
-        Route::prefix('test')->group(function () {
-            Route::get('/connection', [WooComTestController::class, 'testConnection']);
-            Route::get('/search-products', [WooComTestController::class, 'searchProducts']);
-            Route::get('/customers/{phoneNumber}', [WooComTestController::class, 'getCustomersByPhoneNumber']);
-            Route::get('/orders/{phoneNumber}', [WooComTestController::class, 'getOrdersByPhoneNumber']);
-        });
     });
 
     // Test route to verify authentication

@@ -16,7 +16,6 @@ import Customers from '@pages/Customers';
 import Orders from '@pages/Orders';
 import FollowUps from '@pages/FollowUps';
 
-import Test from '@pages/Test';
 
 // Services
 import authService from '@services/authService';
@@ -53,7 +52,7 @@ function App() {
               <Route path="orders" element={<Orders />} />
               <Route path="follow-ups" element={<FollowUps />} />
 
-              <Route path="test" element={<Test />} />
+              
             </Route>
             
             {/* Catch all route - redirect based on authentication */}

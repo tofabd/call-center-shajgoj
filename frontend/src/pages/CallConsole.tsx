@@ -326,7 +326,7 @@ const CallConsole: React.FC = () => {
     queryKey: ['customers', selectedPhoneNumber],
     queryFn: async () => {
       if (!selectedPhoneNumber) return { data: [], message: '', success: true };
-      const response = await api.get(`/woocom/test/customers/${selectedPhoneNumber}`);
+      const response = await api.get(`/woocom/customers/${selectedPhoneNumber}`);
       return response.data;
     },
     enabled: !!selectedPhoneNumber,
