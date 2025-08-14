@@ -4,8 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CallLogController;
-use App\Http\Controllers\FollowUpController;
-use App\Http\Controllers\FollowUpTemplateController;
+// use App\Http\Controllers\FollowUpController;
+// use App\Http\Controllers\FollowUpTemplateController;
 
 use App\Http\Controllers\WooComController;
 use App\Http\Controllers\WooComUserController;
@@ -27,46 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/call-logs/today-stats', [CallLogController::class, 'getTodayStats']);
     Route::get('/call-logs/{id}/details', [CallLogController::class, 'getCallDetails']);
 
-    // Follow-up routes
-    Route::prefix('follow-ups')->group(function () {
-        // CRUD operations
-        Route::get('/', [FollowUpController::class, 'index']);
-        Route::post('/', [FollowUpController::class, 'store']);
-        Route::get('/{id}', [FollowUpController::class, 'show']);
-        Route::put('/{id}', [FollowUpController::class, 'update']);
-        Route::delete('/{id}', [FollowUpController::class, 'destroy']);
-
-        // Dashboard and analytics
-        Route::get('/dashboard/stats', [FollowUpController::class, 'getDashboardStats']);
-        Route::get('/calendar/data', [FollowUpController::class, 'getCalendarData']);
-        Route::get('/overdue', [FollowUpController::class, 'getOverdue']);
-
-        // Bulk operations
-        Route::post('/bulk-update', [FollowUpController::class, 'bulkUpdate']);
-
-        // Notes
-        Route::post('/{id}/notes', [FollowUpController::class, 'addNote']);
-
-        // Actions
-        Route::post('/{id}/complete', [FollowUpController::class, 'markCompleted']);
-        Route::post('/{id}/reschedule', [FollowUpController::class, 'reschedule']);
-
-        // Customer specific
-        Route::get('/customer/history', [FollowUpController::class, 'getCustomerFollowUps']);
-    });
-
-    // Follow-up templates
-    Route::prefix('follow-up-templates')->group(function () {
-        Route::get('/', [FollowUpTemplateController::class, 'index']);
-        Route::post('/', [FollowUpTemplateController::class, 'store']);
-        Route::get('/active', [FollowUpTemplateController::class, 'getActive']);
-        Route::get('/type/{type}', [FollowUpTemplateController::class, 'getByType']);
-        Route::get('/{id}', [FollowUpTemplateController::class, 'show']);
-        Route::put('/{id}', [FollowUpTemplateController::class, 'update']);
-        Route::delete('/{id}', [FollowUpTemplateController::class, 'destroy']);
-        Route::post('/{id}/toggle-active', [FollowUpTemplateController::class, 'toggleActive']);
-        Route::post('/{id}/duplicate', [FollowUpTemplateController::class, 'duplicate']);
-    });
+    // (removed) Follow-up routes
+    // (removed) Follow-up templates
 
     // WooCommerce routes
     Route::prefix('woocom')->group(function () {

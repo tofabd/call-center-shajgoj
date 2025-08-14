@@ -14,7 +14,6 @@ import type { CustomerOrdersProps } from '@/components/CallConsole/CustomerOrder
 import OrderNotesPanel from '@/components/CallConsole/OrderNotesPanel';
 import CustomerProfile from '@/components/CallConsole/CustomerProfile';
 import TodayStatistics from '@/components/CallConsole/TodayStatistics';
-import FollowUpPanel from '@/components/CallConsole/FollowUpPanel';
 
 // Interface for call status update data from backend
 interface CallStatusUpdateData {
@@ -602,7 +601,7 @@ const CallConsole: React.FC = () => {
 
               {/* Right Column - Customer Profile and Stats */}
               <div className="flex flex-col min-h-0 lg:flex-1 lg:min-w-80 overflow-hidden">
-                <div className="flex-1 overflow-y-auto narrow-scrollbar">
+              <div className="flex-1 overflow-y-auto narrow-scrollbar">
                   <div className="space-y-6 p-1">
                     {/* Order Notes Panel */}
                     {selectedOrderForNotes && (
@@ -616,17 +615,7 @@ const CallConsole: React.FC = () => {
                       />
                     )}
                     
-                    {/* Follow-up Panel Component */}
-                    <FollowUpPanel
-                      selectedPhoneNumber={selectedPhoneNumber}
-                      customerName={selectedCustomer?.first_name && selectedCustomer?.last_name 
-                        ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` 
-                        : selectedCustomer?.first_name || selectedCustomer?.last_name}
-                      customerEmail={selectedCustomer?.email}
-                      woocommerce_customer_id={selectedCustomer?.id}
-                      currentOrder={selectedOrderForNotes || null}
-                      customerOrders={ordersQuery.data?.data || []}
-                    />
+                    
 
                     {/* Customer Profile Component */}
                     <CustomerProfile

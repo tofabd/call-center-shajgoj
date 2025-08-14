@@ -14,7 +14,6 @@ import Dashboard from '@pages/Dashboard';
 import CallConsole from '@pages/CallConsole';
 import Customers from '@pages/Customers';
 import Orders from '@pages/Orders';
-import FollowUps from '@pages/FollowUps';
 
 
 // Services
@@ -50,7 +49,7 @@ function App() {
               <Route path="call-console" element={<CallConsole />} />
               <Route path="customers" element={<Customers />} />
               <Route path="orders" element={<Orders />} />
-              <Route path="follow-ups" element={<FollowUps />} />
+              
 
               
             </Route>

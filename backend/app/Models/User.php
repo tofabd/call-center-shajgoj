@@ -48,24 +48,5 @@ class User extends Authenticatable
         ];
     }
 
-    // Follow-up relationships
-    public function assignedFollowUps()
-    {
-        return $this->hasMany(CustomerFollowUp::class, 'assigned_to');
-    }
-
-    public function createdFollowUps()
-    {
-        return $this->hasMany(CustomerFollowUp::class, 'created_by');
-    }
-
-    public function followUpNotes()
-    {
-        return $this->hasMany(FollowUpNote::class);
-    }
-
-    public function followUpTemplates()
-    {
-        return $this->hasMany(FollowUpTemplate::class, 'created_by');
-    }
+    // (removed) Follow-up relationships
 }

@@ -36,11 +36,6 @@ const menuItems = [
     name: 'Orders',
     icon: ShoppingCart,
     path: '/orders'
-  },
-  {
-    name: 'Follow-ups',
-    icon: CheckSquare,
-    path: '/follow-ups'
   }
 ];
 
