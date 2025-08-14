@@ -5,8 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\CallLog;
 use App\Models\CallInstance;
-use App\Models\User;
-use App\Events\FetchCustomerAndNotifyExtension;
 use App\Events\CallStatusUpdated;
 
 /**
@@ -38,6 +36,7 @@ use App\Events\CallStatusUpdated;
      {
 
         // Mellowhost Server
+
         //  $host = env('AMI_HOST', '103.177.125.93');
         //  $port = env('AMI_PORT', 5038);
         //  $username = env('AMI_USERNAME', 'admin');
@@ -258,12 +257,7 @@ use App\Events\CallStatusUpdated;
              // Find associated CallInstance if exists
              $callInstance = CallInstance::where('unique_id', $fields['Linkedid'])->first();
 
-             // if extension is set, notify User
-             $user = User::where('extension', $fields['Exten'])->first();
-
-             if ($user) {
-                 broadcast(new FetchCustomerAndNotifyExtension($user, $fields['ConnectedLineNum']));
-             }
+            // Skipping user extension lookup and targeted notifications
 
              $updateData = [
                  'channel' => $fields['Channel'] ?? $callLog->channel,
