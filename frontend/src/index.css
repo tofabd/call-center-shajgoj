@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+/* Only keep essential global styles that Tailwind doesn't handle */
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply m-0 min-w-80 min-h-screen transition-colors duration-300;
+  }
+  
+  #root {
+    @apply min-h-screen;
+  }
+  
+  /* Light mode */
+  :root {
+    color-scheme: light;
+  }
+  
+  body {
+    @apply bg-white text-gray-900;
+  }
+  
+  /* Dark mode */
+  .dark {
+    color-scheme: dark;
+  }
+  
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+  
+  /* Link styles */
+  a {
+    @apply font-medium text-blue-500 no-underline transition-colors hover:text-blue-400;
+  }
+  
+  .dark a {
+    @apply text-blue-400 hover:text-blue-300;
+  }
+  
+  /* Custom narrow scrollbar styles */
+  .narrow-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  .narrow-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .narrow-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .narrow-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 2px;
+    border: none;
+  }
+
+  .narrow-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+  }
+
+  /* Dark mode scrollbar */
+  .dark .narrow-scrollbar {
+    scrollbar-color: #4b5563 transparent;
+  }
+
+  .dark .narrow-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
+  }
+
+  .dark .narrow-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #6b7280;
+  }
+
+  /* Input focus styles */
+  input:focus {
+    outline: none;
+  }
+  
+  /* Remove default browser focus outline */
+  *:focus {
+    outline: none;
+  }
+  
+  /* Global Select Styling - Replace default dropdown arrow with custom icon */
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+  
+  /* Dark mode select styling */
+  .dark select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23d1d5db' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  }
+  
+  /* Focus state for select */
+  select:focus {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%233b82f6' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  }
+  
+  .dark select:focus {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2360a5fa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  }
+}
