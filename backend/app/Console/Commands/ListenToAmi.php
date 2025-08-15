@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\CallLog;
 use App\Models\CallInstance;
 use App\Events\CallStatusUpdated;
+use Illuminate\Support\Facades\Log;
 
 /**
  * This is modified version of ListenToAmi
@@ -150,6 +151,9 @@ use App\Events\CallStatusUpdated;
                  $fields[$key] = $value;
              }
          }
+
+         // Log all parsed fields to laravel.log
+         Log::info("AMI {$eventType} fields", $fields);
 
          // $user = User::where('id', auth()->user()->id)->first();
 
