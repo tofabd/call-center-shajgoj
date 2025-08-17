@@ -286,30 +286,17 @@ const CallConsole: React.FC = () => {
           />
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0">
-            {/* Main Content Flex Layout */}
-            <div className="flex flex-col lg:flex-row gap-4 h-full">
-              {/* Customer Orders Component - Takes up 2/3 width */}
-              <div className="flex-1 lg:flex-[2] min-w-0">
-                <CallDetails selectedCallId={selectedCallId} />
-              </div>
-
-              {/* Right Column - Stats */}
-              <div className="flex flex-col min-h-0 lg:flex-1 lg:min-w-80 overflow-hidden">
-              <div className="flex-1 overflow-y-auto narrow-scrollbar">
-                  <div className="space-y-6 p-1">
-                    {/* Today's Statistics Component */}
-                    <TodayStatistics
-                      loading={loading}
-                      error={error}
-                      callStats={callStats}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Right Column: Call Details + Today Statistics */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden space-y-4">
+          <div className="h-1/2 min-h-0">
+            <CallDetails selectedCallId={selectedCallId} />
+          </div>
+          <div className="h-1/2 min-h-0">
+            <TodayStatistics
+              loading={loading}
+              error={error}
+              callStats={callStats}
+            />
           </div>
         </div>
       </div>
