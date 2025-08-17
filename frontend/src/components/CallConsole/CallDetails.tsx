@@ -64,6 +64,42 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
       isMounted = false;
     };
   }, [selectedCallId]);
+
+  // Listen for real-time call status updates
+  useEffect(() => {
+    if (!selectedCallId || !window.Echo) return;
+
+    console.log('🔔 CallDetails: Setting up Echo listener for call ID:', selectedCallId);
+    
+    const channel = window.Echo.channel('call-console');
+    
+    const handleCallUpdate = (data: { id: number; status: string; duration?: number; [key: string]: unknown }) => {
+      console.log('🔔 CallDetails: Received real-time update:', data);
+      
+      // Only update if this update is for the currently selected call
+      if (data.id === selectedCallId) {
+        console.log('✅ CallDetails: Updating details for selected call');
+        
+        // Refresh the call details from the server to get the latest data
+        callLogService
+          .getCallDetails(selectedCallId)
+          .then((updatedDetails) => {
+            setDetails(updatedDetails);
+            console.log('🔄 CallDetails: Updated with fresh data from server');
+          })
+          .catch((error) => {
+            console.error('❌ CallDetails: Failed to refresh call details:', error);
+          });
+      }
+    };
+
+    channel.listen('.call-status-updated', handleCallUpdate);
+
+    return () => {
+      console.log('🧹 CallDetails: Cleaning up Echo listener');
+      // Note: We don't leave the channel as other components might be using it
+    };
+  }, [selectedCallId]);
   return (
     <div className="flex flex-col h-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-full">
