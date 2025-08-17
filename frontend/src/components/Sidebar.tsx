@@ -3,8 +3,6 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Phone, 
-  Users, 
-  ShoppingCart,
   MessageCircle,
   CheckSquare,
   X
@@ -27,16 +25,7 @@ const menuItems = [
     icon: Phone,
     path: '/call-console'
   },
-  {
-    name: 'Customers',
-    icon: Users,
-    path: '/customers'
-  },
-  {
-    name: 'Orders',
-    icon: ShoppingCart,
-    path: '/orders'
-  }
+  
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ 

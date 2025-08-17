@@ -34,11 +34,7 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
-    'woocommerce' => [
-        'base_url' => env('WOOCOMMERCE_BASE_URL', 'https://stage.luxotix.com'),
-        'consumer_key' => env('WOOCOMMERCE_CONSUMER_KEY', 'ck_2e7c40d7c23becc02a3e8358d8fec1292dcd7326'),
-        'consumer_secret' => env('WOOCOMMERCE_CONSUMER_SECRET', 'cs_5d318850f3ab4deb524d2a6858522fb575d944b3'),
-    ],
+    // WooCommerce service removed
 
    // 'facebook' removed
 

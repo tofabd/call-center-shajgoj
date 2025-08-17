@@ -12,8 +12,7 @@ import ProtectedRoute from '@components/ProtectedRoute';
 import Login from '@pages/Login';
 import Dashboard from '@pages/Dashboard';
 import CallConsole from '@pages/CallConsole';
-import Customers from '@pages/Customers';
-import Orders from '@pages/Orders';
+// Removed Customers and Orders pages
 
 
 // Services
@@ -47,8 +46,7 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="call-console" element={<CallConsole />} />
-              <Route path="customers" element={<Customers />} />
-              <Route path="orders" element={<Orders />} />
+              {/* Customers and Orders routes removed */}
               
 
               
