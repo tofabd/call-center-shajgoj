@@ -60,7 +60,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
   }, [selectedCallId]);
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const formatDateTime = (timeString: string) => {
@@ -70,8 +70,21 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
       month: 'short',
       day: 'numeric',
       hour: '2-digit', 
-      minute: '2-digit' 
+      minute: '2-digit',
+      hour12: true
     });
+  };
+
+  const formatDuration = (totalSeconds: number): string => {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 || (hours === 0 && minutes === 0)) parts.push(`${seconds}s`);
+    return parts.join(' ');
   };
 
   const getStatusColor = (status: string) => {
@@ -252,7 +265,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                             {call.duration && (
                               <>
                                 <span className="text-gray-400">•</span>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{call.duration}s</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(call.duration)}</p>
                               </>
                             )}
                             {!call.duration && (
@@ -285,9 +298,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                                         {subCall.duration && (
                                           <>
                                             <span className="text-gray-400">•</span>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                              {subCall.duration}s
-                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(subCall.duration)}</p>
                                           </>
                                         )}
                                       </div>

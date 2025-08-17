@@ -13,6 +13,18 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const formatDuration = (totalSeconds: number): string => {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 || (hours === 0 && minutes === 0)) parts.push(`${seconds}s`);
+    return parts.join(' ');
+  };
+
   useEffect(() => {
     let isMounted = true;
     if (!selectedCallId) {
@@ -28,7 +40,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
       .then((d) => {
         if (isMounted) setDetails(d);
       })
-      .catch((e) => {
+      .catch(() => {
         if (isMounted) setError('Failed to load call details');
       })
       .finally(() => {
@@ -68,14 +80,13 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
             </div>
           </div>
         ) : loading ? (
-          <div className="p-8">
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="animate-pulse border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                </div>
-              ))}
+          <div className="p-8 flex items-center justify-center h-full">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-full border-4 border-gray-200 dark:border-gray-700 border-t-blue-500 dark:border-t-blue-400 animate-spin"></div>
+                <div className="absolute inset-1 rounded-full border-4 border-blue-200 dark:border-blue-900 border-b-transparent animate-spin"></div>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading details...</p>
             </div>
           </div>
         ) : error ? (
@@ -115,7 +126,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
                   )}
                   <p>Status: <span className="font-semibold capitalize">{details.status}</span></p>
                   {typeof details.duration === 'number' && (
-                    <p>Duration: <span className="font-semibold">{details.duration} sec</span></p>
+                    <p>Duration: <span className="font-semibold">{formatDuration(details.duration)}</span></p>
                   )}
                 </div>
               )}

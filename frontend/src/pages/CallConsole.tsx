@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import { callLogService } from '@services/callLogService';
 import type { CallStats, CallLog } from '@services/callLogService';
@@ -9,7 +8,6 @@ import '@services/echo'; // Import Echo setup
 import CallMonitor from '@/components/CallConsole/CallMonitor';
 import CallDetails from '@/components/CallConsole/CallDetails';
 // Removed OrderNotesPanel
-import CustomerProfile from '@/components/CallConsole/CustomerProfile';
 import TodayStatistics from '@/components/CallConsole/TodayStatistics';
 
 // Interface for call status update data from backend
@@ -58,9 +56,7 @@ const CallConsole: React.FC = () => {
   const [callLogs, setCallLogs] = useState<UniqueCall[]>([]);
   const [callStats, setCallStats] = useState<CallStats | null>(null);
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
-  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
@@ -123,9 +119,9 @@ const CallConsole: React.FC = () => {
   // Debug useEffect to monitor auto-selection
   useEffect(() => {
     if (selectedCallId) {
-      console.log('🔍 Call selected:', selectedCallId, 'Phone:', selectedPhoneNumber);
+      console.log('🔍 Call selected:', selectedCallId);
     }
-  }, [selectedCallId, selectedPhoneNumber]);
+  }, [selectedCallId]);
 
   // Set up real-time Echo listener for call updates with auto-selection
   useEffect(() => {
@@ -213,10 +209,6 @@ const CallConsole: React.FC = () => {
           // Use setTimeout to ensure state updates are processed
           setTimeout(() => {
             setSelectedCallId(data.id);
-            if (data.callerNumber) {
-              setSelectedPhoneNumber(data.callerNumber);
-              console.log('📞 Auto-selected call with phone:', data.callerNumber);
-            }
           }, 50);
         }
 
@@ -239,31 +231,7 @@ const CallConsole: React.FC = () => {
     }
   }, []);
 
-  // React Query hook to fetch customers by phone number
-  const customersQuery = useQuery<{ data: any[]; message: string; success: boolean }>({
-    queryKey: ['customers', selectedPhoneNumber],
-    // Disabled and returning empty to remove WordPress integration
-    queryFn: async () => ({ data: [], message: '', success: true }),
-    enabled: false,
-    retry: 0,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Handle customer data updates
-  useEffect(() => {
-    if (customersQuery.data?.data) {
-      setCustomers(customersQuery.data.data);
-      // Auto-select first customer if there are any customers (single or multiple)
-      if (customersQuery.data.data.length > 0) {
-        setSelectedCustomer(customersQuery.data.data[0]);
-      } else {
-        setSelectedCustomer(null);
-      }
-    } else {
-      setCustomers([]);
-      setSelectedCustomer(null);
-    }
-  }, [customersQuery.data]);
+  // Customer profile integration removed
 
   // Orders and notes queries removed
 
@@ -272,23 +240,12 @@ const CallConsole: React.FC = () => {
     if (selectedCallId === callId) {
       // If same call is clicked, deselect it
       setSelectedCallId(null);
-      setSelectedPhoneNumber(null);
-      setCustomers([]);
-      setSelectedCustomer(null);
       return;
     }
 
     setSelectedCallId(callId);
     
-    // Find the selected call and get its phone number
-    const selectedCall = callLogs.find(call => call.id === callId);
-    if (selectedCall && selectedCall.callerNumber) {
-      setSelectedPhoneNumber(selectedCall.callerNumber);
-    } else {
-      setSelectedPhoneNumber(null);
-      setCustomers([]);
-      setSelectedCustomer(null);
-    }
+    // Customer profile integration removed
   };
 
   // Function to toggle call expansion
@@ -304,10 +261,7 @@ const CallConsole: React.FC = () => {
     });
   };
 
-  // Function to handle customer selection
-  const handleCustomerSelect = (customer: any) => {
-    setSelectedCustomer(customer);
-  };
+  // Customer selection removed
 
   // WooCommerce order handlers removed
 
@@ -342,24 +296,10 @@ const CallConsole: React.FC = () => {
                 <CallDetails selectedCallId={selectedCallId} />
               </div>
 
-              {/* Right Column - Customer Profile and Stats */}
+              {/* Right Column - Stats */}
               <div className="flex flex-col min-h-0 lg:flex-1 lg:min-w-80 overflow-hidden">
               <div className="flex-1 overflow-y-auto narrow-scrollbar">
                   <div className="space-y-6 p-1">
-                    {/* Order Notes Panel removed */}
-                    
-                    
-
-                    {/* Customer Profile Component */}
-                    <CustomerProfile
-                      selectedCallId={selectedCallId}
-                      selectedPhoneNumber={selectedPhoneNumber}
-                      customersQuery={customersQuery}
-                      customers={customers}
-                      selectedCustomer={selectedCustomer}
-                      onSelectCustomer={handleCustomerSelect}
-                    />
-
                     {/* Today's Statistics Component */}
                     <TodayStatistics
                       loading={loading}
