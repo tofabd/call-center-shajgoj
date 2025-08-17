@@ -330,6 +330,25 @@ use Illuminate\Support\Facades\Log;
              // Only broadcast if this is a MASTER CHANNEL (uniqueid equals linkedid)
              $isMasterChannel = $fields['Uniqueid'] === $fields['Linkedid'];
 
+             // If this is a secondary (agent) channel, propagate agent extension to master
+             if (!$isMasterChannel) {
+                 $agentExt = null;
+                 $ch = (string)($fields['Channel'] ?? '');
+                 if (preg_match('/SIP\/(\d{3,5})/', $ch, $m)) {
+                     $agentExt = $m[1];
+                 } elseif (preg_match('/Local\/(\d{3,5})@/', $ch, $m)) {
+                     $agentExt = $m[1];
+                 }
+                 if ($agentExt) {
+                     $master = CallLog::where('uniqueid', $fields['Linkedid'])->first();
+                     if ($master && empty($master->agent_exten)) {
+                         $master->agent_exten = $agentExt;
+                         $master->save();
+                         broadcast(new CallStatusUpdated($master));
+                     }
+                 }
+             }
+
              if ($isMasterChannel) {
                  broadcast(new CallStatusUpdated($callLog));
                  $this->info("📡 Broadcasting MASTER channel update: {$callLog->status}");
@@ -423,8 +442,9 @@ use Illuminate\Support\Facades\Log;
              // If incoming and agent not set, sometimes ConnectedLineNum will hold the agent ext after bridge
              if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'incoming') && empty($callLog->agent_exten)) {
                  $connected = $updateData['connected_line_num'] ?? '';
-                 if (is_string($connected) && preg_match('/^\d{3,5}$/', $connected)) {
-                     $updateData['agent_exten'] = $connected;
+                 $norm = $this->normalizeNumber($connected);
+                 if ($norm !== null && $this->isLikelyExtension($norm)) {
+                     $updateData['agent_exten'] = ltrim($norm, '+');
                  }
              }
              // Set or refine other party if available, prefer real external numbers
@@ -447,6 +467,25 @@ use Illuminate\Support\Facades\Log;
 
              // Only broadcast if this is a MASTER CHANNEL (uniqueid equals linkedid)
              $isMasterChannel = $fields['Uniqueid'] === $fields['Linkedid'];
+
+             // For secondary (agent) channels, propagate agent ext to master as soon as we know
+             if (!$isMasterChannel) {
+                 $agentExt = null;
+                 $ch = (string)($fields['Channel'] ?? '');
+                 if (preg_match('/SIP\/(\d{3,5})/', $ch, $m)) {
+                     $agentExt = $m[1];
+                 } elseif (preg_match('/Local\/(\d{3,5})@/', $ch, $m)) {
+                     $agentExt = $m[1];
+                 }
+                 if ($agentExt) {
+                     $master = CallLog::where('uniqueid', $fields['Linkedid'])->first();
+                     if ($master && empty($master->agent_exten)) {
+                         $master->agent_exten = $agentExt;
+                         $master->save();
+                         broadcast(new CallStatusUpdated($master));
+                     }
+                 }
+             }
 
              if ($isMasterChannel) {
                  broadcast(new CallStatusUpdated($callLog));

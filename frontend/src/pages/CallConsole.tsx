@@ -319,7 +319,7 @@ const CallConsole: React.FC = () => {
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
         {/* Left Sidebar - Incoming Calls Component */}
-        <div className="w-80 lg:w-96 flex-shrink-0">
+        <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
           <CallMonitor
             callLogs={callLogs}
             selectedCallId={selectedCallId}
