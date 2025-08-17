@@ -178,13 +178,36 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                         className={`group p-3 border rounded-xl transition-all duration-200 hover:shadow-md ${
                           selectedCallId === call.id
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
-                            : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
-                        } ${
-                          ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())
-                            ? (call.direction === 'outgoing'
-                                ? 'border-l-4 border-l-indigo-500 bg-indigo-50/30 dark:bg-indigo-900/10'
-                                : 'border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10')
-                            : ''
+                            : (() => {
+                                const status = call.status.toLowerCase();
+                                const direction = call.direction;
+                                
+                                // Background colors based on status and direction
+                                if (['answered'].includes(status)) {
+                                  return direction === 'outgoing'
+                                    ? 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/30 dark:hover:to-emerald-900/30'
+                                    : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
+                                }
+                                if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
+                                  return direction === 'outgoing'
+                                    ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 border-l-4 border-l-indigo-500'
+                                    : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-900/30 dark:hover:to-teal-900/30 border-l-4 border-l-emerald-500';
+                                }
+                                if (['busy'].includes(status)) {
+                                  return direction === 'outgoing'
+                                    ? 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 hover:from-red-100 hover:to-rose-100 dark:hover:from-red-900/30 dark:hover:to-rose-900/30'
+                                    : 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 hover:from-red-100 hover:to-pink-100 dark:hover:from-red-900/30 dark:hover:to-pink-900/30';
+                                }
+                                if (['no answer', 'missed', 'failed'].includes(status)) {
+                                  return direction === 'outgoing'
+                                    ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/30 dark:hover:to-amber-900/30'
+                                    : 'border-yellow-300 dark:border-yellow-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30';
+                                }
+                                // Default (completed, etc.)
+                                return direction === 'outgoing'
+                                  ? 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-700 dark:hover:to-slate-700'
+                                  : 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-700 dark:hover:to-gray-700';
+                              })()
                         }`}
                       >
                         <div className="flex flex-col" onClick={() => onCallSelect(call.id)}>
