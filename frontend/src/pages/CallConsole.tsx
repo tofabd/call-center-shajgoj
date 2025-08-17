@@ -8,7 +8,7 @@ import '@services/echo'; // Import Echo setup
 import OrderDetailsModal from '@/components/CallConsole/OrderDetailsModal';
 import EditOrderModal from '@/components/CallConsole/EditOrderModal';
 import CreateOrder from '@/components/CallConsole/CreateOrderModal';
-import IncomingCalls from '@/components/CallConsole/IncomingCalls';
+import CallMonitor from '@/components/CallConsole/CallMonitor';
 import CallDetails from '@/components/CallConsole/CallDetails';
 import OrderNotesPanel from '@/components/CallConsole/OrderNotesPanel';
 import CustomerProfile from '@/components/CallConsole/CustomerProfile';
@@ -419,7 +419,7 @@ const CallConsole: React.FC = () => {
       <div className="flex gap-4 p-6 h-full overflow-hidden">
         {/* Left Sidebar - Incoming Calls Component */}
         <div className="w-80 lg:w-96 flex-shrink-0">
-          <IncomingCalls
+          <CallMonitor
             callLogs={callLogs}
             selectedCallId={selectedCallId}
             loading={loading}
