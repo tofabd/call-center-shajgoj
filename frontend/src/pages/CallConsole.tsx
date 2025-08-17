@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { callLogService } from '@services/callLogService';
 import type { CallStats  } from '@services/callLogService';
-import api, { getOrderNotes } from '@services/api';
+// Removed WordPress/WooCommerce API imports
 import '@services/echo'; // Import Echo setup
 import OrderDetailsModal from '@/components/CallConsole/OrderDetailsModal';
 import EditOrderModal from '@/components/CallConsole/EditOrderModal';
@@ -28,102 +28,7 @@ interface CallStatusUpdateData {
   timestamp: string;
 }
 
-// Interface for WooCommerce order data
-interface WooCommerceOrder {
-  id: number;
-  status: string;
-  date_created: string;
-  date_created_gmt: string;
-  total: string;
-  billing: {
-    first_name: string;
-    last_name: string;
-    company: string;
-    address_1: string;
-    address_2: string;
-    city: string;
-    state: string;
-    postcode: string;
-    country: string;
-    email: string;
-    phone: string;
-  };
-  shipping: {
-    first_name: string;
-    last_name: string;
-    company: string;
-    address_1: string;
-    address_2: string;
-    city: string;
-    state: string;
-    postcode: string;
-    country: string;
-  };
-  line_items: Array<{
-    id: number;
-    name: string;
-    product_id: number;
-    variation_id: number;
-    quantity: number;
-    tax_class: string;
-    subtotal: string;
-    subtotal_tax: string;
-    total: string;
-    total_tax: string;
-    sku: string;
-    price: string;
-    meta_data: any[];
-  }>;
-  _links: {
-    self: { href: string };
-    collection: { href: string };
-  };
-}
-
-// Interface for WooCommerce customer data
-interface WooCommerceCustomer {
-  id: number;
-  date_created: string;
-  date_created_gmt: string;
-  date_modified: string;
-  date_modified_gmt: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  username: string;
-  billing: {
-    first_name: string;
-    last_name: string;
-    company: string;
-    address_1: string;
-    address_2: string;
-    city: string;
-    state: string;
-    postcode: string;
-    country: string;
-    email: string;
-    phone: string;
-  };
-  shipping: {
-    first_name: string;
-    last_name: string;
-    company: string;
-    address_1: string;
-    address_2: string;
-    city: string;
-    state: string;
-    postcode: string;
-    country: string;
-  };
-  is_paying_customer: boolean;
-  avatar_url: string;
-  meta_data: any[];
-  _links: {
-    self: { href: string };
-    collection: { href: string };
-  };
-}
+// Removed WordPress/WooCommerce-specific interfaces
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -151,19 +56,19 @@ const CallConsole: React.FC = () => {
   const [callStats, setCallStats] = useState<CallStats | null>(null);
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
-  const [customers, setCustomers] = useState<WooCommerceCustomer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<WooCommerceCustomer | null>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
   const [echoConnected, setEchoConnected] = useState(false);
-  const [selectedOrderForModal, setSelectedOrderForModal] = useState<WooCommerceOrder | null>(null);
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<any | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isEditOrderModalOpen, setIsEditOrderModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<WooCommerceOrder | null>(null);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<any | null>(null);
   const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
-  const [selectedOrderForNotes, setSelectedOrderForNotes] = useState<WooCommerceOrder | null>(null);
+  const [selectedOrderForNotes, setSelectedOrderForNotes] = useState<any | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -323,14 +228,11 @@ const CallConsole: React.FC = () => {
   // React Query hook to fetch customers by phone number
   const customersQuery = useQuery({
     queryKey: ['customers', selectedPhoneNumber],
-    queryFn: async () => {
-      if (!selectedPhoneNumber) return { data: [], message: '', success: true };
-      const response = await api.get(`/woocom/customers/${selectedPhoneNumber}`);
-      return response.data;
-    },
-    enabled: !!selectedPhoneNumber,
-    retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    // Disabled and returning empty to remove WordPress integration
+    queryFn: async () => ({ data: [], message: '', success: true }),
+    enabled: false,
+    retry: 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Handle customer data updates
@@ -352,24 +254,19 @@ const CallConsole: React.FC = () => {
   // React Query hook to fetch orders by phone number
   const ordersQuery = useQuery({
     queryKey: ['customerOrders', selectedPhoneNumber],
-    queryFn: async () => {
-      if (!selectedPhoneNumber) return { data: [], message: '', success: true };
-      const response = await api.get(`/woocom/orders/${selectedPhoneNumber}`);
-      return response.data;
-    },
-    enabled: !!selectedPhoneNumber,
-    retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    // Disabled and returning empty to remove WordPress integration
+    queryFn: async () => ({ data: [], message: '', success: true }),
+    enabled: false,
+    retry: 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   // React Query to fetch order notes for selected order
   const orderNotesQuery = useQuery({
     queryKey: ['orderNotes', selectedOrderForNotes?.id],
-    queryFn: async () => {
-      if (!selectedOrderForNotes) return { data: [] };
-      return await getOrderNotes(selectedOrderForNotes.id);
-    },
-    enabled: !!selectedOrderForNotes,
+    // Disabled and returning empty to remove WordPress integration
+    queryFn: async () => ({ data: [] }),
+    enabled: false,
     staleTime: 5 * 60 * 1000,
   });
 
