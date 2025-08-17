@@ -2,15 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { callLogService } from '@services/callLogService';
-import type { CallStats  } from '@services/callLogService';
+import type { CallStats, CallLog } from '@services/callLogService';
 // Removed WordPress/WooCommerce API imports
 import '@services/echo'; // Import Echo setup
 import OrderDetailsModal from '@/components/CallConsole/OrderDetailsModal';
 import EditOrderModal from '@/components/CallConsole/EditOrderModal';
 import CreateOrder from '@/components/CallConsole/CreateOrderModal';
 import IncomingCalls from '@/components/CallConsole/IncomingCalls';
-import CustomerOrders from '@/components/CallConsole/CustomerOrders';
-import type { CustomerOrdersProps } from '@/components/CallConsole/CustomerOrders';
+import CallDetails from '@/components/CallConsole/CallDetails';
 import OrderNotesPanel from '@/components/CallConsole/OrderNotesPanel';
 import CustomerProfile from '@/components/CallConsole/CustomerProfile';
 import TodayStatistics from '@/components/CallConsole/TodayStatistics';
@@ -71,6 +70,43 @@ const CallConsole: React.FC = () => {
   const [selectedOrderForNotes, setSelectedOrderForNotes] = useState<any | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
+  // Transform flat call logs into grouped unique calls for UI
+  const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
+    const callsByNumber: Record<string, CallLog[]> = {};
+    for (const log of logs) {
+      if (!log.callerNumber) continue;
+      if (!callsByNumber[log.callerNumber]) callsByNumber[log.callerNumber] = [];
+      callsByNumber[log.callerNumber].push(log);
+    }
+    const uniqueCalls: UniqueCall[] = Object.entries(callsByNumber).map(([callerNumber, callerLogs]) => {
+      // Sort newest first
+      callerLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      const latest = callerLogs[0];
+      return {
+        id: latest.id,
+        callerNumber,
+        callerName: latest.callerName ?? null,
+        startTime: latest.startTime,
+        status: latest.status,
+        duration: latest.duration,
+        frequency: callerLogs.length,
+        allCalls: callerLogs.map((c) => ({
+          id: c.id,
+          callerNumber: c.callerNumber,
+          callerName: c.callerName ?? null,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          status: c.status,
+          duration: c.duration,
+          created_at: c.startTime,
+        })),
+      };
+    });
+    // Sort groups: newest first by latest startTime
+    uniqueCalls.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    return uniqueCalls;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -79,7 +115,7 @@ const CallConsole: React.FC = () => {
           callLogService.getCallLogs(),
           callLogService.getTodayStats()
         ]);
-        setCallLogs(logs);
+        setCallLogs(transformToUniqueCalls(logs));
         setCallStats(stats);
       } catch (err) {
         setError('Failed to fetch call data');
@@ -226,7 +262,7 @@ const CallConsole: React.FC = () => {
   }, []);
 
   // React Query hook to fetch customers by phone number
-  const customersQuery = useQuery({
+  const customersQuery = useQuery<{ data: any[]; message: string; success: boolean }>({
     queryKey: ['customers', selectedPhoneNumber],
     // Disabled and returning empty to remove WordPress integration
     queryFn: async () => ({ data: [], message: '', success: true }),
@@ -252,7 +288,7 @@ const CallConsole: React.FC = () => {
   }, [customersQuery.data]);
 
   // React Query hook to fetch orders by phone number
-  const ordersQuery = useQuery({
+  const ordersQuery = useQuery<{ data: any[]; message: string; success: boolean }>({
     queryKey: ['customerOrders', selectedPhoneNumber],
     // Disabled and returning empty to remove WordPress integration
     queryFn: async () => ({ data: [], message: '', success: true }),
@@ -262,7 +298,7 @@ const CallConsole: React.FC = () => {
   });
 
   // React Query to fetch order notes for selected order
-  const orderNotesQuery = useQuery({
+  const orderNotesQuery = useQuery<{ data: any[] }>({
     queryKey: ['orderNotes', selectedOrderForNotes?.id],
     // Disabled and returning empty to remove WordPress integration
     queryFn: async () => ({ data: [] }),
@@ -308,7 +344,7 @@ const CallConsole: React.FC = () => {
   };
 
   // Function to handle customer selection
-  const handleCustomerSelect = (customer: WooCommerceCustomer) => {
+  const handleCustomerSelect = (customer: any) => {
     setSelectedCustomer(customer);
   };
 
@@ -376,58 +412,7 @@ const CallConsole: React.FC = () => {
     console.log('New order created successfully');
   };
 
-  const formatTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDateTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleString([], { 
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatCurrency = (amount: string | number) => {
-    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `৳${numAmount.toFixed(2)}`;
-  };
-
-  const getOrderStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
-      case 'pending':
-        return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'cancelled':
-        return 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300';
-      case 'processing':
-        return 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300';
-      default:
-        return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'answered':
-        return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
-      case 'busy':
-        return 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300';
-      case 'no answer':
-        return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'ringing':
-        return 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300';
-      case 'started':
-        return 'text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300';
-      default:
-        return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
-    }
-  };
+  // Removed unused formatting helpers
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900 h-[calc(100vh-4rem)]">
@@ -483,17 +468,7 @@ const CallConsole: React.FC = () => {
             <div className="flex flex-col lg:flex-row gap-4 h-full">
               {/* Customer Orders Component - Takes up 2/3 width */}
               <div className="flex-1 lg:flex-[2] min-w-0">
-                <CustomerOrders
-                  selectedCallId={selectedCallId}
-                  ordersQuery={ordersQuery}
-                  onViewOrder={handleViewOrder}
-                  onEditOrder={handleEditOrder}
-                  onDeleteOrder={handleDeleteOrder}
-                  onCreateOrder={handleCreateOrder}
-                  onShowOrderNotes={handleShowOrderNotes}
-                  refetchOrderNotes={orderNotesQuery.refetch}
-                  selectedOrderId={selectedOrderId}
-                />
+                <CallDetails selectedCallId={selectedCallId} />
               </div>
 
               {/* Right Column - Customer Profile and Stats */}
@@ -521,7 +496,7 @@ const CallConsole: React.FC = () => {
                       customersQuery={customersQuery}
                       customers={customers}
                       selectedCustomer={selectedCustomer}
-                      onCustomerSelect={handleCustomerSelect}
+                      onSelectCustomer={handleCustomerSelect}
                     />
 
                     {/* Today's Statistics Component */}

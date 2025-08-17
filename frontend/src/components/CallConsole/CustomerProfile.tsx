@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Mail, MapPin, Plus, Edit } from 'lucide-react';
+import { User, Mail, MapPin, Edit } from 'lucide-react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import CreateCustomerModal from './CreateCustomerModal';
 import EditCustomerModal from './EditCustomerModal';
@@ -156,15 +156,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({
             </div>
             <h4 className="text-gray-900 dark:text-white font-medium text-lg mb-2">No Customer Found</h4>
             <p className="text-gray-500 dark:text-gray-400 mb-4">{customersQuery.data?.message || 'No customer found for this phone number'}</p>
-            {selectedPhoneNumber && (
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors space-x-2"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create Customer</span>
-              </button>
-            )}
+            {/* Create Customer button removed as requested */}
           </div>
         </div>
       ) : (
