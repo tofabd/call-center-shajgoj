@@ -13,42 +13,22 @@ class CallLogController extends Controller
         $calls = CallLog::whereColumn('uniqueid', 'linkedid')
             ->orderBy('created_at', 'desc')
             ->take(200)
-            ->get();
+            ->get()
+            ->map(function ($call) {
+                return [
+                    'id' => $call->id,
+                    'callerNumber' => $call->callerid_num,
+                    'callerName' => $call->callerid_name,
+                    'startTime' => $call->start_time,
+                    'status' => $call->status ?? 'Unknown',
+                    'duration' => $call->duration,
+                    'direction' => $call->direction,
+                    'agentExten' => $call->agent_exten,
+                    'otherParty' => $call->other_party,
+                ];
+            })->toArray();
 
-        // Group calls by caller number and get the latest call for each
-        $groupedCalls = $calls->groupBy('callerid_num')->map(function ($calls) {
-            $latestCall = $calls->first(); // Most recent call
-            return [
-                'id' => $latestCall->id,
-                'callerNumber' => $latestCall->callerid_num,
-                'callerName' => $latestCall->callerid_name,
-                'startTime' => $latestCall->start_time,
-                'status' => $latestCall->status ?? 'Unknown',
-                'duration' => $latestCall->duration,
-                'frequency' => $calls->count(),
-                'allCalls' => $calls->map(function ($call) {
-                    return [
-                        'id' => $call->id,
-                        'callerNumber' => $call->callerid_num,
-                        'callerName' => $call->callerid_name,
-                        'startTime' => $call->start_time,
-                        'endTime' => $call->end_time,
-                        'status' => $call->status ?? 'Unknown',
-                        'duration' => $call->duration,
-                        'created_at' => $call->created_at,
-                    ];
-                })->values()->toArray()
-            ];
-        });
-        
-        $uniqueCalls = $groupedCalls->values()->toArray();
-        
-        // Sort by latest call time
-        usort($uniqueCalls, function($a, $b) {
-            return strtotime($b['startTime']) - strtotime($a['startTime']);
-        });
-        
-        return array_slice($uniqueCalls, 0, 50);
+        return $calls;
     }
 
     /**
@@ -113,6 +93,9 @@ class CallLogController extends Controller
             'status' => $callLog->status,
             'duration' => $callLog->duration,
             'callInstanceId' => $callLog->call_instance_id,
+            'direction' => $callLog->direction,
+            'agentExten' => $callLog->agent_exten,
+            'otherParty' => $callLog->other_party,
             'createdAt' => $callLog->created_at,
             'updatedAt' => $callLog->updated_at
         ]);

@@ -22,7 +22,10 @@ class CallLog extends Model
         'status',
         'end_time',
         'duration',
-        'call_instance_id'
+        'call_instance_id',
+        'direction',
+        'agent_exten',
+        'other_party'
     ];
 
     protected $casts = [

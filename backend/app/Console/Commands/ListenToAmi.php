@@ -75,14 +75,26 @@ use Illuminate\Support\Facades\Log;
              while ($this->connected && !feof($this->socket)) {
                  $response = $this->readResponse();
 
-                 if (strpos($response, 'Event: Newchannel') !== false) {
-                     $this->processEvent($response, 'Newchannel');
+                 if (!$response) {
+                     continue;
                  }
-                 elseif (strpos($response, 'Event: Newstate') !== false) {
-                     $this->processEvent($response, 'Newstate');
+
+                 // Extract exact Event name
+                 $eventName = null;
+                 if (preg_match('/^Event:\s*(.+)$/m', $response, $m)) {
+                     $eventName = trim($m[1]);
                  }
-                 elseif (strpos($response, 'Event: Hangup') !== false) {
-                     $this->processEvent($response, 'Hangup');
+
+                 if (!$eventName) {
+                     continue;
+                 }
+
+                 // Only process specific events; avoid treating HangupRequest as Hangup
+                 if ($eventName === 'Newchannel' || $eventName === 'Newstate' || $eventName === 'Hangup') {
+                     $this->processEvent($response, $eventName);
+                 } else {
+                     // Optionally log but do not process
+                     // $this->info("Ignoring AMI event: {$eventName}");
                  }
              }
 
@@ -212,6 +224,27 @@ use Illuminate\Support\Facades\Log;
              if (!$callLog->exists) {
                  $updateData['start_time'] = now();
                  $updateData['status'] = 'started';
+                 // Determine direction on first master event
+                 $context = $updateData['context'] ?? '';
+                 if (is_string($context)) {
+                     if (strpos($context, 'from-trunk') !== false) {
+                         $updateData['direction'] = 'incoming';
+                         $updateData['other_party'] = $updateData['callerid_num'] ?? null;
+                     } elseif (strpos($context, 'macro-dialout-trunk') !== false || strpos($context, 'from-internal') !== false) {
+                         $updateData['direction'] = 'outgoing';
+                     }
+                 }
+                 // For outgoing calls, try to capture agent extension from Channel (e.g., SIP/2001-xxxx)
+                 if (($updateData['direction'] ?? null) === 'outgoing') {
+                     $channel = $updateData['channel'] ?? '';
+                     if (is_string($channel) && preg_match('/SIP\/(\d{3,5})/', $channel, $cm)) {
+                         $updateData['agent_exten'] = $cm[1];
+                     }
+                     // Dialed other party might be in Exten at this point
+                     if (!empty($fields['Exten'])) {
+                         $updateData['other_party'] = $fields['Exten'];
+                     }
+                 }
              }
 
              $callLog->fill($updateData)->save();
@@ -278,11 +311,51 @@ use Illuminate\Support\Facades\Log;
                  'call_instance_id' => $callInstance ? $callInstance->id : null
              ];
 
+             // Map status using ChannelStateDesc
+             $stateDesc = strtolower((string)($updateData['channel_state_desc'] ?? ''));
              if (!$callLog->exists) {
                  $updateData['start_time'] = now();
+             }
+             if (strpos($stateDesc, 'ring') !== false) {
                  $updateData['status'] = 'ringing';
-             } else {
+             } elseif ($stateDesc === 'up') {
                  $updateData['status'] = 'answered';
+             } elseif ($stateDesc === 'busy') {
+                 $updateData['status'] = 'busy';
+             }
+
+             // Determine direction if not set
+             if (empty($callLog->direction) && !empty($updateData['context'])) {
+                 $ctx = (string)$updateData['context'];
+                 if (strpos($ctx, 'from-trunk') !== false) {
+                     $updateData['direction'] = 'incoming';
+                 } elseif (strpos($ctx, 'macro-dialout-trunk') !== false || strpos($ctx, 'from-internal') !== false) {
+                     $updateData['direction'] = 'outgoing';
+                 }
+             }
+
+             // Try to determine agent extension and other party as info becomes available
+             // If outgoing and agent not set, parse from Channel
+             if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'outgoing') && empty($callLog->agent_exten)) {
+                 $ch = $updateData['channel'] ?? '';
+                 if (is_string($ch) && preg_match('/SIP\/(\d{3,5})/', $ch, $mm)) {
+                     $updateData['agent_exten'] = $mm[1];
+                 }
+             }
+             // If incoming and agent not set, sometimes ConnectedLineNum will hold the agent ext after bridge
+             if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'incoming') && empty($callLog->agent_exten)) {
+                 $connected = $updateData['connected_line_num'] ?? '';
+                 if (is_string($connected) && preg_match('/^\d{3,5}$/', $connected)) {
+                     $updateData['agent_exten'] = $connected;
+                 }
+             }
+             // Set other party if available
+             if (empty($callLog->other_party)) {
+                 if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'outgoing') && !empty($updateData['connected_line_num'])) {
+                     $updateData['other_party'] = $updateData['connected_line_num'];
+                 } elseif ((($callLog->direction ?? $updateData['direction'] ?? null) === 'incoming') && !empty($updateData['callerid_num'])) {
+                     $updateData['other_party'] = $updateData['callerid_num'];
+                 }
              }
 
              $callLog->fill($updateData)->save();

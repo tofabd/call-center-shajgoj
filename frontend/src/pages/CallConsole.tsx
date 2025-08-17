@@ -25,6 +25,9 @@ interface CallStatusUpdateData {
   duration?: number;
   exten?: string;
   timestamp: string;
+  direction?: 'incoming' | 'outgoing';
+  agentExten?: string | null;
+  otherParty?: string | null;
 }
 
 // Removed WordPress/WooCommerce-specific interfaces
@@ -48,6 +51,9 @@ interface UniqueCall {
     duration?: number;
     created_at: string;
   }>;
+  direction?: 'incoming' | 'outgoing';
+  agentExten?: string | null;
+  otherParty?: string | null;
 }
 
 const CallConsole: React.FC = () => {
@@ -72,25 +78,18 @@ const CallConsole: React.FC = () => {
 
   // Transform flat call logs into grouped unique calls for UI
   const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
-    const callsByNumber: Record<string, CallLog[]> = {};
-    for (const log of logs) {
-      if (!log.callerNumber) continue;
-      if (!callsByNumber[log.callerNumber]) callsByNumber[log.callerNumber] = [];
-      callsByNumber[log.callerNumber].push(log);
-    }
-    const uniqueCalls: UniqueCall[] = Object.entries(callsByNumber).map(([callerNumber, callerLogs]) => {
-      // Sort newest first
-      callerLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-      const latest = callerLogs[0];
-      return {
-        id: latest.id,
-        callerNumber,
-        callerName: latest.callerName ?? null,
-        startTime: latest.startTime,
-        status: latest.status,
-        duration: latest.duration,
-        frequency: callerLogs.length,
-        allCalls: callerLogs.map((c) => ({
+    // Backend already returns only master calls; map 1:1
+    const mapped: UniqueCall[] = logs
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .map((c) => ({
+        id: c.id,
+        callerNumber: c.callerNumber,
+        callerName: c.callerName ?? null,
+        startTime: c.startTime,
+        status: c.status,
+        duration: c.duration,
+        frequency: 1,
+        allCalls: [{
           id: c.id,
           callerNumber: c.callerNumber,
           callerName: c.callerName ?? null,
@@ -99,12 +98,12 @@ const CallConsole: React.FC = () => {
           status: c.status,
           duration: c.duration,
           created_at: c.startTime,
-        })),
-      };
-    });
-    // Sort groups: newest first by latest startTime
-    uniqueCalls.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    return uniqueCalls;
+        }],
+        direction: c.direction,
+        agentExten: c.agentExten ?? null,
+        otherParty: c.otherParty ?? null,
+      }));
+    return mapped;
   };
 
   useEffect(() => {
@@ -156,54 +155,26 @@ const CallConsole: React.FC = () => {
         
         // Update call logs in real-time
         setCallLogs(prevLogs => {
-          const existingCallIndex = prevLogs.findIndex(call => call.callerNumber === data.callerNumber);
-          
-          if (existingCallIndex >= 0) {
-            // Update existing unique call
-            const updatedLogs = [...prevLogs];
-            const existingCall = updatedLogs[existingCallIndex];
-            
-            // Check if this specific call already exists in allCalls
-            const existingSubCallIndex = existingCall.allCalls.findIndex(call => call.id === data.id);
-            
-            if (existingSubCallIndex >= 0) {
-              // Update existing call in allCalls
-              existingCall.allCalls[existingSubCallIndex] = {
-                ...existingCall.allCalls[existingSubCallIndex],
-                status: data.status,
-                endTime: data.endTime,
-                duration: data.duration
-              };
-              // Update main call if this is the latest one (first in array)
-              if (existingSubCallIndex === 0) {
-                existingCall.status = data.status;
-                existingCall.duration = data.duration;
-                existingCall.id = data.id; // Ensure main call ID matches latest call
-              }
-            } else {
-              // Add new call to allCalls and increment frequency
-              existingCall.allCalls.unshift({
-                id: data.id,
-                callerNumber: data.callerNumber,
-                callerName: data.callerName,
-                startTime: data.startTime,
-                endTime: data.endTime,
-                status: data.status,
-                duration: data.duration,
-                created_at: data.timestamp
-              });
-              existingCall.frequency = existingCall.allCalls.length;
-              existingCall.startTime = data.startTime; // Update to latest call time
-              existingCall.status = data.status;
-              existingCall.duration = data.duration;
-              existingCall.id = data.id; // Update main call ID to latest call
-              isNewCall = true;
-            }
-            
-            return updatedLogs;
+          const idx = prevLogs.findIndex(c => c.id === data.id);
+          if (idx >= 0) {
+            const updated = [...prevLogs];
+            const existing = updated[idx];
+            existing.status = data.status;
+            existing.duration = data.duration;
+            existing.startTime = data.startTime;
+            existing.allCalls[0] = {
+              id: data.id,
+              callerNumber: data.callerNumber,
+              callerName: data.callerName,
+              startTime: data.startTime,
+              endTime: data.endTime,
+              status: data.status,
+              duration: data.duration,
+              created_at: data.timestamp,
+            };
+            return updated;
           } else {
-            // Add new unique call
-            const newUniqueCall: UniqueCall = {
+            const newItem: UniqueCall = {
               id: data.id,
               callerNumber: data.callerNumber,
               callerName: data.callerName,
@@ -219,12 +190,11 @@ const CallConsole: React.FC = () => {
                 endTime: data.endTime,
                 status: data.status,
                 duration: data.duration,
-                created_at: data.timestamp
-              }]
+                created_at: data.timestamp,
+              }],
             };
-            
             isNewCall = true;
-            return [newUniqueCall, ...prevLogs];
+            return [newItem, ...prevLogs];
           }
         });
         

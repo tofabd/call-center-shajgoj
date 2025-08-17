@@ -39,6 +39,9 @@ class CallStatusUpdated implements ShouldBroadcast
             'status' => $this->callLog->status,
             'duration' => $this->callLog->duration,
             'exten' => $this->callLog->exten,
+            'direction' => $this->callLog->direction,
+            'agentExten' => $this->callLog->agent_exten,
+            'otherParty' => $this->callLog->other_party,
             'timestamp' => now()->toISOString(),
         ];
     }

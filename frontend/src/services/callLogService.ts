@@ -10,6 +10,9 @@ export interface CallLog {
   endTime?: string;
   status: string;
   duration?: number;
+  direction?: 'incoming' | 'outgoing';
+  agentExten?: string | null;
+  otherParty?: string | null;
 }
 
 export interface CallDetails {
@@ -33,6 +36,9 @@ export interface CallDetails {
   callInstanceId: number | null;
   createdAt: string;
   updatedAt: string;
+  direction?: 'incoming' | 'outgoing';
+  agentExten?: string | null;
+  otherParty?: string | null;
 }
 
 export interface CallStats {
