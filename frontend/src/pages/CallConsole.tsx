@@ -5,12 +5,10 @@ import { callLogService } from '@services/callLogService';
 import type { CallStats, CallLog } from '@services/callLogService';
 // Removed WordPress/WooCommerce API imports
 import '@services/echo'; // Import Echo setup
-import OrderDetailsModal from '@/components/CallConsole/OrderDetailsModal';
-import EditOrderModal from '@/components/CallConsole/EditOrderModal';
-import CreateOrder from '@/components/CallConsole/CreateOrderModal';
+// Removed WooCommerce order modals
 import CallMonitor from '@/components/CallConsole/CallMonitor';
 import CallDetails from '@/components/CallConsole/CallDetails';
-import OrderNotesPanel from '@/components/CallConsole/OrderNotesPanel';
+// Removed OrderNotesPanel
 import CustomerProfile from '@/components/CallConsole/CustomerProfile';
 import TodayStatistics from '@/components/CallConsole/TodayStatistics';
 
@@ -67,14 +65,9 @@ const CallConsole: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [echoConnected, setEchoConnected] = useState(false);
-  const [selectedOrderForModal, setSelectedOrderForModal] = useState<any | null>(null);
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [isEditOrderModalOpen, setIsEditOrderModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<any | null>(null);
-  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+  // Removed WooCommerce modal states
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
-  const [selectedOrderForNotes, setSelectedOrderForNotes] = useState<any | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  // Removed WooCommerce notes states
 
   // Transform flat call logs into grouped unique calls for UI
   const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
@@ -257,24 +250,7 @@ const CallConsole: React.FC = () => {
     }
   }, [customersQuery.data]);
 
-  // React Query hook to fetch orders by phone number
-  const ordersQuery = useQuery<{ data: any[]; message: string; success: boolean }>({
-    queryKey: ['customerOrders', selectedPhoneNumber],
-    // Disabled and returning empty to remove WordPress integration
-    queryFn: async () => ({ data: [], message: '', success: true }),
-    enabled: false,
-    retry: 0,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // React Query to fetch order notes for selected order
-  const orderNotesQuery = useQuery<{ data: any[] }>({
-    queryKey: ['orderNotes', selectedOrderForNotes?.id],
-    // Disabled and returning empty to remove WordPress integration
-    queryFn: async () => ({ data: [] }),
-    enabled: false,
-    staleTime: 5 * 60 * 1000,
-  });
+  // Orders and notes queries removed
 
   // Function to handle call selection
   const handleCallSelect = async (callId: number) => {
@@ -318,103 +294,13 @@ const CallConsole: React.FC = () => {
     setSelectedCustomer(customer);
   };
 
-  // Action handlers for orders
-  const handleViewOrder = (orderId: number) => {
-    const order = ordersQuery.data?.data?.find(o => o.id === orderId);
-    if (order) {
-      setSelectedOrderForModal(order);
-      setIsOrderModalOpen(true);
-    }
-  };
-
-  // Handler to show order notes in third column
-  const handleShowOrderNotes = (orderId: number) => {
-    const order = ordersQuery.data?.data?.find(o => o.id === orderId);
-    if (order) {
-      setSelectedOrderForNotes(order);
-      setSelectedOrderId(orderId);
-    }
-  };
-
-  const closeOrderModal = () => {
-    setIsOrderModalOpen(false);
-    setSelectedOrderForModal(null);
-  };
-
-  const handleEditOrder = (orderId: number) => {
-    const order = ordersQuery.data?.data?.find(o => o.id === orderId);
-    if (order) {
-      setSelectedOrderForEdit(order);
-      setIsEditOrderModalOpen(true);
-    }
-  };
-
-  const closeEditOrderModal = () => {
-    setIsEditOrderModalOpen(false);
-    setSelectedOrderForEdit(null);
-  };
-
-  const handleOrderSave = (updatedOrder: any) => {
-    // Refresh the orders query to get updated data
-    ordersQuery.refetch();
-    if (selectedOrderForNotes && updatedOrder.id === selectedOrderForNotes.id) {
-      orderNotesQuery.refetch();
-    }
-    console.log('Order updated:', updatedOrder);
-  };
-
-  const handleDeleteOrder = (orderId: number) => {
-    console.log('Delete order:', orderId);
-    // TODO: Implement delete order functionality
-  };
-
-  const handleCreateOrder = () => {
-    setIsCreateOrderModalOpen(true);
-  };
-
-  const closeCreateOrderModal = () => {
-    setIsCreateOrderModalOpen(false);
-  };
-
-  const handleOrderCreated = () => {
-    // Refresh the orders query to get updated data
-    ordersQuery.refetch();
-    console.log('New order created successfully');
-  };
+  // WooCommerce order handlers removed
 
   // Removed unused formatting helpers
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900 h-[calc(100vh-4rem)]">
-      {/* Order Details Modal */}
-      {isOrderModalOpen && selectedOrderForModal && (
-        <OrderDetailsModal
-          order={selectedOrderForModal}
-          isOpen={isOrderModalOpen}
-          onClose={closeOrderModal}
-          onEdit={() => handleEditOrder(selectedOrderForModal.id)}
-        />
-      )}
-
-      {/* Edit Order Modal */}
-      {isEditOrderModalOpen && selectedOrderForEdit && (
-        <EditOrderModal
-          order={selectedOrderForEdit}
-          isOpen={isEditOrderModalOpen}
-          onClose={closeEditOrderModal}
-          onSave={handleOrderSave}
-        />
-      )}
-
-      {/* Create Order Modal */}
-      {isCreateOrderModalOpen && (
-        <CreateOrder
-          isOpen={isCreateOrderModalOpen}
-          customerProfile={selectedCustomer}
-          onClose={closeCreateOrderModal}
-          onOrderCreated={handleOrderCreated}
-        />
-      )}
+      {/* WooCommerce modals removed */}
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
         {/* Left Sidebar - Incoming Calls Component */}
@@ -445,17 +331,7 @@ const CallConsole: React.FC = () => {
               <div className="flex flex-col min-h-0 lg:flex-1 lg:min-w-80 overflow-hidden">
               <div className="flex-1 overflow-y-auto narrow-scrollbar">
                   <div className="space-y-6 p-1">
-                    {/* Order Notes Panel */}
-                    {selectedOrderForNotes && (
-                      <OrderNotesPanel
-                        order={selectedOrderForNotes}
-                        notesQuery={orderNotesQuery}
-                        onClose={() => {
-                          setSelectedOrderForNotes(null);
-                          setSelectedOrderId(null);
-                        }}
-                      />
-                    )}
+                    {/* Order Notes Panel removed */}
                     
                     
 

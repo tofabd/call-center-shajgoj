@@ -37,51 +37,6 @@ api.interceptors.response.use(
   }
 );
 
-// WooCommerce API functions
-export const getPaymentMethods = async () => {
-  const response = await api.get('/woocom/payment-methods');
-  return response.data;
-};
-
-export const getShippingMethods = async () => {
-  const response = await api.get('/woocom/shipping-methods');
-  return response.data;
-};
-
-export const searchProducts = async (params: any) => {
-  const response = await api.get('/woocom/search-products', { params });
-  return response.data;
-};
-
-export const createOrder = async (orderData: any) => {
-  const response = await api.post('/woocom/create-order', orderData);
-  return response.data;
-};
-
-// Fetch WooCommerce order notes by order ID
-export const getOrderNotes = async (orderId: number) => {
-  const response = await api.get(`/woocom/orders/${orderId}/notes`);
-  return response.data;
-};
-
-// Add a note to a WooCommerce order
-export const addOrderNote = async (
-  orderId: number,
-  note: string,
-  customerNote: boolean = false,
-  addedByUser?: string
-) => {
-  const response = await api.post(`/woocom/orders/${orderId}/notes`, {
-    note,
-    customer_note: customerNote,
-    ...(addedByUser ? { added_by_user: addedByUser } : {})
-  });
-  return response.data;
-};
-
-export const getShippingZonesWithMethods = async () => {
-  const response = await api.get('/woocom/shipping-zones-methods');
-  return response.data;
-};
+// WooCommerce endpoints removed
 
 export default api;
