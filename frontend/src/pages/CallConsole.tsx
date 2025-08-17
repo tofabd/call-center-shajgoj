@@ -155,6 +155,18 @@ const CallConsole: React.FC = () => {
             existing.status = data.status;
             existing.duration = data.duration;
             existing.startTime = data.startTime;
+            existing.callerNumber = data.callerNumber;
+            existing.callerName = data.callerName ?? null;
+            // Ensure direction/agentExten/otherParty are kept in sync with realtime updates
+            if (data.direction !== undefined) {
+              existing.direction = data.direction;
+            }
+            if (data.agentExten !== undefined) {
+              existing.agentExten = data.agentExten ?? null;
+            }
+            if (data.otherParty !== undefined) {
+              existing.otherParty = data.otherParty ?? null;
+            }
             existing.allCalls[0] = {
               id: data.id,
               callerNumber: data.callerNumber,
@@ -185,6 +197,9 @@ const CallConsole: React.FC = () => {
                 duration: data.duration,
                 created_at: data.timestamp,
               }],
+              direction: data.direction,
+              agentExten: data.agentExten ?? null,
+              otherParty: data.otherParty ?? null,
             };
             isNewCall = true;
             return [newItem, ...prevLogs];

@@ -58,6 +58,8 @@ interface CustomerProfileProps {
 		error?: { message?: string } | null;
 		refetch: () => void;
 	};
+	// Optional callback kept for compatibility with parent component
+	onSelectCustomer?: (customer: any) => void;
 }
 
 // Utility function to format date and time

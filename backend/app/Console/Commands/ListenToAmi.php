@@ -81,7 +81,7 @@ use Illuminate\Support\Facades\Log;
 
                  // Extract exact Event name
                  $eventName = null;
-                 if (preg_match('/^Event:\s*(.+)$/m', $response, $m)) {
+                 if (preg_match('/^Event:\\s*(.+)$/m', $response, $m)) {
                      $eventName = trim($m[1]);
                  }
 
@@ -150,6 +150,77 @@ use Illuminate\Support\Facades\Log;
 
          return $response;
      }
+
+    /**
+     * Normalize a phone-like string to a canonical form, keeping leading '+' if present.
+     */
+    private function normalizeNumber($value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $raw = trim($value);
+        if ($raw === '' || stripos($raw, 'unknown') !== false) {
+            return null;
+        }
+        if (substr($raw, 0, 1) === '+') {
+            $digits = preg_replace('/\D+/', '', substr($raw, 1));
+            return $digits !== '' ? ('+' . $digits) : null;
+        }
+        $digits = preg_replace('/\D+/', '', $raw);
+        return $digits !== '' ? $digits : null;
+    }
+
+    /** Determine if the value looks like an agent extension (3-5 digits). */
+    private function isLikelyExtension(?string $value): bool
+    {
+        $norm = $this->normalizeNumber($value);
+        if ($norm === null) {
+            return false;
+        }
+        return (bool)preg_match('/^\d{3,5}$/', ltrim($norm, '+'));
+    }
+
+    /** Determine if the value looks like an external phone number (>= 6 digits). */
+    private function isLikelyExternalNumber(?string $value): bool
+    {
+        $norm = $this->normalizeNumber($value);
+        if ($norm === null) {
+            return false;
+        }
+        return strlen(ltrim($norm, '+')) >= 6;
+    }
+
+    /** Extract best-guess customer number for an incoming call. */
+    private function extractIncomingNumber(array $fields): ?string
+    {
+        $candidateOrder = [
+            $fields['CallerIDNum'] ?? null,
+            $fields['ConnectedLineNum'] ?? null,
+        ];
+        foreach ($candidateOrder as $cand) {
+            if ($this->isLikelyExternalNumber($cand)) {
+                return $this->normalizeNumber($cand);
+            }
+        }
+        return null;
+    }
+
+    /** Extract best-guess dialed party for an outgoing call. */
+    private function extractOutgoingNumber(array $fields): ?string
+    {
+        $candidateOrder = [
+            $fields['Exten'] ?? null,               // often dialed digits at start
+            $fields['ConnectedLineNum'] ?? null,    // becomes the real B-party after bridge
+            $fields['CallerIDNum'] ?? null,         // sometimes trunk leg reports dest here on hangup
+        ];
+        foreach ($candidateOrder as $cand) {
+            if ($this->isLikelyExternalNumber($cand)) {
+                return $this->normalizeNumber($cand);
+            }
+        }
+        return null;
+    }
 
      private function processEvent($response, $eventType)
      {
@@ -229,7 +300,13 @@ use Illuminate\Support\Facades\Log;
                  if (is_string($context)) {
                      if (strpos($context, 'from-trunk') !== false) {
                          $updateData['direction'] = 'incoming';
-                         $updateData['other_party'] = $updateData['callerid_num'] ?? null;
+                         // Prefer real external caller number
+                         $incoming = $this->extractIncomingNumber($fields);
+                         if ($incoming !== null) {
+                             $updateData['other_party'] = $incoming;
+                         } else {
+                             $updateData['other_party'] = $updateData['callerid_num'] ?? null;
+                         }
                      } elseif (strpos($context, 'macro-dialout-trunk') !== false || strpos($context, 'from-internal') !== false) {
                          $updateData['direction'] = 'outgoing';
                      }
@@ -241,8 +318,9 @@ use Illuminate\Support\Facades\Log;
                          $updateData['agent_exten'] = $cm[1];
                      }
                      // Dialed other party might be in Exten at this point
-                     if (!empty($fields['Exten'])) {
-                         $updateData['other_party'] = $fields['Exten'];
+                     $outgoing = $this->extractOutgoingNumber($fields);
+                     if ($outgoing !== null) {
+                         $updateData['other_party'] = $outgoing;
                      }
                  }
              }
@@ -349,12 +427,19 @@ use Illuminate\Support\Facades\Log;
                      $updateData['agent_exten'] = $connected;
                  }
              }
-             // Set other party if available
+             // Set or refine other party if available, prefer real external numbers
              if (empty($callLog->other_party)) {
-                 if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'outgoing') && !empty($updateData['connected_line_num'])) {
-                     $updateData['other_party'] = $updateData['connected_line_num'];
-                 } elseif ((($callLog->direction ?? $updateData['direction'] ?? null) === 'incoming') && !empty($updateData['callerid_num'])) {
-                     $updateData['other_party'] = $updateData['callerid_num'];
+                 $dir = $callLog->direction ?? $updateData['direction'] ?? null;
+                 if ($dir === 'outgoing') {
+                     $outgoing = $this->extractOutgoingNumber($fields);
+                     if ($outgoing !== null) {
+                         $updateData['other_party'] = $outgoing;
+                     }
+                 } elseif ($dir === 'incoming') {
+                     $incoming = $this->extractIncomingNumber($fields);
+                     if ($incoming !== null) {
+                         $updateData['other_party'] = $incoming;
+                     }
                  }
              }
 
@@ -428,6 +513,15 @@ use Illuminate\Support\Facades\Log;
                 $end = now();
                 $updateData['duration'] = max(0, $start->diffInSeconds($end, true));
             }
+
+             // If we still don't have external party, try to finalize it on hangup
+             $dir = $callLog->direction ?? null;
+             if (empty($callLog->other_party) && $dir) {
+                 $final = $dir === 'outgoing' ? $this->extractOutgoingNumber($fields) : $this->extractIncomingNumber($fields);
+                 if ($final !== null) {
+                     $updateData['other_party'] = $final;
+                 }
+             }
 
              $callLog->fill($updateData)->save();
 

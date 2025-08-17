@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, Clock, CirclePlus, CircleMinus } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Clock, CirclePlus, CircleMinus } from 'lucide-react';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -178,25 +178,21 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                             className="flex-1 min-w-0 cursor-pointer pr-4"
                             onClick={() => onCallSelect(call.id)}
                           >
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate mb-1">
-                              {call.callerName || 'Unknown Caller'}
-                            </p>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                                {call.direction === 'outgoing' ? 'Outgoing' : 'Incoming'}
-                              </span>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {call.direction === 'outgoing' ? (
+                                  <PhoneOutgoing className="h-4 w-4 text-gray-600 dark:text-gray-300 flex-shrink-0" />
+                                ) : (
+                                  <PhoneIncoming className="h-4 w-4 text-gray-600 dark:text-gray-300 flex-shrink-0" />
+                                )}
+                                <span className="text-sm text-gray-700 dark:text-gray-300 truncate font-mono">
+                                  {call.direction === 'outgoing' ? (call.otherParty || call.callerNumber || '-') : (call.callerNumber || '-')}
+                                </span>
+                              </div>
+                              <div className="ml-2 flex-shrink-0 text-xs uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                Ext: <span className="font-mono">{call.agentExten || '-'}</span>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Master: <span className="font-mono">
-                                {call.direction === 'incoming' ? (call.callerNumber || '-') : (call.agentExten || call.callerNumber || '-')}
-                              </span>
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Ext: <span className="font-mono">{call.agentExten || '-'}</span>
-                            </p>
-                            {call.direction === 'outgoing' && call.otherParty && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400">To: <span className="font-mono">{call.otherParty}</span></p>
-                            )}
                             <div className="flex items-center space-x-1">
                               <Clock className="h-3 w-3 text-gray-400" />
                               <p className="text-xs text-gray-500 dark:text-gray-400">
