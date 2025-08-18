@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, PhoneOutgoing, Clock, CirclePlus, CircleMinus } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Phone, Clock, CirclePlus, CircleMinus } from 'lucide-react';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -173,14 +173,14 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                       'start': 2,
                       'answered': 3,
                       'completed': 4,
-                      'busy': 5,
-                      'no answer': 6,
-                      'no_answer': 6,
-                      'canceled': 7,
-                      'cancelled': 7,
-                      'congestion': 8,
-                      'missed': 9,
-                      'failed': 9
+                      'busy': 4,
+                      'no answer': 4,
+                      'no_answer': 4,
+                      'canceled': 4,
+                      'cancelled': 4,
+                      'congestion': 4,
+                      'missed': 4,
+                      'failed': 4
                     } as Record<string, number>;
                     const aPriority = statusPriority[a.status.toLowerCase()] || 6;
                     const bPriority = statusPriority[b.status.toLowerCase()] || 6;
@@ -235,8 +235,10 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                             <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
                               {call.direction === 'outgoing' ? (
                                 <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                              ) : (
+                              ) : call.direction === 'incoming' ? (
                                 <PhoneIncoming className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                               )}
                             </div>
 
