@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\CallInstance;
+
 use App\Models\User;
 use App\Events\FetchCustomerAndNotifyExtension;
 

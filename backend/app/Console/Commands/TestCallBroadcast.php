@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\CallLog;
-use App\Events\CallStatusUpdated;
+use App\Models\Call;
+use App\Events\CallUpdated;
 
 class TestCallBroadcast extends Command
 {
@@ -27,26 +27,23 @@ class TestCallBroadcast extends Command
      */
     public function handle()
     {
-        // Create a test call log or use an existing one
-        $callLog = CallLog::firstOrCreate(
-            ['uniqueid' => 'test-call-' . time()],
+        // Create a test call or use an existing one
+        $call = Call::firstOrCreate(
+            ['linkedid' => 'test-call-' . time()],
             [
-                'callerid_num' => '+1234567890',
-                'callerid_name' => 'Test Caller',
-                'start_time' => now(),
-                'status' => 'ringing',
-                'exten' => '1001',
-                'context' => 'from-internal',
-                'channel' => 'SIP/test-channel'
+                'other_party' => '+1234567890',
+                'direction' => 'incoming',
+                'started_at' => now(),
+                'agent_exten' => '1001'
             ]
         );
 
-        $this->info("Created/found test call with ID: {$callLog->id}");
+        $this->info("Created/found test call with ID: {$call->id}");
 
-        // Broadcast the call status update
-        broadcast(new CallStatusUpdated($callLog));
+        // Broadcast the call update
+        broadcast(new CallUpdated($call));
 
-        $this->info("📡 CallStatusUpdated event broadcasted to 'call-console' channel");
+        $this->info("📡 CallUpdated event broadcasted to 'call-console' channel");
         $this->info("Check your frontend console for the real-time update!");
 
         return Command::SUCCESS;

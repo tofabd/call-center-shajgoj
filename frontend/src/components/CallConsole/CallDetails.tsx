@@ -93,7 +93,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
       }
     };
 
-    channel.listen('.call-status-updated', handleCallUpdate);
+    channel.listen('.call-updated', handleCallUpdate);
 
     return () => {
       console.log('🧹 CallDetails: Cleaning up Echo listener');

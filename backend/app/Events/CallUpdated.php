@@ -54,12 +54,27 @@ class CallUpdated implements ShouldBroadcast
     private function deriveStatus(Call $call): string
     {
         $disposition = strtolower((string)($call->disposition ?? ''));
+
+        // If call has ended, prioritize completion status over disposition
+        if ($call->ended_at) {
+            // For successfully answered calls that ended, show as completed
+            if ($disposition === 'answered') {
+                return 'completed';
+            }
+            // For other dispositions (busy, canceled, no_answer, etc.), show the disposition
+            if (!empty($disposition)) {
+                return $disposition;
+            }
+            // If no disposition but call ended, default to completed
+            return 'completed';
+        }
+
+        // For ongoing calls, use disposition if available
         if (!empty($disposition)) {
             return $disposition;
         }
-        if ($call->ended_at) {
-            return 'completed';
-        }
+
+        // For calls without disposition, derive from timestamps
         if ($call->answered_at) {
             return 'answered';
         }

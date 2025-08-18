@@ -3,9 +3,7 @@ namespace App\Console\Commands;
 
 
 use Illuminate\Console\Command;
-use App\Models\CallLog;
-use App\Models\CallInstance;
-use App\Events\CallStatusUpdated;
+
 use Illuminate\Support\Facades\Log;
 use App\Models\Call;
 use App\Models\CallLeg;
@@ -221,16 +219,54 @@ use App\Events\CallUpdated;
     /** Extract best-guess dialed party for an outgoing call. */
     private function extractOutgoingNumber(array $fields): ?string
     {
+        // Priority order for outgoing calls - prefer actual dialed numbers
         $candidateOrder = [
-            $fields['Exten'] ?? null,               // often dialed digits at start
-            $fields['ConnectedLineNum'] ?? null,    // becomes the real B-party after bridge
-            $fields['CallerIDNum'] ?? null,         // sometimes trunk leg reports dest here on hangup
+            $this->extractNumberFromDialString($fields['DialString'] ?? null), // Best: extract from DialString
+            $fields['DestCallerIDNum'] ?? null,     // Good: destination from dial events
+            $fields['ConnectedLineNum'] ?? null,    // OK: becomes the real B-party after bridge
+            $fields['Exten'] ?? null,               // Last resort: might be extension or number
+            $fields['CallerIDNum'] ?? null,         // Fallback: sometimes trunk leg reports dest here
         ];
+
         foreach ($candidateOrder as $cand) {
             if ($this->isLikelyExternalNumber($cand)) {
-                return $this->normalizeNumber($cand);
+                $normalized = $this->normalizeNumber($cand);
+                if ($normalized) {
+                    return $normalized;
+                }
             }
         }
+        return null;
+    }
+
+    /** Extract phone number from DialString (removes trunk prefix like "BDCOM75/") */
+    private function extractNumberFromDialString(?string $dialString): ?string
+    {
+        if (!$dialString) {
+            return null;
+        }
+
+        // Handle patterns like:
+        // "BDCOM75/01831317738" -> "01831317738"
+        // "SIP/trunk/01234567890" -> "01234567890" (take last part)
+        // "Local/1002@from-queue/n" -> ignore (not external number)
+
+        // First, handle simple trunk/number pattern
+        if (preg_match('/^[A-Z0-9]+\/([0-9+]+)$/', $dialString, $matches)) {
+            return $matches[1];
+        }
+
+        // Handle complex patterns - take the last numeric part
+        if (preg_match('/\/([0-9+]{6,})(?:\/|$)/', $dialString, $matches)) {
+            return $matches[1];
+        }
+
+        // If it's all digits or starts with +, use as-is
+        if (preg_match('/^[+]?[0-9]{6,}$/', $dialString)) {
+            return $dialString;
+        }
+
+        // For other patterns, return null (probably not a phone number)
         return null;
     }
 
@@ -243,8 +279,13 @@ use App\Events\CallUpdated;
          foreach ($lines as $line) {
              if (strpos($line, ': ') !== false) {
                  list($key, $value) = explode(': ', $line, 2);
-                 $fields[$key] = $value;
+                 $fields[trim($key)] = trim($value);
              }
+         }
+
+         // Skip events that don't have required fields
+         if (!isset($fields['Uniqueid']) && !isset($fields['Linkedid'])) {
+             return;
          }
 
          // Log all parsed fields to laravel.log
@@ -290,7 +331,8 @@ use App\Events\CallUpdated;
          $call = Call::firstOrNew(['linkedid' => $linkedid]);
          $changed = false;
 
-         if (!$call->exists) {
+         $isNewCall = !$call->exists;
+         if ($isNewCall) {
              $call->started_at = $call->started_at ?? now();
              $changed = true;
          }
@@ -336,8 +378,22 @@ use App\Events\CallUpdated;
              }
          }
 
-         if ($changed) {
+         // CRITICAL: Always save new calls to ensure foreign key constraint
+         if ($changed || $isNewCall) {
+             try {
              $call->save();
+             } catch (\Exception $e) {
+                 // Handle duplicate key gracefully - call might already exist from another event
+                 if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'linkedid') !== false) {
+                     // Call already exists, fetch it
+                     $call = Call::where('linkedid', $call->linkedid)->first();
+                     if (!$call) {
+                         throw $e; // Re-throw if we still can't find it
+                     }
+                 } else {
+                     throw $e; // Re-throw other types of errors
+                 }
+             }
          }
 
          return $call;
@@ -347,11 +403,22 @@ use App\Events\CallUpdated;
      private function upsertCallLeg(array $fields, array $extra = []): void
      {
          $uniqueid = $fields['Uniqueid'] ?? null;
-         if (!$uniqueid) {
+         $linkedid = $fields['Linkedid'] ?? null;
+
+         if (!$uniqueid || !$linkedid) {
+             $this->error("Cannot create CallLeg: missing uniqueid or linkedid");
              return;
          }
+
+         // Verify master Call exists before creating leg
+         $callExists = Call::where('linkedid', $linkedid)->exists();
+         if (!$callExists) {
+             $this->error("Cannot create CallLeg: master Call with linkedid {$linkedid} does not exist");
+             return;
+         }
+
          $leg = CallLeg::firstOrNew(['uniqueid' => $uniqueid]);
-         $leg->linkedid = $fields['Linkedid'] ?? $leg->linkedid;
+         $leg->linkedid = $linkedid;
          $leg->channel = $fields['Channel'] ?? $leg->channel;
          $leg->exten = $fields['Exten'] ?? $leg->exten;
          $leg->context = $fields['Context'] ?? $leg->context;
@@ -367,7 +434,11 @@ use App\Events\CallUpdated;
              $leg->{$k} = $v;
          }
 
+         try {
          $leg->save();
+         } catch (\Exception $e) {
+             $this->error("Failed to save CallLeg for uniqueid {$uniqueid}: " . $e->getMessage());
+         }
      }
 
      private function handleNewchannel(array $fields)
@@ -383,110 +454,21 @@ use App\Events\CallUpdated;
              $this->upsertCallLeg($fields, [
                  'start_time' => now(),
              ]);
-             // Check if this is a new call (uniqueid equals linkedid)
-             if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                 // Create new CallInstance
-                 $callInstance = CallInstance::create([
-                     'unique_id' => $fields['Uniqueid']
-                 ]);
-                 $this->info("New CallInstance created with ID: {$callInstance->id}");
-                 // Also broadcast call created/ringing for the clean calls API
-                 $masterCall = Call::firstOrNew(['linkedid' => $fields['Linkedid']]);
-                 if ($masterCall->exists) {
-                     broadcast(new CallUpdated($masterCall));
-                 }
-             }
+                         // Check if this is a new call (uniqueid equals linkedid)
+            if ($fields['Uniqueid'] === $fields['Linkedid']) {
+                // Also broadcast call created/ringing for the clean calls API
+                $masterCall = Call::where('linkedid', $fields['Linkedid'])->first();
+                if ($masterCall) {
+                    broadcast(new CallUpdated($masterCall));
+                    $this->info("📡 New call broadcasted (linkedid: {$masterCall->linkedid})");
+                }
+            }
 
-             $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
-
-             // Find associated CallInstance if exists
-             $callInstance = CallInstance::where('unique_id', $fields['Linkedid'])->first();
-
-             $updateData = [
-                 'channel' => $fields['Channel'] ?? $callLog->channel,
-                 'linkedid' => $fields['Linkedid'] ?? $callLog->linkedid,
-                 'callerid_num' => $fields['CallerIDNum'] ?? $callLog->callerid_num,
-                 'callerid_name' => $fields['CallerIDName'] ?? $callLog->callerid_name,
-                 'exten' => $fields['Exten'] ?? $callLog->exten,
-                 'context' => $fields['Context'] ?? $callLog->context,
-                 'channel_state' => $fields['ChannelState'] ?? $callLog->channel_state,
-                 'channel_state_desc' => $fields['ChannelStateDesc'] ?? $callLog->channel_state_desc,
-                 'call_instance_id' => $callInstance ? $callInstance->id : null
-             ];
-
-             if (!$callLog->exists) {
-                 $updateData['start_time'] = now();
-                 $updateData['status'] = 'started';
-                 // Determine direction on first master event
-                 $context = $updateData['context'] ?? '';
-                 if (is_string($context)) {
-                     if (strpos($context, 'from-trunk') !== false) {
-                         $updateData['direction'] = 'incoming';
-                         // Prefer real external caller number
-                         $incoming = $this->extractIncomingNumber($fields);
-                         if ($incoming !== null) {
-                             $updateData['other_party'] = $incoming;
-                         } else {
-                             $updateData['other_party'] = $updateData['callerid_num'] ?? null;
-                         }
-                     } elseif (strpos($context, 'macro-dialout-trunk') !== false || strpos($context, 'from-internal') !== false) {
-                         $updateData['direction'] = 'outgoing';
-                     }
-                 }
-                 // For outgoing calls, try to capture agent extension from Channel (e.g., SIP/2001-xxxx)
-                 if (($updateData['direction'] ?? null) === 'outgoing') {
-                     $channel = $updateData['channel'] ?? '';
-                     if (is_string($channel) && preg_match('/SIP\/(\d{3,5})/', $channel, $cm)) {
-                         $updateData['agent_exten'] = $cm[1];
-                     }
-                     // Dialed other party might be in Exten at this point
-                     $outgoing = $this->extractOutgoingNumber($fields);
-                     if ($outgoing !== null) {
-                         $updateData['other_party'] = $outgoing;
-                     }
-                 }
-             }
-
-             $callLog->fill($updateData)->save();
-
-             // Only broadcast if this is a MASTER CHANNEL (uniqueid equals linkedid)
-             $isMasterChannel = $fields['Uniqueid'] === $fields['Linkedid'];
-
-             // If this is a secondary (agent) channel, propagate agent extension to master
-             if (!$isMasterChannel) {
-                 $agentExt = null;
-                 $ch = (string)($fields['Channel'] ?? '');
-                 if (preg_match('/SIP\/(\d{3,5})/', $ch, $m)) {
-                     $agentExt = $m[1];
-                 } elseif (preg_match('/Local\/(\d{3,5})@/', $ch, $m)) {
-                     $agentExt = $m[1];
-                 }
-                 if ($agentExt) {
-                     $master = CallLog::where('uniqueid', $fields['Linkedid'])->first();
-                     if ($master && empty($master->agent_exten)) {
-                         $master->agent_exten = $agentExt;
-                         $master->save();
-                         broadcast(new CallStatusUpdated($master));
-                     }
-                 }
-             }
-
-             if ($isMasterChannel) {
-                 broadcast(new CallStatusUpdated($callLog));
-                 $this->info("📡 Broadcasting MASTER channel update: {$callLog->status}");
-             } else {
-                 $this->info("ℹ️ Skipping broadcast: Secondary channel (uniqueid ≠ linkedid)");
-             }
-
-             $this->info($callLog->wasRecentlyCreated ? "New call created" : "Call updated" . " with ID: {$callLog->id}");
-             $this->line("Caller: {$updateData['callerid_num']} ({$updateData['callerid_name']})");
-             $this->line("Extension: {$updateData['exten']}");
-             $this->line("Linked ID: {$updateData['linkedid']}");
+            $this->info("New call tracked with Linkedid: {$fields['Linkedid']}");
+            $this->line("Caller: {$fields['CallerIDNum']} ({$fields['CallerIDName']})");
+            $this->line("Extension: {$fields['Exten']}");
+            $this->line("Linked ID: {$fields['Linkedid']}");
              $this->line("Unique ID: {$fields['Uniqueid']}");
-             $this->line("Master Channel: " . ($isMasterChannel ? "YES" : "NO"));
-             if ($callInstance) {
-                 $this->line("Call Instance ID: {$callInstance->id}");
-             }
              $this->line('------------------------');
          } catch (\Exception $e) {
              $this->error("Failed to create/update call record: " . $e->getMessage());
@@ -501,16 +483,16 @@ use App\Events\CallUpdated;
          }
 
          try {
-             // Check if this is a new call (uniqueid equals linkedid)
-             if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                 $callInstance = CallInstance::firstOrCreate([
-                     'unique_id' => $fields['Uniqueid']
-                 ]);
+             // CRITICAL: Ensure Call exists BEFORE creating CallLeg
+             $call = $this->ensureCall($fields);
+             if (!$call) {
+                 $this->error("Failed to create/find master call for linkedid: " . ($fields['Linkedid'] ?? 'unknown'));
+                 return;
              }
 
-             // Option B (clean model): update leg state and fallback mark answered
+             // Now safely create CallLeg
              $this->upsertCallLeg($fields);
-             $call = $this->ensureCall($fields);
+
              if ($call && empty($call->answered_at)) {
                  $stateDesc = strtolower((string)($fields['ChannelStateDesc'] ?? ''));
                  if ($stateDesc === 'up') {
@@ -523,124 +505,12 @@ use App\Events\CallUpdated;
                  }
              }
 
-             $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
-
-             // Find associated CallInstance if exists
-             $callInstance = CallInstance::where('unique_id', $fields['Linkedid'])->first();
-
-            // Skipping user extension lookup and targeted notifications
-
-             $updateData = [
-                 'channel' => $fields['Channel'] ?? $callLog->channel,
-                 'linkedid' => $fields['Linkedid'] ?? $callLog->linkedid,
-                 'channel_state' => $fields['ChannelState'] ?? $callLog->channel_state,
-                 'channel_state_desc' => $fields['ChannelStateDesc'] ?? $callLog->channel_state_desc,
-                 'callerid_num' => $fields['CallerIDNum'] ?? $callLog->callerid_num,
-                 'callerid_name' => $fields['CallerIDName'] ?? $callLog->callerid_name,
-                 'connected_line_num' => $fields['ConnectedLineNum'] ?? $callLog->connected_line_num,
-                 'connected_line_name' => $fields['ConnectedLineName'] ?? $callLog->connected_line_name,
-                 'context' => $fields['Context'] ?? $callLog->context,
-                 'exten' => $fields['Exten'] ?? $callLog->exten,
-                 'state' => $fields['State'] ?? $callLog->state,
-                 'call_instance_id' => $callInstance ? $callInstance->id : null
-             ];
-
-             // Map status using ChannelStateDesc
-             $stateDesc = strtolower((string)($updateData['channel_state_desc'] ?? ''));
-             if (!$callLog->exists) {
-                 $updateData['start_time'] = now();
-             }
-             if (strpos($stateDesc, 'ring') !== false) {
-                 $updateData['status'] = 'ringing';
-             } elseif ($stateDesc === 'up') {
-                 $updateData['status'] = 'answered';
-             } elseif ($stateDesc === 'busy') {
-                 $updateData['status'] = 'busy';
-             }
-
-             // Determine direction if not set
-             if (empty($callLog->direction) && !empty($updateData['context'])) {
-                 $ctx = (string)$updateData['context'];
-                 if (strpos($ctx, 'from-trunk') !== false) {
-                     $updateData['direction'] = 'incoming';
-                 } elseif (strpos($ctx, 'macro-dialout-trunk') !== false || strpos($ctx, 'from-internal') !== false) {
-                     $updateData['direction'] = 'outgoing';
-                 }
-             }
-
-             // Try to determine agent extension and other party as info becomes available
-             // If outgoing and agent not set, parse from Channel
-             if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'outgoing') && empty($callLog->agent_exten)) {
-                 $ch = $updateData['channel'] ?? '';
-                 if (is_string($ch) && preg_match('/SIP\/(\d{3,5})/', $ch, $mm)) {
-                     $updateData['agent_exten'] = $mm[1];
-                 }
-             }
-             // If incoming and agent not set, sometimes ConnectedLineNum will hold the agent ext after bridge
-             if ((($callLog->direction ?? $updateData['direction'] ?? null) === 'incoming') && empty($callLog->agent_exten)) {
-                 $connected = $updateData['connected_line_num'] ?? '';
-                 $norm = $this->normalizeNumber($connected);
-                 if ($norm !== null && $this->isLikelyExtension($norm)) {
-                     $updateData['agent_exten'] = ltrim($norm, '+');
-                 }
-             }
-             // Set or refine other party if available, prefer real external numbers
-             if (empty($callLog->other_party)) {
-                 $dir = $callLog->direction ?? $updateData['direction'] ?? null;
-                 if ($dir === 'outgoing') {
-                     $outgoing = $this->extractOutgoingNumber($fields);
-                     if ($outgoing !== null) {
-                         $updateData['other_party'] = $outgoing;
-                     }
-                 } elseif ($dir === 'incoming') {
-                     $incoming = $this->extractIncomingNumber($fields);
-                     if ($incoming !== null) {
-                         $updateData['other_party'] = $incoming;
-                     }
-                 }
-             }
-
-             $callLog->fill($updateData)->save();
-
-             // Only broadcast if this is a MASTER CHANNEL (uniqueid equals linkedid)
-             $isMasterChannel = $fields['Uniqueid'] === $fields['Linkedid'];
-
-             // For secondary (agent) channels, propagate agent ext to master as soon as we know
-             if (!$isMasterChannel) {
-                 $agentExt = null;
-                 $ch = (string)($fields['Channel'] ?? '');
-                 if (preg_match('/SIP\/(\d{3,5})/', $ch, $m)) {
-                     $agentExt = $m[1];
-                 } elseif (preg_match('/Local\/(\d{3,5})@/', $ch, $m)) {
-                     $agentExt = $m[1];
-                 }
-                 if ($agentExt) {
-                     $master = CallLog::where('uniqueid', $fields['Linkedid'])->first();
-                     if ($master && empty($master->agent_exten)) {
-                         $master->agent_exten = $agentExt;
-                         $master->save();
-                         broadcast(new CallStatusUpdated($master));
-                     }
-                 }
-             }
-
-             if ($isMasterChannel) {
-                 broadcast(new CallStatusUpdated($callLog));
-                 $this->info("📡 Broadcasting MASTER channel update: {$callLog->status}");
-             } else {
-                 $this->info("ℹ️ Skipping broadcast: Secondary channel (uniqueid ≠ linkedid)");
-             }
-
-             $this->info("Call state updated for ID: {$callLog->id}");
-             $this->line("Channel: {$updateData['channel']}");
-             $this->line("Extension: {$updateData['exten']}");
-             $this->line("Caller: {$updateData['connected_line_num']} ({$updateData['connected_line_name']})");
-             $this->line("Linked ID: {$updateData['linkedid']}");
+            $this->info("Call state updated for Linkedid: {$fields['Linkedid']}");
+            $this->line("Channel: {$fields['Channel']}");
+            $this->line("Extension: {$fields['Exten']}");
+            $this->line("State: {$fields['ChannelStateDesc']}");
+            $this->line("Linked ID: {$fields['Linkedid']}");
              $this->line("Unique ID: {$fields['Uniqueid']}");
-             $this->line("Master Channel: " . ($isMasterChannel ? "YES" : "NO"));
-             if ($callInstance) {
-                 $this->line("Call Instance ID: {$callInstance->id}");
-             }
              $this->line('------------------------');
          } catch (\Exception $e) {
              $this->error("Failed to update call state: " . $e->getMessage());
@@ -655,20 +525,20 @@ use App\Events\CallUpdated;
          }
 
          try {
-             // Check if this is a new call (uniqueid equals linkedid)
-             if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                 $callInstance = CallInstance::firstOrCreate([
-                     'unique_id' => $fields['Uniqueid']
-                 ]);
+             // CRITICAL: Ensure Call exists BEFORE creating CallLeg
+             $call = $this->ensureCall($fields);
+             if (!$call) {
+                 $this->error("Failed to create/find master call for linkedid: " . ($fields['Linkedid'] ?? 'unknown'));
+                 return;
              }
 
-             // Option B (clean model): update leg hangup and finalize master call
+             // Clean model: update leg hangup and finalize master call
              $this->upsertCallLeg($fields, [
                  'hangup_at' => now(),
                  'hangup_cause' => $fields['Cause'] ?? null,
              ]);
+
              if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                 $call = Call::firstOrNew(['linkedid' => $fields['Linkedid']]);
                  $call->ended_at = now();
                  if (!empty($fields['Cause'])) {
                      $call->hangup_cause = (string)$fields['Cause'];
@@ -680,65 +550,11 @@ use App\Events\CallUpdated;
                  broadcast(new CallUpdated($call));
              }
 
-             $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
-
-             // Find associated CallInstance if exists
-             $callInstance = CallInstance::where('unique_id', $fields['Linkedid'])->first();
-
-             $updateData = [
-                 'channel' => $fields['Channel'] ?? $callLog->channel,
-                 'linkedid' => $fields['Linkedid'] ?? $callLog->linkedid,
-                 'channel_state' => $fields['ChannelState'] ?? $callLog->channel_state,
-                 'channel_state_desc' => $fields['ChannelStateDesc'] ?? $callLog->channel_state_desc,
-                 'callerid_num' => $fields['CallerIDNum'] ?? $callLog->callerid_num,
-                 'callerid_name' => $fields['CallerIDName'] ?? $callLog->callerid_name,
-                 'connected_line_num' => $fields['ConnectedLineNum'] ?? $callLog->connected_line_num,
-                 'connected_line_name' => $fields['ConnectedLineName'] ?? $callLog->connected_line_name,
-                 'context' => $fields['Context'] ?? $callLog->context,
-                 'exten' => $fields['Exten'] ?? $callLog->exten,
-                 'state' => $fields['State'] ?? $callLog->state,
-                 'call_instance_id' => $callInstance ? $callInstance->id : null,
-                 'end_time' => now(),
-                 'status' => 'completed'
-             ];
-
-            if ($callLog->start_time) {
-                $start = $callLog->start_time;
-                $end = now();
-                $updateData['duration'] = max(0, $start->diffInSeconds($end, true));
-            }
-
-             // If we still don't have external party, try to finalize it on hangup
-             $dir = $callLog->direction ?? null;
-             if (empty($callLog->other_party) && $dir) {
-                 $final = $dir === 'outgoing' ? $this->extractOutgoingNumber($fields) : $this->extractIncomingNumber($fields);
-                 if ($final !== null) {
-                     $updateData['other_party'] = $final;
-                 }
-             }
-
-             $callLog->fill($updateData)->save();
-
-             // Only broadcast if this is a MASTER CHANNEL (uniqueid equals linkedid)
-             $isMasterChannel = $fields['Uniqueid'] === $fields['Linkedid'];
-
-             if ($isMasterChannel) {
-                 broadcast(new CallStatusUpdated($callLog));
-                 $this->info("📡 Broadcasting MASTER channel update: {$callLog->status}");
-             } else {
-                 $this->info("ℹ️ Skipping broadcast: Secondary channel (uniqueid ≠ linkedid)");
-             }
-
-             $this->info("Call ended for ID: {$callLog->id}");
-             $this->line("Extension: {$updateData['exten']}");
-             $this->line("Duration: " . ($updateData['duration'] ?? 'N/A') . " seconds");
+            $this->info("Call ended for Linkedid: {$fields['Linkedid']}");
+            $this->line("Extension: {$fields['Exten']}");
              $this->line("Cause: " . ($fields['Cause'] ?? 'N/A'));
-             $this->line("Linked ID: {$updateData['linkedid']}");
+            $this->line("Linked ID: {$fields['Linkedid']}");
              $this->line("Unique ID: {$fields['Uniqueid']}");
-             $this->line("Master Channel: " . ($isMasterChannel ? "YES" : "NO"));
-             if ($callInstance) {
-                 $this->line("Call Instance ID: {$callInstance->id}");
-             }
              $this->line('------------------------');
          } catch (\Exception $e) {
              $this->error("Failed to update call hangup state: " . $e->getMessage());
@@ -747,19 +563,30 @@ use App\Events\CallUpdated;
 
     private function handleDialBegin(array $fields): void
     {
-        // Outgoing best-effort number capture
-        $this->ensureCall($fields, ['direction' => 'outgoing']);
-        $dialed = $fields['DialString'] ?? ($fields['DestCallerIDNum'] ?? ($fields['Exten'] ?? null));
-        $linkedid = $fields['Linkedid'] ?? null;
-        if ($linkedid && $dialed) {
-            $call = Call::firstOrNew(['linkedid' => $linkedid]);
-            if ($call->exists) {
-                $num = $this->normalizeNumber($dialed);
-                if ($num) {
-                    $call->other_party = $num;
+        // Ensure outgoing call exists first
+        $call = $this->ensureCall($fields, ['direction' => 'outgoing']);
+        if (!$call) {
+            return;
+        }
+
+                // Extract the best outgoing number from dial event
+        $outgoingNumber = $this->extractOutgoingNumber($fields);
+        if ($outgoingNumber) {
+            $call->other_party = $outgoingNumber;
                     $call->save();
-                }
-            }
+
+            // Broadcast the updated call with phone number
+            broadcast(new CallUpdated($call));
+
+            $this->info("📞 Outgoing call to: {$outgoingNumber} (linkedid: {$call->linkedid})");
+        } else {
+            // Debug: Log available fields for troubleshooting
+            $extractedFromDialString = $this->extractNumberFromDialString($fields['DialString'] ?? null);
+            $this->warn("⚠️ Could not extract outgoing number from DialBegin. Available fields:");
+            $this->line("DialString: " . ($fields['DialString'] ?? 'N/A') . " -> Extracted: " . ($extractedFromDialString ?? 'N/A'));
+            $this->line("DestCallerIDNum: " . ($fields['DestCallerIDNum'] ?? 'N/A'));
+            $this->line("Exten: " . ($fields['Exten'] ?? 'N/A'));
+            $this->line("ConnectedLineNum: " . ($fields['ConnectedLineNum'] ?? 'N/A'));
         }
     }
 
@@ -784,6 +611,11 @@ use App\Events\CallUpdated;
                 $call->disposition = $map[$status];
             }
             $call->save();
+
+            // Broadcast the call status update in real-time
+            broadcast(new CallUpdated($call));
+
+            $this->info("📡 Call disposition updated: {$status} -> {$call->disposition} (linkedid: {$call->linkedid})");
         }
     }
 
@@ -815,12 +647,17 @@ use App\Events\CallUpdated;
 
         broadcast(new CallUpdated($call));
 
+        // Ensure Call exists before creating BridgeSegment
+        if ($call->exists) {
         BridgeSegment::create([
             'linkedid' => $linkedid,
             'agent_exten' => $call->agent_exten,
             'party_channel' => $fields['Channel'] ?? null,
             'entered_at' => $now,
         ]);
+        } else {
+            $this->error("Cannot create BridgeSegment: master Call with linkedid {$linkedid} does not exist");
+        }
     }
 
     private function handleBridgeLeave(array $fields): void
