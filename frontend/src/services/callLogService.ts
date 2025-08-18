@@ -49,17 +49,17 @@ export interface CallStats {
 
 class CallLogService {
   async getCallLogs(): Promise<CallLog[]> {
-    const response = await api.get<CallLog[]>('/call-logs');
+    const response = await api.get<CallLog[]>('/calls');
     return response.data;
   }
 
   async getTodayStats(): Promise<CallStats> {
-    const response = await api.get<CallStats>('/call-logs/today-stats');
+    const response = await api.get<CallStats>('/calls/today-stats');
     return response.data;
   }
 
   async getCallDetails(id: number): Promise<CallDetails> {
-    const response = await api.get<CallDetails>(`/call-logs/${id}/details`);
+    const response = await api.get<CallDetails>(`/calls/${id}/details`);
     return response.data;
   }
 

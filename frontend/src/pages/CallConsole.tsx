@@ -216,6 +216,70 @@ const CallConsole: React.FC = () => {
         callLogService.getTodayStats().then(setCallStats).catch(console.error);
       });
 
+      // New call-level updates from the clean calls pipeline
+      channel.listen('.call-updated', (data: CallStatusUpdateData) => {
+        console.log('🔔 Received call-updated (clean) event:', data);
+        let isNewCall = false;
+        setCallLogs(prevLogs => {
+          const idx = prevLogs.findIndex(c => c.id === data.id);
+          if (idx >= 0) {
+            const updated = [...prevLogs];
+            const existing = updated[idx];
+            existing.status = data.status;
+            existing.duration = data.duration;
+            existing.startTime = data.startTime;
+            existing.callerNumber = data.callerNumber;
+            existing.callerName = data.callerName ?? null;
+            if (data.direction !== undefined) existing.direction = data.direction;
+            if (data.agentExten !== undefined) existing.agentExten = data.agentExten ?? null;
+            if (data.otherParty !== undefined) existing.otherParty = data.otherParty ?? null;
+            existing.allCalls[0] = {
+              id: data.id,
+              callerNumber: data.callerNumber,
+              callerName: data.callerName,
+              startTime: data.startTime,
+              endTime: data.endTime,
+              status: data.status,
+              duration: data.duration,
+              created_at: data.timestamp,
+            };
+            return updated;
+          } else {
+            const newItem: UniqueCall = {
+              id: data.id,
+              callerNumber: data.callerNumber,
+              callerName: data.callerName,
+              startTime: data.startTime,
+              status: data.status,
+              duration: data.duration,
+              frequency: 1,
+              allCalls: [{
+                id: data.id,
+                callerNumber: data.callerNumber,
+                callerName: data.callerName,
+                startTime: data.startTime,
+                endTime: data.endTime,
+                status: data.status,
+                duration: data.duration,
+                created_at: data.timestamp,
+              }],
+              direction: data.direction,
+              agentExten: data.agentExten ?? null,
+              otherParty: data.otherParty ?? null,
+            };
+            isNewCall = true;
+            return [newItem, ...prevLogs];
+          }
+        });
+        // refresh stats
+        callLogService.getTodayStats().then(setCallStats).catch(console.error);
+        // optionally auto-select on ringing/answered
+        const autoSelectStatuses = ['ringing', 'started', 'answered', 'ring', 'start', 'calling', 'incoming'];
+        if (autoSelectStatuses.includes((data.status || '').toLowerCase())) {
+          setTimeout(() => setSelectedCallId(data.id), 50);
+        }
+      });
+
       // Test the connection
       console.log('📡 Echo channel setup complete, testing connection...');
 

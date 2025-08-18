@@ -7,6 +7,10 @@ use App\Models\CallLog;
 use App\Models\CallInstance;
 use App\Events\CallStatusUpdated;
 use Illuminate\Support\Facades\Log;
+use App\Models\Call;
+use App\Models\CallLeg;
+use App\Models\BridgeSegment;
+use App\Events\CallUpdated;
 
 /**
  * This is modified version of ListenToAmi
@@ -90,7 +94,15 @@ use Illuminate\Support\Facades\Log;
                  }
 
                  // Only process specific events; avoid treating HangupRequest as Hangup
-                 if ($eventName === 'Newchannel' || $eventName === 'Newstate' || $eventName === 'Hangup') {
+                 if (
+                     $eventName === 'Newchannel' ||
+                     $eventName === 'Newstate' ||
+                     $eventName === 'Hangup' ||
+                     $eventName === 'DialBegin' ||
+                     $eventName === 'DialEnd' ||
+                     $eventName === 'BridgeEnter' ||
+                     $eventName === 'BridgeLeave'
+                 ) {
                      $this->processEvent($response, $eventName);
                  } else {
                      // Optionally log but do not process
@@ -248,6 +260,14 @@ use Illuminate\Support\Facades\Log;
              $this->handleNewstate($fields);
          } elseif ($eventType === 'Hangup') {
              $this->handleHangup($fields);
+         } elseif ($eventType === 'DialBegin') {
+             $this->handleDialBegin($fields);
+         } elseif ($eventType === 'DialEnd') {
+             $this->handleDialEnd($fields);
+         } elseif ($eventType === 'BridgeEnter') {
+             $this->handleBridgeEnter($fields);
+         } elseif ($eventType === 'BridgeLeave') {
+             $this->handleBridgeLeave($fields);
          } else {
              // For other events, just log the fields
              $this->info("\n{$eventType} Event Fields:");
@@ -258,6 +278,98 @@ use Illuminate\Support\Facades\Log;
          }
      }
 
+     /**
+      * Ensure a Call row exists for this linkedid and set basic fields if provided.
+      */
+     private function ensureCall(array $fields, array $hints = []): ?Call
+     {
+         $linkedid = $fields['Linkedid'] ?? null;
+         if (!$linkedid) {
+             return null;
+         }
+         $call = Call::firstOrNew(['linkedid' => $linkedid]);
+         $changed = false;
+
+         if (!$call->exists) {
+             $call->started_at = $call->started_at ?? now();
+             $changed = true;
+         }
+
+         // Direction from context or hint
+         $direction = $hints['direction'] ?? null;
+         if (!$direction) {
+             $ctx = (string)($fields['Context'] ?? '');
+             if (strpos($ctx, 'from-trunk') !== false) {
+                 $direction = 'incoming';
+             } elseif (strpos($ctx, 'macro-dialout-trunk') !== false || strpos($ctx, 'from-internal') !== false) {
+                 $direction = 'outgoing';
+             }
+         }
+         if ($direction && $call->direction !== $direction) {
+             $call->direction = $direction;
+             $changed = true;
+         }
+
+         // Other party (best effort here; refined by Dial/Bridge handlers)
+         if (empty($call->other_party)) {
+             if (($direction ?? null) === 'incoming') {
+                 $num = $this->extractIncomingNumber($fields);
+                 if ($num !== null) {
+                     $call->other_party = $num;
+                     $changed = true;
+                 }
+             } elseif (($direction ?? null) === 'outgoing') {
+                 $num = $this->extractOutgoingNumber($fields);
+                 if ($num !== null) {
+                     $call->other_party = $num;
+                     $changed = true;
+                 }
+             }
+         }
+
+         // Agent exten if visible on channel
+         if (empty($call->agent_exten)) {
+             $ch = (string)($fields['Channel'] ?? '');
+             if (preg_match('/(?:SIP|PJSIP|Local)\/(\d{3,5})/', $ch, $m)) {
+                 $call->agent_exten = $m[1];
+                 $changed = true;
+             }
+         }
+
+         if ($changed) {
+             $call->save();
+         }
+
+         return $call;
+     }
+
+     /** Upsert CallLeg row for this uniqueid. */
+     private function upsertCallLeg(array $fields, array $extra = []): void
+     {
+         $uniqueid = $fields['Uniqueid'] ?? null;
+         if (!$uniqueid) {
+             return;
+         }
+         $leg = CallLeg::firstOrNew(['uniqueid' => $uniqueid]);
+         $leg->linkedid = $fields['Linkedid'] ?? $leg->linkedid;
+         $leg->channel = $fields['Channel'] ?? $leg->channel;
+         $leg->exten = $fields['Exten'] ?? $leg->exten;
+         $leg->context = $fields['Context'] ?? $leg->context;
+         $leg->channel_state = $fields['ChannelState'] ?? $leg->channel_state;
+         $leg->channel_state_desc = $fields['ChannelStateDesc'] ?? $leg->channel_state_desc;
+         $leg->state = $fields['State'] ?? $leg->state;
+         $leg->callerid_num = $fields['CallerIDNum'] ?? $leg->callerid_num;
+         $leg->callerid_name = $fields['CallerIDName'] ?? $leg->callerid_name;
+         $leg->connected_line_num = $fields['ConnectedLineNum'] ?? $leg->connected_line_num;
+         $leg->connected_line_name = $fields['ConnectedLineName'] ?? $leg->connected_line_name;
+
+         foreach ($extra as $k => $v) {
+             $leg->{$k} = $v;
+         }
+
+         $leg->save();
+     }
+
      private function handleNewchannel(array $fields)
      {
          if (!isset($fields['Uniqueid']) || !isset($fields['Linkedid'])) {
@@ -266,6 +378,11 @@ use Illuminate\Support\Facades\Log;
          }
 
          try {
+             // Option B (clean model): ensure master Call and CallLeg are tracked
+             $this->ensureCall($fields);
+             $this->upsertCallLeg($fields, [
+                 'start_time' => now(),
+             ]);
              // Check if this is a new call (uniqueid equals linkedid)
              if ($fields['Uniqueid'] === $fields['Linkedid']) {
                  // Create new CallInstance
@@ -273,6 +390,11 @@ use Illuminate\Support\Facades\Log;
                      'unique_id' => $fields['Uniqueid']
                  ]);
                  $this->info("New CallInstance created with ID: {$callInstance->id}");
+                 // Also broadcast call created/ringing for the clean calls API
+                 $masterCall = Call::firstOrNew(['linkedid' => $fields['Linkedid']]);
+                 if ($masterCall->exists) {
+                     broadcast(new CallUpdated($masterCall));
+                 }
              }
 
              $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
@@ -384,6 +506,21 @@ use Illuminate\Support\Facades\Log;
                  $callInstance = CallInstance::firstOrCreate([
                      'unique_id' => $fields['Uniqueid']
                  ]);
+             }
+
+             // Option B (clean model): update leg state and fallback mark answered
+             $this->upsertCallLeg($fields);
+             $call = $this->ensureCall($fields);
+             if ($call && empty($call->answered_at)) {
+                 $stateDesc = strtolower((string)($fields['ChannelStateDesc'] ?? ''));
+                 if ($stateDesc === 'up') {
+                     $call->answered_at = now();
+                     if ($call->started_at) {
+                         $call->ring_seconds = max(0, $call->started_at->diffInSeconds($call->answered_at, true));
+                     }
+                     $call->save();
+                     broadcast(new CallUpdated($call));
+                 }
              }
 
              $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
@@ -525,6 +662,24 @@ use Illuminate\Support\Facades\Log;
                  ]);
              }
 
+             // Option B (clean model): update leg hangup and finalize master call
+             $this->upsertCallLeg($fields, [
+                 'hangup_at' => now(),
+                 'hangup_cause' => $fields['Cause'] ?? null,
+             ]);
+             if ($fields['Uniqueid'] === $fields['Linkedid']) {
+                 $call = Call::firstOrNew(['linkedid' => $fields['Linkedid']]);
+                 $call->ended_at = now();
+                 if (!empty($fields['Cause'])) {
+                     $call->hangup_cause = (string)$fields['Cause'];
+                 }
+                 if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
+                     $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
+                 }
+                 $call->save();
+                 broadcast(new CallUpdated($call));
+             }
+
              $callLog = CallLog::firstOrNew(['uniqueid' => $fields['Uniqueid']]);
 
              // Find associated CallInstance if exists
@@ -589,6 +744,108 @@ use Illuminate\Support\Facades\Log;
              $this->error("Failed to update call hangup state: " . $e->getMessage());
          }
      }
+
+    private function handleDialBegin(array $fields): void
+    {
+        // Outgoing best-effort number capture
+        $this->ensureCall($fields, ['direction' => 'outgoing']);
+        $dialed = $fields['DialString'] ?? ($fields['DestCallerIDNum'] ?? ($fields['Exten'] ?? null));
+        $linkedid = $fields['Linkedid'] ?? null;
+        if ($linkedid && $dialed) {
+            $call = Call::firstOrNew(['linkedid' => $linkedid]);
+            if ($call->exists) {
+                $num = $this->normalizeNumber($dialed);
+                if ($num) {
+                    $call->other_party = $num;
+                    $call->save();
+                }
+            }
+        }
+    }
+
+    private function handleDialEnd(array $fields): void
+    {
+        $status = (string)($fields['DialStatus'] ?? '');
+        $linkedid = $fields['Linkedid'] ?? null;
+        if (!$linkedid) {
+            return;
+        }
+        $call = Call::firstOrNew(['linkedid' => $linkedid]);
+        if ($call->exists) {
+            $call->dial_status = $status;
+            $map = [
+                'ANSWER' => 'answered',
+                'BUSY' => 'busy',
+                'NOANSWER' => 'no_answer',
+                'CANCEL' => 'canceled',
+                'CONGESTION' => 'congestion',
+            ];
+            if (isset($map[$status])) {
+                $call->disposition = $map[$status];
+            }
+            $call->save();
+        }
+    }
+
+    private function handleBridgeEnter(array $fields): void
+    {
+        $linkedid = $fields['Linkedid'] ?? null;
+        if (!$linkedid && isset($fields['Uniqueid'])) {
+            $leg = CallLeg::where('uniqueid', $fields['Uniqueid'])->first();
+            $linkedid = $leg ? $leg->linkedid : null;
+        }
+        if (!$linkedid) {
+            return;
+        }
+        $call = Call::firstOrNew(['linkedid' => $linkedid]);
+        $now = now();
+        if (empty($call->answered_at)) {
+            $call->answered_at = $now;
+            if ($call->started_at) {
+                $call->ring_seconds = max(0, $call->started_at->diffInSeconds($now, true));
+            }
+        }
+        if (empty($call->agent_exten)) {
+            $ch = (string)($fields['Channel'] ?? '');
+            if (preg_match('/(?:SIP|PJSIP|Local)\/(\d{3,5})/', $ch, $m)) {
+                $call->agent_exten = $m[1];
+            }
+        }
+        $call->save();
+
+        broadcast(new CallUpdated($call));
+
+        BridgeSegment::create([
+            'linkedid' => $linkedid,
+            'agent_exten' => $call->agent_exten,
+            'party_channel' => $fields['Channel'] ?? null,
+            'entered_at' => $now,
+        ]);
+    }
+
+    private function handleBridgeLeave(array $fields): void
+    {
+        $linkedid = $fields['Linkedid'] ?? null;
+        if (!$linkedid && isset($fields['Uniqueid'])) {
+            $leg = CallLeg::where('uniqueid', $fields['Uniqueid'])->first();
+            $linkedid = $leg ? $leg->linkedid : null;
+        }
+        if (!$linkedid) {
+            return;
+        }
+        $channel = (string)($fields['Channel'] ?? '');
+        $segment = BridgeSegment::where('linkedid', $linkedid)
+            ->whereNull('left_at')
+            ->when($channel !== '', function ($q) use ($channel) {
+                $q->where('party_channel', $channel);
+            })
+            ->latest('entered_at')
+            ->first();
+        if ($segment) {
+            $segment->left_at = now();
+            $segment->save();
+        }
+    }
 
      public function __destruct()
      {
