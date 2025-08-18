@@ -40,18 +40,18 @@ use App\Events\CallUpdated;
 
         // Mellowhost Server
 
-        //  $host = env('AMI_HOST', '103.177.125.93');
-        //  $port = env('AMI_PORT', 5038);
-        //  $username = env('AMI_USERNAME', 'admin');
-        //  $password = env('AMI_PASSWORD', 'talent1212');
+         $host = env('AMI_HOST', '103.177.125.93');
+         $port = env('AMI_PORT', 5038);
+         $username = env('AMI_USERNAME', 'admin');
+         $password = env('AMI_PASSWORD', 'talent1212');
 
 
         //  Shajgoj Server
 
-         $host = env('AMI_HOST', '103.177.125.83');
-         $port = env('AMI_PORT', 5038);
-         $username = env('AMI_USERNAME', 'admin');
-         $password = env('AMI_PASSWORD', 'Tractor@0152');
+        //  $host = env('AMI_HOST', '103.177.125.83');
+        //  $port = env('AMI_PORT', 5038);
+        //  $username = env('AMI_USERNAME', 'admin');
+        //  $password = env('AMI_PASSWORD', 'Tractor@0152');
 
          try {
              // Connect to Asterisk AMI
@@ -339,17 +339,52 @@ use App\Events\CallUpdated;
 
          // Direction from context or hint
          $direction = $hints['direction'] ?? null;
-         if (!$direction) {
+         $isMasterEvent = isset($fields['Uniqueid'], $fields['Linkedid']) && $fields['Uniqueid'] === $fields['Linkedid'];
+         if ($isMasterEvent) {
              $ctx = (string)($fields['Context'] ?? '');
-             if (strpos($ctx, 'from-trunk') !== false) {
-                 $direction = 'incoming';
-             } elseif (strpos($ctx, 'macro-dialout-trunk') !== false || strpos($ctx, 'from-internal') !== false) {
-                 $direction = 'outgoing';
+             // Prefer context if provided
+             if (!$direction) {
+                 if (strpos($ctx, 'from-trunk') !== false) {
+                     $direction = 'incoming';
+                 } elseif (strpos($ctx, 'macro-dialout-trunk') !== false || strpos($ctx, 'from-internal') !== false) {
+                     $direction = 'outgoing';
+                 }
+             }
+             // Fallback heuristics using numbers if still unknown
+             if (!$direction) {
+                 $callerNum = $fields['CallerIDNum'] ?? null;
+                 $extenNum = $fields['Exten'] ?? null;
+                 $dialStrNum = $this->extractNumberFromDialString($fields['DialString'] ?? null);
+
+                 $callerLooksLikeExt = $this->isLikelyExtension($callerNum);
+                 $extenLooksExternal = $this->isLikelyExternalNumber($extenNum);
+                 $dialStrLooksExternal = $this->isLikelyExternalNumber($dialStrNum);
+
+                 if ($callerLooksLikeExt && ($extenLooksExternal || $dialStrLooksExternal)) {
+                     $direction = 'outgoing';
+                 } elseif ($this->isLikelyExternalNumber($callerNum) && !$this->isLikelyExtension($extenNum)) {
+                     $direction = 'incoming';
+                 }
              }
          }
-         if ($direction && $call->direction !== $direction) {
+         // Do not overwrite an already-set direction; only set if empty, and prefer master events
+         if ($direction && empty($call->direction)) {
              $call->direction = $direction;
              $changed = true;
+             try {
+                 Log::info('Call direction decided', [
+                     'linkedid' => $call->linkedid,
+                     'direction' => $direction,
+                     'context' => $fields['Context'] ?? null,
+                     'channel' => $fields['Channel'] ?? null,
+                     'exten' => $fields['Exten'] ?? null,
+                     'callerid' => $fields['CallerIDNum'] ?? null,
+                     'dialstring' => $fields['DialString'] ?? null,
+                     'is_master' => $isMasterEvent,
+                 ]);
+             } catch (\Throwable $e) {
+                 // best-effort logging
+             }
          }
 
          // Other party (best effort here; refined by Dial/Bridge handlers)
@@ -563,8 +598,18 @@ use App\Events\CallUpdated;
 
     private function handleDialBegin(array $fields): void
     {
-        // Ensure outgoing call exists first
-        $call = $this->ensureCall($fields, ['direction' => 'outgoing']);
+        // Decide if this DialBegin is truly an outbound-to-external attempt
+        $dialedFromDialString = $this->extractNumberFromDialString($fields['DialString'] ?? null);
+        $ctx = (string)($fields['Context'] ?? '');
+        $shouldHintOutgoing = false;
+        if ($this->isLikelyExternalNumber($dialedFromDialString)) {
+            $shouldHintOutgoing = true;
+        } elseif (strpos($ctx, 'from-internal') !== false || strpos($ctx, 'macro-dialout-trunk') !== false) {
+            $shouldHintOutgoing = true;
+        }
+
+        // Ensure call exists; only hint outgoing when clearly external
+        $call = $this->ensureCall($fields, $shouldHintOutgoing ? ['direction' => 'outgoing'] : []);
         if (!$call) {
             return;
         }
