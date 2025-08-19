@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, PhoneOutgoing, Phone, Clock, CirclePlus, CircleMinus } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus } from 'lucide-react';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -35,6 +35,29 @@ interface CallMonitorProps {
   onCallSelect: (callId: number) => void;
   onToggleExpansion: (callerNumber: string) => void;
 }
+
+// Animated ringing icon component that alternates between Phone and PhoneCall
+const RingingIcon: React.FC = () => {
+  const [isPhoneCall, setIsPhoneCall] = React.useState(false);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setIsPhoneCall(prev => !prev);
+    }, 300); // Switch every 300ms
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="inline-flex items-center ml-1">
+      {isPhoneCall ? (
+        <PhoneCall className="h-4 w-4 animate-pulse text-white" />
+      ) : (
+        <Phone className="h-4 w-4 animate-pulse text-white" />
+      )}
+    </span>
+  );
+};
 
 const CallMonitor: React.FC<CallMonitorProps> = ({
   callLogs,
@@ -307,15 +330,14 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                                       : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
                                   : ''
                               }`}>
-                                {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
-                                {call.status === 'completed' && '🏁'}
-                                {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && '📞'}
-                                {call.status === 'busy' && '🚫'}
-                                {(['no answer', 'no_answer', 'missed', 'failed'].includes(call.status.toLowerCase())) && '❌'}
-                                {(['canceled', 'cancelled'].includes(call.status.toLowerCase())) && '🚫'}
-                                {call.status === 'congestion' && '🌐'}
-                                {' '}
-                                {call.status}
+                                                                 {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
+                                 {call.status === 'completed' && '🏁'}
+                                 {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
+                                 {call.status === 'busy' && '🚫'}
+                                 {(['no answer', 'no_answer', 'missed', 'failed'].includes(call.status.toLowerCase())) && '❌'}
+                                 {(['canceled', 'cancelled'].includes(call.status.toLowerCase())) && '🚫'}
+                                 {call.status === 'congestion' && '🌐'}
+                                 <span className="ml-2">{call.status}</span>
                               </span>
                             </div>
                           </div>
