@@ -43,7 +43,46 @@ export interface CallDetails {
 
 export interface CallStats {
   total_calls: number;
-  calls_by_status: Record<string, number>;
+  incoming_calls: number;
+  outgoing_calls: number;
+  calls_by_status?: {
+    completed?: number;
+    in_progress?: number;
+    ringing?: number;
+    'no_answer'?: number;
+    busy?: number;
+    failed?: number;
+    canceled?: number;
+    rejected?: number;
+    unknown?: number;
+  };
+  incoming_by_status?: {
+    completed?: number;
+    in_progress?: number;
+    ringing?: number;
+    'no_answer'?: number;
+    busy?: number;
+    failed?: number;
+    canceled?: number;
+    rejected?: number;
+    unknown?: number;
+  };
+  outgoing_by_status?: {
+    completed?: number;
+    in_progress?: number;
+    ringing?: number;
+    'no_answer'?: number;
+    busy?: number;
+    failed?: number;
+    canceled?: number;
+    rejected?: number;
+    unknown?: number;
+  };
+  summary?: {
+    active_calls: number;
+    completed_calls: number;
+    total_handled_calls: number;
+  };
   date: string;
 }
 

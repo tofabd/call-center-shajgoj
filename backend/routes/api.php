@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/calls', [CallController::class, 'index']);
     Route::get('/calls/today-stats', [CallController::class, 'getTodayStats']);
     Route::get('/calls/{id}/details', [CallController::class, 'getCallDetails']);
+    Route::get('/calls/{id}/debug-status', [CallController::class, 'debugCallStatus']);
 
     // (removed) Follow-up routes
     // (removed) Follow-up templates

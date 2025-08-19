@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
 import { callLogService } from '@services/callLogService';
-import type { CallStats, CallLog } from '@services/callLogService';
+import type { CallLog } from '@services/callLogService';
 // Removed WordPress/WooCommerce API imports
 import '@services/echo'; // Import Echo setup
 // Removed WooCommerce order modals
 import CallMonitor from '@/components/CallConsole/CallMonitor';
 import CallDetails from '@/components/CallConsole/CallDetails';
 // Removed OrderNotesPanel
-import TodayStatistics from '@/components/CallConsole/TodayStatistics';
 
 // Interface for call status update data from backend
 interface CallStatusUpdateData {
@@ -54,7 +53,6 @@ interface UniqueCall {
 
 const CallConsole: React.FC = () => {
   const [callLogs, setCallLogs] = useState<UniqueCall[]>([]);
-  const [callStats, setCallStats] = useState<CallStats | null>(null);
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
   
   const [loading, setLoading] = useState(true);
@@ -99,12 +97,8 @@ const CallConsole: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [logs, stats] = await Promise.all([
-          callLogService.getCallLogs(),
-          callLogService.getTodayStats()
-        ]);
+        const logs = await callLogService.getCallLogs();
         setCallLogs(transformToUniqueCalls(logs));
-        setCallStats(stats);
       } catch (err) {
         setError('Failed to fetch call data');
         console.error('Error fetching call data:', err);
@@ -187,8 +181,6 @@ const CallConsole: React.FC = () => {
             return [newItem, ...prevLogs];
           }
         });
-        // refresh stats
-        callLogService.getTodayStats().then(setCallStats).catch(console.error);
         // optionally auto-select on ringing/answered
         const autoSelectStatuses = ['ringing', 'started', 'answered', 'ring', 'start', 'calling', 'incoming'];
         if (autoSelectStatuses.includes((data.status || '').toLowerCase())) {
@@ -266,17 +258,10 @@ const CallConsole: React.FC = () => {
           />
         </div>
 
-        {/* Right Column: Call Details + Today Statistics */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden space-y-4">
-          <div className="h-1/2 min-h-0">
+        {/* Right Column: Call Details */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className="h-full min-h-0">
             <CallDetails selectedCallId={selectedCallId} />
-          </div>
-          <div className="h-1/2 min-h-0">
-            <TodayStatistics
-              loading={loading}
-              error={error}
-              callStats={callStats}
-            />
           </div>
         </div>
       </div>
