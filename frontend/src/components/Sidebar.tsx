@@ -67,7 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-white font-bold text-lg">C</span>
             </div>
             {!isCollapsed && (
-              <span className="text-white font-bold text-xl">CRM</span>
+              <span className="text-white font-bold text-xl">Call Center</span>
             )}
           </div>
         </div>

@@ -28,22 +28,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="w-full p-4 lg:p-6 space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Welcome back! Here's what's happening with your CRM today.
-        </p>
-      </div>
-
       {/* Today's Statistics Section */}
-     
-        <TodayStatistics
-          loading={loading}
-          error={error}
-          callStats={callStats}
-        />
-     
+      <TodayStatistics
+        loading={loading}
+        error={error}
+        callStats={callStats}
+      />
     </div>
   );
 };
