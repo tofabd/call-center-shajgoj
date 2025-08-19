@@ -1,5 +1,5 @@
-import React from 'react';
-import { BarChart3 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { BarChart3, RefreshCw } from 'lucide-react';
 
 // Call Stats Interface
 interface CallStats {
@@ -50,13 +50,53 @@ interface TodayStatisticsProps {
   loading: boolean;
   error: string | null;
   callStats: CallStats | null;
+  onRefresh?: () => void;
 }
 
 const TodayStatistics: React.FC<TodayStatisticsProps> = ({
   loading,
   error,
-  callStats
+  callStats,
+  onRefresh
 }) => {
+  const [countdown, setCountdown] = useState(10);
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+
+  // Auto-refresh countdown effect
+  useEffect(() => {
+    if (!isAutoRefreshEnabled) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // Trigger refresh when countdown reaches 0
+          if (onRefresh) {
+            onRefresh();
+          }
+          return 10; // Reset countdown
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isAutoRefreshEnabled, onRefresh]);
+
+  // Manual refresh function
+  const handleManualRefresh = useCallback(() => {
+    setCountdown(10);
+    if (onRefresh) {
+      onRefresh();
+    }
+  }, [onRefresh]);
+
+  // Toggle auto-refresh
+  const toggleAutoRefresh = useCallback(() => {
+    setIsAutoRefreshEnabled(!isAutoRefreshEnabled);
+    if (!isAutoRefreshEnabled) {
+      setCountdown(10);
+    }
+  }, [isAutoRefreshEnabled]);
   return (
     <div className="flex flex-col h-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-full">
@@ -72,6 +112,42 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                   Call statistics for today
                 </p>
               </div>
+            </div>
+            
+            {/* Right side controls */}
+            <div className="flex items-center space-x-3">
+              {/* Auto-refresh toggle */}
+              <button
+                onClick={toggleAutoRefresh}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  isAutoRefreshEnabled
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                title={isAutoRefreshEnabled ? 'Auto-refresh enabled' : 'Auto-refresh disabled'}
+              >
+                {isAutoRefreshEnabled ? 'Auto ON' : 'Auto OFF'}
+              </button>
+              
+              {/* Countdown timer */}
+              {isAutoRefreshEnabled && (
+                <div className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                    Refresh in {countdown}s
+                  </span>
+                </div>
+              )}
+              
+              {/* Manual refresh button */}
+              <button
+                onClick={handleManualRefresh}
+                className="p-2 bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all duration-200 group"
+                title="Refresh now"
+              >
+                <RefreshCw className={`h-4 w-4 text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors ${
+                  loading ? 'animate-spin' : ''
+                }`} />
+              </button>
             </div>
           </div>
         </div>
@@ -197,26 +273,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                   </div>
                 </div>
 
-                {/* Debug Information */}
-                {callStats.summary && (
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Debug Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Active Calls:</span>
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{callStats.summary.active_calls}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Completed:</span>
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{callStats.summary.completed_calls}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Total Handled:</span>
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{callStats.summary.total_handled_calls}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
           ) : (

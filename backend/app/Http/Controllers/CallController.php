@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Call;
 use App\Models\CallLeg;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CallController extends Controller
 {
@@ -146,12 +147,19 @@ class CallController extends Controller
 
 		// Get calls by direction
 		$incomingCalls = Call::whereDate('started_at', $today)
-			->where('direction', 'inbound')
+			->where('direction', 'incoming')
 			->count();
 
 		$outgoingCalls = Call::whereDate('started_at', $today)
-			->where('direction', 'outbound')
+			->where('direction', 'outgoing')
 			->count();
+
+		// Validate that total calls equals incoming + outgoing
+		$totalFromDirections = $incomingCalls + $outgoingCalls;
+		if ($totalFromDirections !== $totalCalls) {
+			// Log discrepancy for debugging
+			Log::warning("Call count discrepancy: total={$totalCalls}, incoming={$incomingCalls}, outgoing={$outgoingCalls}");
+		}
 
 		// Get currently active calls (ongoing calls)
 		$activeCalls = Call::whereDate('started_at', $today)
@@ -175,7 +183,7 @@ class CallController extends Controller
 
 		// Get calls by status for incoming calls only
 		$incomingByStatus = Call::whereDate('started_at', $today)
-			->where('direction', 'inbound')
+			->where('direction', 'incoming')
 			->get()
 			->groupBy(function (Call $c) {
 				return $this->deriveStatusFromCall($c);
@@ -185,7 +193,7 @@ class CallController extends Controller
 
 		// Get calls by status for outgoing calls only
 		$outgoingByStatus = Call::whereDate('started_at', $today)
-			->where('direction', 'outbound')
+			->where('direction', 'outgoing')
 			->get()
 			->groupBy(function (Call $c) {
 				return $this->deriveStatusFromCall($c);
