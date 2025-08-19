@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Menu, 
   Sun, 
@@ -27,8 +27,25 @@ const Header: React.FC<HeaderProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   
   const currentUser = authService.getCurrentUser();
+
+  // Function to get page title based on current route
+  const getPageTitle = (): string => {
+    const path = location.pathname;
+    
+    switch (path) {
+      case '/dashboard':
+        return 'Dashboard';
+      case '/call-console':
+        return 'Call Console';
+      case '/':
+        return 'Dashboard'; // Root path redirects to dashboard
+      default:
+        return 'Call Center Dashboard';
+    }
+  };
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -43,6 +60,13 @@ const Header: React.FC<HeaderProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Update page title when route changes
+  useEffect(() => {
+    // Update document title for better browser experience
+    const pageTitle = getPageTitle();
+    document.title = `${pageTitle} - Call Center CRM`;
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -83,8 +107,8 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Page Title */}
           <div className="hidden md:block">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Call Center Dashboard
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-all duration-300">
+              {getPageTitle()}
             </h2>
           </div>
         </div>
