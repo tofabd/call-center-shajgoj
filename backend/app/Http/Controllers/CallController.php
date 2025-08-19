@@ -15,7 +15,18 @@ class CallController extends Controller
 		$dialStatus = strtolower((string)($call->dial_status ?? ''));
 		$hangupCause = strtolower((string)($call->hangup_cause ?? ''));
 
-		// If call has ended, determine final status
+		// FIRST: Check for ongoing calls (answered but not ended)
+		if ($call->answered_at && !$call->ended_at) {
+			// Check if this is a recent answer (within last 10 seconds)
+			$secondsSinceAnswer = $call->answered_at->diffInSeconds(now());
+			if ($secondsSinceAnswer < 10) {
+				return 'answered';  // Keep as 'answered' for recent answers
+			}
+			// Call is currently active and answered - this is "in progress"
+			return 'in_progress';
+		}
+
+		// SECOND: Check for ended calls
 		if ($call->ended_at) {
 			// If call was answered and ended, it's completed
 			if ($call->answered_at) {
@@ -67,18 +78,13 @@ class CallController extends Controller
 			return 'unknown';
 		}
 
-		// For ongoing calls, determine current status
-		if ($call->answered_at) {
-			// Call is currently active and answered - this is "in progress"
-			return 'in_progress';
-		}
-
+		// THIRD: Check for calls that started but haven't been answered yet
 		if ($call->started_at && !$call->answered_at) {
 			// Call started but not yet answered - it's ringing
 			return 'ringing';
 		}
 
-		// For calls without clear status
+		// FOURTH: For calls without clear status
 		if (!empty($disposition)) {
 			return $disposition;
 		}

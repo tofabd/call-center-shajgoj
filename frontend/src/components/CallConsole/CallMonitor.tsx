@@ -91,6 +91,8 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
     switch (status.toLowerCase()) {
       case 'answered':
         return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
+      case 'in_progress':
+        return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
       case 'completed':
         return 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300';
       case 'busy':
@@ -163,7 +165,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
               <div className="p-4 space-y-3">
                 {callLogs
                   .sort((a, b) => {
-                    // Priority order: ringing > started > answered > completed > failed statuses
+                    // Priority order: ringing > started > answered/in_progress > completed > failed statuses
                     const statusPriority = {
                       'ringing': 1,
                       'ring': 1,
@@ -172,6 +174,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                       'started': 2,
                       'start': 2,
                       'answered': 3,
+                      'in_progress': 3,  // Same priority as answered
                       'completed': 4,
                       'busy': 4,
                       'no answer': 4,
@@ -201,7 +204,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                                 const direction = call.direction;
                                 
                                 // Background colors based on status and direction
-                                if (['answered'].includes(status)) {
+                                if (['answered', 'in_progress'].includes(status)) {
                                   return direction === 'outgoing'
                                     ? 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/30 dark:hover:to-emerald-900/30'
                                     : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
@@ -304,7 +307,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                                       : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
                                   : ''
                               }`}>
-                                {call.status === 'answered' && '✅'}
+                                {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
                                 {call.status === 'completed' && '🏁'}
                                 {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && '📞'}
                                 {call.status === 'busy' && '🚫'}

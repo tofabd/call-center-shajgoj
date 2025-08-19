@@ -567,23 +567,32 @@ use App\Events\CallUpdated;
                  return;
              }
 
-             // Clean model: update leg hangup and finalize master call
-             $this->upsertCallLeg($fields, [
-                 'hangup_at' => now(),
-                 'hangup_cause' => $fields['Cause'] ?? null,
-             ]);
+                     // Update the specific leg that hung up
+        $this->upsertCallLeg($fields, [
+            'hangup_at' => now(),
+            'hangup_cause' => $fields['Cause'] ?? null,
+        ]);
 
-             if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                 $call->ended_at = now();
-                 if (!empty($fields['Cause'])) {
-                     $call->hangup_cause = (string)$fields['Cause'];
-                 }
-                 if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
-                     $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
-                 }
-                 $call->save();
-                 broadcast(new CallUpdated($call));
-             }
+        // ONLY set ended_at if this is the master call AND all active legs are gone
+        if ($fields['Uniqueid'] === $fields['Linkedid']) {
+            // Check if there are any active legs still in the call
+            $activeLegs = CallLeg::where('linkedid', $call->linkedid)
+                ->whereNull('hangup_at')
+                ->count();
+
+            if ($activeLegs === 0) {
+                // All legs are gone, mark the call as ended
+                $call->ended_at = now();
+                if (!empty($fields['Cause'])) {
+                    $call->hangup_cause = (string)$fields['Cause'];
+                }
+                if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
+                    $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
+                }
+                $call->save();
+                broadcast(new CallUpdated($call));
+            }
+        }
 
             $this->info("Call ended for Linkedid: {$fields['Linkedid']}");
             $this->line("Extension: {$fields['Exten']}");
