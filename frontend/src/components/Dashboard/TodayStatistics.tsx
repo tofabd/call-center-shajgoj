@@ -61,6 +61,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
 }) => {
   const [countdown, setCountdown] = useState(10);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Auto-refresh countdown effect
   useEffect(() => {
@@ -69,7 +70,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          // Trigger refresh when countdown reaches 0
+          // Trigger silent refresh when countdown reaches 0
           if (onRefresh) {
             onRefresh();
           }
@@ -84,10 +85,15 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
 
   // Manual refresh function
   const handleManualRefresh = useCallback(() => {
-    setCountdown(10);
+    setIsManualRefreshing(true);
     if (onRefresh) {
       onRefresh();
     }
+    // Reset manual refreshing state and countdown after update completes
+    setTimeout(() => {
+      setIsManualRefreshing(false);
+      setCountdown(10); // Reset countdown after update is complete
+    }, 1000);
   }, [onRefresh]);
 
   // Toggle auto-refresh
@@ -129,25 +135,58 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                 {isAutoRefreshEnabled ? 'Auto ON' : 'Auto OFF'}
               </button>
               
-              {/* Countdown timer */}
-              {isAutoRefreshEnabled && (
-                <div className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
-                    Refresh in {countdown}s
-                  </span>
-                </div>
-              )}
-              
-              {/* Manual refresh button */}
-              <button
-                onClick={handleManualRefresh}
-                className="p-2 bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all duration-200 group"
-                title="Refresh now"
-              >
-                <RefreshCw className={`h-4 w-4 text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors ${
-                  loading ? 'animate-spin' : ''
-                }`} />
-              </button>
+              {/* Single refresh icon with countdown and update states */}
+              <div className="flex items-center space-x-2">
+                {/* Countdown display or Updating indicator - Fixed width */}
+                {isAutoRefreshEnabled && (
+                  <div className={`px-2 py-1 rounded-lg w-24 text-center ${
+                    isManualRefreshing || loading
+                      ? 'bg-orange-100 dark:bg-orange-900/30' // Updating mode
+                      : countdown > 3
+                        ? 'bg-blue-100 dark:bg-blue-900/30' // Countdown mode
+                        : 'bg-orange-100 dark:bg-orange-900/30' // Auto-update mode
+                  }`}>
+                    <span className={`text-xs font-medium block ${
+                      isManualRefreshing || loading
+                        ? 'text-orange-700 dark:text-orange-400' // Updating mode
+                        : countdown > 3
+                          ? 'text-blue-700 dark:text-blue-400' // Countdown mode
+                          : 'text-orange-700 dark:text-orange-400' // Auto-update mode
+                    }`}>
+                      {isManualRefreshing || loading
+                        ? 'Updating...' // Manual refresh in progress
+                        : countdown > 3
+                          ? `Update in ${countdown}s` // Normal countdown
+                          : 'Updating...' // Auto-update in progress
+                      }
+                    </span>
+                  </div>
+                )}
+                
+                {/* Single refresh icon - changes behavior based on state */}
+                <button
+                  onClick={handleManualRefresh}
+                  className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                    countdown <= 3 && isAutoRefreshEnabled
+                      ? 'bg-orange-100 dark:bg-orange-900/30' // Auto-update mode
+                      : isManualRefreshing || loading
+                        ? 'bg-blue-100 dark:bg-blue-900/30' // Manual refresh mode - blue background
+                        : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md' // Normal mode with hover effect
+                  }`}
+                  title={countdown <= 3 && isAutoRefreshEnabled ? 'Auto-updating...' : 'Click to refresh now'}
+                  disabled={countdown <= 3 && isAutoRefreshEnabled} // Disable during auto-update
+                >
+                  <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
+                    countdown <= 3 && isAutoRefreshEnabled
+                      ? 'text-orange-600 dark:text-orange-400 animate-spin' // Auto-update mode
+                      : isManualRefreshing || loading
+                        ? 'text-blue-600 dark:text-blue-400 animate-spin' // Manual refresh loading - blue color
+                        : 'text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 group-hover:scale-110' // Normal mode with hover scale
+                  }`} />
+                </button>
+                
+
+              </div>
             </div>
           </div>
         </div>

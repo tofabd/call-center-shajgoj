@@ -22,6 +22,19 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Silent refresh function - updates data without loading state
+  const silentRefresh = async () => {
+    try {
+      // Fetch data silently without showing loading state
+      const stats = await callLogService.getTodayStats();
+      setCallStats(stats);
+      setError(null);
+    } catch (err) {
+      console.error('Silent refresh failed:', err);
+      // Don't show error for silent refresh to avoid disrupting user experience
+    }
+  };
+
   useEffect(() => {
     fetchCallStats();
   }, []);
@@ -33,7 +46,7 @@ const Dashboard: React.FC = () => {
         loading={loading}
         error={error}
         callStats={callStats}
-        onRefresh={fetchCallStats}
+        onRefresh={silentRefresh}
       />
     </div>
   );
