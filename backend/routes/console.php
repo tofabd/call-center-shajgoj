@@ -9,14 +9,13 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule the stuck calls cleanup command to run every 5 minutes
-Schedule::command('app:cleanup-stuck-calls')
+// Schedule the automatic stuck calls cleanup job to run every 5 minutes
+Schedule::job(new \App\Jobs\CleanupStuckCallsJob(5))
     ->everyFiveMinutes()
     ->withoutOverlapping()
-    ->runInBackground()
     ->onSuccess(function () {
-        Log::info('Stuck calls cleanup completed successfully');
+        Log::info('Queue-based cleanup: CleanupStuckCallsJob dispatched successfully');
     })
     ->onFailure(function () {
-        Log::error('Stuck calls cleanup failed');
+        Log::error('Queue-based cleanup: CleanupStuckCallsJob dispatch failed');
     });

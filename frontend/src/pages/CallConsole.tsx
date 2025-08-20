@@ -7,6 +7,7 @@ import '@services/echo'; // Import Echo setup
 // Removed WooCommerce order modals
 import CallMonitor from '@/components/CallConsole/CallMonitor';
 import CallDetails from '@/components/CallConsole/CallDetails';
+import AgentsStatus from '@/components/CallConsole/AgentsStatus';
 // Removed OrderNotesPanel
 
 // Interface for call status update data from backend
@@ -129,7 +130,6 @@ const CallConsole: React.FC = () => {
       // Clean call-level updates from the clean calls pipeline
       channel.listen('.call-updated', (data: CallStatusUpdateData) => {
         console.log('🔔 Received call-updated (clean) event:', data);
-        let isNewCall = false;
         setCallLogs(prevLogs => {
           const idx = prevLogs.findIndex(c => c.id === data.id);
           if (idx >= 0) {
@@ -177,7 +177,6 @@ const CallConsole: React.FC = () => {
               agentExten: data.agentExten ?? null,
               otherParty: data.otherParty ?? null,
             };
-            isNewCall = true;
             return [newItem, ...prevLogs];
           }
         });
@@ -260,8 +259,16 @@ const CallConsole: React.FC = () => {
 
         {/* Right Column: Call Details */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <div className="h-full min-h-0">
-            <CallDetails selectedCallId={selectedCallId} />
+          <div className="h-full min-h-0 flex gap-6">
+            {/* Call Details - Left Half */}
+            <div className="flex-1 min-w-0">
+              <CallDetails selectedCallId={selectedCallId} />
+            </div>
+            
+                         {/* Agents Status - Right Half */}
+             <div className="flex-1 min-w-0">
+               <AgentsStatus />
+             </div>
           </div>
         </div>
       </div>
