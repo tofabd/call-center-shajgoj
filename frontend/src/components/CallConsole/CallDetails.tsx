@@ -187,114 +187,114 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId }) => {
                 </div>
               )}
 
-              {/* Sectioned details */}
-              {details && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                  {/* Participants */}
-                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-4 shadow-lg shadow-emerald-100/50 dark:shadow-emerald-900/20">
-                    <h5 className="text-sm font-bold text-emerald-800 dark:text-emerald-200 mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                      Participants
-                    </h5>
-                    <dl className="space-y-3">
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Name</dt>
-                        <dd className="font-mono">{details.callerName || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Number</dt>
-                        <dd className="font-mono break-all">{details.callerNumber || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Other Party</dt>
-                        <dd className="font-mono break-all">{details.otherParty || details.connectedLineNum || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Agent Extension</dt>
-                        <dd className="font-mono">{details.agentExten || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Extension (Dialed)</dt>
-                        <dd className="font-mono">{details.extension || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Direction</dt>
-                        <dd className="capitalize">{details.direction || '-'}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                             {/* Sectioned details */}
+               {details && (
+                 <div className="space-y-3">
+                   {/* Participants */}
+                   <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-3 shadow-sm">
+                     <h5 className="text-sm font-bold text-emerald-800 dark:text-emerald-200 mb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                       Participants
+                     </h5>
+                     <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Name</dt>
+                         <dd className="font-mono text-xs">{details.callerName || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Number</dt>
+                         <dd className="font-mono text-xs break-all">{details.callerNumber || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Other Party</dt>
+                         <dd className="font-mono text-xs break-all">{details.otherParty || details.connectedLineNum || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Agent Ext</dt>
+                         <dd className="font-mono text-xs">{details.agentExten || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Extension</dt>
+                         <dd className="font-mono text-xs">{details.extension || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Direction</dt>
+                         <dd className="capitalize text-xs">{details.direction || '-'}</dd>
+                       </div>
+                     </dl>
+                   </div>
 
-                  {/* Channel */}
-                  <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 shadow-lg shadow-blue-100/50 dark:shadow-blue-900/20">
-                    <h5 className="text-sm font-bold text-blue-800 dark:text-blue-200 mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                      Channel
-                    </h5>
-                    <dl className="space-y-3">
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Channel</dt>
-                        <dd className="font-mono break-all">{details.channel || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Context</dt>
-                        <dd className="font-mono break-all">{details.context || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">State</dt>
-                        <dd className="font-mono">{details.channelStateDesc || details.channelState || '-'}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                   {/* Channel */}
+                   <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-3 shadow-sm">
+                     <h5 className="text-sm font-bold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                       Channel
+                     </h5>
+                     <dl className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Channel</dt>
+                         <dd className="font-mono text-xs break-all">{details.channel || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Context</dt>
+                         <dd className="font-mono text-xs break-all">{details.context || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">State</dt>
+                         <dd className="font-mono text-xs">{details.channelStateDesc || details.channelState || '-'}</dd>
+                       </div>
+                     </dl>
+                   </div>
 
-                  {/* Timing */}
-                  <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-4 shadow-lg shadow-purple-100/50 dark:shadow-purple-900/20">
-                    <h5 className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                      Timing
-                    </h5>
-                    <dl className="space-y-3">
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Start Time</dt>
-                        <dd className="font-mono">{formatDateTime(details.startTime)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">End Time</dt>
-                        <dd className="font-mono">{formatDateTime(details.endTime)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Duration</dt>
-                        <dd className="font-mono">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                   {/* Timing */}
+                   <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-purple-900/20 p-3 shadow-sm">
+                     <h5 className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                       Timing
+                     </h5>
+                     <dl className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Start Time</dt>
+                         <dd className="font-mono text-xs">{formatDateTime(details.startTime)}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">End Time</dt>
+                         <dd className="font-mono text-xs">{formatDateTime(details.endTime)}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Duration</dt>
+                         <dd className="font-mono text-xs">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
+                       </div>
+                     </dl>
+                   </div>
 
-                  {/* Identifiers */}
-                  <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-4 shadow-lg shadow-orange-100/50 dark:shadow-orange-900/20">
-                    <h5 className="text-sm font-bold text-orange-800 dark:text-orange-200 mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-                      Identifiers
-                    </h5>
-                    <dl className="space-y-3">
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Unique ID</dt>
-                        <dd className="font-mono break-all">{details.uniqueid || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Linked ID</dt>
-                        <dd className="font-mono break-all">{details.linkedid || '-'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Created At</dt>
-                        <dd className="font-mono">{formatDateTime(details.createdAt)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-gray-500 dark:text-gray-400">Updated At</dt>
-                        <dd className="font-mono">{formatDateTime(details.updatedAt)}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </div>
-              )}
+                   {/* Identifiers */}
+                   <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-3 shadow-sm">
+                     <h5 className="text-sm font-bold text-orange-800 dark:text-orange-200 mb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                       Identifiers
+                     </h5>
+                     <dl className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Unique ID</dt>
+                         <dd className="font-mono text-xs break-all">{details.uniqueid || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Linked ID</dt>
+                         <dd className="font-mono text-xs break-all">{details.linkedid || '-'}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Created</dt>
+                         <dd className="font-mono text-xs">{formatDateTime(details.createdAt)}</dd>
+                       </div>
+                       <div>
+                         <dt className="text-xs text-gray-500 dark:text-gray-400">Updated</dt>
+                         <dd className="font-mono text-xs">{formatDateTime(details.updatedAt)}</dd>
+                       </div>
+                     </dl>
+                   </div>
+                 </div>
+               )}
             </div>
           </div>
         )}
