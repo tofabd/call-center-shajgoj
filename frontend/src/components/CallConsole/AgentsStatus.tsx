@@ -1,36 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import { extensionService } from '../../services/extensionService';
-import type { ExtensionStats, TopAgent } from '../../services/extensionService';
+import type { Extension } from '../../services/extensionService';
 
 const AgentsStatus: React.FC = () => {
-  const [stats, setStats] = useState<ExtensionStats | null>(null);
-  const [topAgents, setTopAgents] = useState<TopAgent[]>([]);
+  const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    loadExtensions();
     
     // Refresh data every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(loadExtensions, 30000);
     
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
+  const loadExtensions = async () => {
     try {
       setLoading(true);
-      const data = await extensionService.getStats();
-      setStats(data.stats);
-      setTopAgents(data.top_agents);
+      const data = await extensionService.getExtensions();
+      setExtensions(data);
       setError(null);
     } catch (err) {
-      setError('Failed to load agent statistics');
-      console.error('Error loading stats:', err);
+      setError('Failed to load extensions');
+      console.error('Error loading extensions:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'online':
+        return '🟢';
+      case 'offline':
+        return '🔴';
+      case 'unknown':
+        return '🟡';
+      default:
+        return '⚪';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online':
+        return 'text-green-600 dark:text-green-400';
+      case 'offline':
+        return 'text-red-600 dark:text-red-400';
+      case 'unknown':
+        return 'text-yellow-600 dark:text-yellow-400';
+      default:
+        return 'text-gray-600 dark:text-gray-400';
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full">
       <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
@@ -42,9 +67,9 @@ const AgentsStatus: React.FC = () => {
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Agents Status</h3>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Real-time agent performance metrics
+                Real-time extension status and agent information
               </p>
             </div>
           </div>
@@ -52,91 +77,94 @@ const AgentsStatus: React.FC = () => {
       </div>
       
       <div className="p-6 h-full overflow-y-auto">
-        <div className="grid grid-cols-1 gap-4">
-          {/* Active Agents */}
-          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-emerald-800 dark:text-emerald-200">Active Agents</h5>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            </div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {loading ? '...' : (stats?.online_agents ?? 0)}
-            </div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Currently online</p>
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Loading extensions...</p>
           </div>
-
-          {/* Total Calls Today */}
-          <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-blue-800 dark:text-blue-200">Total Calls Today</h5>
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {loading ? '...' : (stats?.total_calls_today ?? 0)}
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Today's total calls</p>
+        ) : error ? (
+          <div className="text-center py-8">
+            <div className="text-red-500 text-lg mb-2">⚠️</div>
+            <p className="text-red-500">{error}</p>
+            <button 
+              onClick={loadExtensions}
+              className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Retry
+            </button>
           </div>
-
-          {/* Average Call Duration */}
-          <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-purple-900/20 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-purple-800 dark:text-purple-200">Avg Call Duration</h5>
-              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-            </div>
-            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {loading ? '...' : (stats?.avg_call_duration ?? '0m 0s')}
-            </div>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Today's average</p>
+        ) : extensions.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-gray-400 text-lg mb-2">📱</div>
+            <p className="text-gray-500 dark:text-gray-400">No extensions found</p>
           </div>
-
-          {/* Call Success Rate */}
-          <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-orange-800 dark:text-orange-200">Success Rate</h5>
-              <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-            </div>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {loading ? '...' : (stats?.success_rate ?? 0)}%
-            </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Today's success rate</p>
-          </div>
-        </div>
-
-        {/* Top Performing Agents */}
-        <div className="mt-4">
-          <h5 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Top Performing Agents</h5>
-          {loading ? (
-            <div className="text-center py-4 text-gray-500">Loading agents...</div>
-          ) : error ? (
-            <div className="text-center py-4 text-red-500">{error}</div>
-          ) : topAgents.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">No agent data available</div>
-          ) : (
-            <div className="space-y-2">
-              {topAgents.map((agent, index) => (
-              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                    index === 0 ? 'bg-yellow-500' : 
-                    index === 1 ? 'bg-gray-400' : 
-                    'bg-orange-500'
-                  }`}>
-                    {index + 1}
+        ) : (
+          <div className="space-y-3">
+            {extensions.map((extension) => (
+              <div 
+                key={extension.id} 
+                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center">
+                      <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
+                        {extension.extension}
+                      </span>
+                    </div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{agent.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{agent.calls} calls</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {extension.agent_name || `Extension ${extension.extension}`}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Extension {extension.extension}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-medium text-gray-900 dark:text-white">{agent.duration}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{agent.success}</div>
+                
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                      {getStatusIcon(extension.status)} {extension.status}
+                    </div>
+                    {extension.last_seen && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Last seen: {new Date(extension.last_seen).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        
+        {/* Summary */}
+        {extensions.length > 0 && (
+          <div className="mt-6 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  {extensions.length}
+                </div>
+                <div className="text-xs text-indigo-600 dark:text-indigo-400">Total Extensions</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {extensions.filter(ext => ext.status === 'online').length}
+                </div>
+                <div className="text-xs text-green-600 dark:text-green-400">Online</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                  {extensions.filter(ext => ext.status === 'offline').length}
+                </div>
+                <div className="text-xs text-red-600 dark:text-red-400">Offline</div>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
