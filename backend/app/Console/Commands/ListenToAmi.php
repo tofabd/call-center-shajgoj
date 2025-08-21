@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Call;
 use App\Models\CallLeg;
 use App\Models\BridgeSegment;
+use App\Models\Extension;
 use App\Events\CallUpdated;
+use App\Services\ExtensionService;
 
 /**
  * This is modified version of ListenToAmi
@@ -31,27 +33,29 @@ use App\Events\CallUpdated;
 
      private $socket;
      private $connected = false;
+     private $extensionService;
 
      /**
       * Execute the console command.
       */
      public function handle()
      {
+         $this->extensionService = new ExtensionService();
 
         // Mellowhost Server
 
-        //  $host = env('AMI_HOST', '103.177.125.93');
-        //  $port = env('AMI_PORT', 5038);
-        //  $username = env('AMI_USERNAME', 'admin');
-        //  $password = env('AMI_PASSWORD', 'talent1212');
+         $host = env('AMI_HOST', '103.177.125.93');
+         $port = env('AMI_PORT', 5038);
+         $username = env('AMI_USERNAME', 'admin');
+         $password = env('AMI_PASSWORD', 'talent1212');
 
 
         //  Shajgoj Server
 
-         $host = env('AMI_HOST', '103.177.125.83');
-         $port = env('AMI_PORT', 5038);
-         $username = env('AMI_USERNAME', 'admin');
-         $password = env('AMI_PASSWORD', 'Tractor@0152');
+        //  $host = env('AMI_HOST', '103.177.125.83');
+        //  $port = env('AMI_PORT', 5038);
+        //  $username = env('AMI_USERNAME', 'admin');
+        //  $password = env('AMI_PASSWORD', 'Tractor@0152');
 
          try {
              // Connect to Asterisk AMI
@@ -99,7 +103,8 @@ use App\Events\CallUpdated;
                      $eventName === 'DialBegin' ||
                      $eventName === 'DialEnd' ||
                      $eventName === 'BridgeEnter' ||
-                     $eventName === 'BridgeLeave'
+                     $eventName === 'BridgeLeave' ||
+                     $eventName === 'ExtensionStatus'
                  ) {
                      $this->processEvent($response, $eventName);
                  } else {
@@ -309,6 +314,8 @@ use App\Events\CallUpdated;
              $this->handleBridgeEnter($fields);
          } elseif ($eventType === 'BridgeLeave') {
              $this->handleBridgeLeave($fields);
+         } elseif ($eventType === 'ExtensionStatus') {
+             $this->handleExtensionStatus($fields);
          } else {
              // For other events, just log the fields
              $this->info("\n{$eventType} Event Fields:");
@@ -736,6 +743,44 @@ use App\Events\CallUpdated;
             $segment->left_at = now();
             $segment->save();
         }
+    }
+
+    /**
+     * Handle ExtensionStatus events from Asterisk AMI
+     */
+    private function handleExtensionStatus(array $fields): void
+    {
+        $extension = $fields['Exten'] ?? null;
+        $status = $fields['Status'] ?? null;
+
+        if (!$extension || !$status) {
+            return;
+        }
+
+        try {
+            // Update extension status in database
+            $this->extensionService->updateExtensionStatus($extension, $this->mapExtensionStatus($status));
+
+            $this->info("📱 Extension status updated: {$extension} -> {$status}");
+
+        } catch (\Exception $e) {
+            $this->error("Failed to update extension status: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Map Asterisk extension status to our status values
+     */
+    private function mapExtensionStatus(string $asteriskStatus): string
+    {
+        $statusMap = [
+            'Registered' => 'online',
+            'Unregistered' => 'offline',
+            'Rejected' => 'offline',
+            'Timeout' => 'offline',
+        ];
+
+        return $statusMap[$asteriskStatus] ?? 'unknown';
     }
 
      public function __destruct()

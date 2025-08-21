@@ -3,8 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-
 use App\Http\Controllers\CallController;
+use App\Http\Controllers\ExtensionController;
 
 // Public routes (no authentication required)
 Route::post('/login', [AuthController::class, 'login']);
@@ -25,4 +25,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Extension routes
+    Route::get('/extensions', [ExtensionController::class, 'index']);
+    Route::get('/extensions/stats', [ExtensionController::class, 'stats']);
+    Route::post('/extensions', [ExtensionController::class, 'store']);
+    Route::put('/extensions/{extension}', [ExtensionController::class, 'update']);
+    Route::delete('/extensions/{extension}', [ExtensionController::class, 'destroy']);
+    Route::post('/extensions/sync', [ExtensionController::class, 'sync']);
+    Route::post('/extensions/status', [ExtensionController::class, 'updateStatus']);
 });

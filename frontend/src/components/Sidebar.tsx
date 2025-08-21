@@ -3,8 +3,6 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Phone, 
-  MessageCircle,
-  CheckSquare,
   X
 } from 'lucide-react';
 

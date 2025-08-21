@@ -1,6 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { extensionService } from '../../services/extensionService';
+import type { ExtensionStats, TopAgent } from '../../services/extensionService';
 
 const AgentsStatus: React.FC = () => {
+  const [stats, setStats] = useState<ExtensionStats | null>(null);
+  const [topAgents, setTopAgents] = useState<TopAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadData();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(loadData, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await extensionService.getStats();
+      setStats(data.stats);
+      setTopAgents(data.top_agents);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load agent statistics');
+      console.error('Error loading stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full">
       <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
@@ -29,7 +59,9 @@ const AgentsStatus: React.FC = () => {
               <h5 className="text-sm font-bold text-emerald-800 dark:text-emerald-200">Active Agents</h5>
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             </div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">12</div>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {loading ? '...' : (stats?.online_agents ?? 0)}
+            </div>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Currently online</p>
           </div>
 
@@ -39,8 +71,10 @@ const AgentsStatus: React.FC = () => {
               <h5 className="text-sm font-bold text-blue-800 dark:text-blue-200">Total Calls Today</h5>
               <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
             </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">247</div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">+12% from yesterday</p>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {loading ? '...' : (stats?.total_calls_today ?? 0)}
+            </div>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Today's total calls</p>
           </div>
 
           {/* Average Call Duration */}
@@ -49,8 +83,10 @@ const AgentsStatus: React.FC = () => {
               <h5 className="text-sm font-bold text-purple-800 dark:text-purple-200">Avg Call Duration</h5>
               <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
             </div>
-            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">4m 32s</div>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">-5% from yesterday</p>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+              {loading ? '...' : (stats?.avg_call_duration ?? '0m 0s')}
+            </div>
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Today's average</p>
           </div>
 
           {/* Call Success Rate */}
@@ -59,20 +95,25 @@ const AgentsStatus: React.FC = () => {
               <h5 className="text-sm font-bold text-orange-800 dark:text-orange-200">Success Rate</h5>
               <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
             </div>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">94.2%</div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">+2.1% from yesterday</p>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+              {loading ? '...' : (stats?.success_rate ?? 0)}%
+            </div>
+            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Today's success rate</p>
           </div>
         </div>
 
         {/* Top Performing Agents */}
         <div className="mt-4">
           <h5 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Top Performing Agents</h5>
-          <div className="space-y-2">
-            {[
-              { name: 'Agent 101', calls: 28, duration: '5m 12s', success: '96.4%' },
-              { name: 'Agent 102', calls: 25, duration: '4m 48s', success: '95.2%' },
-              { name: 'Agent 103', calls: 23, duration: '4m 15s', success: '93.8%' }
-            ].map((agent, index) => (
+          {loading ? (
+            <div className="text-center py-4 text-gray-500">Loading agents...</div>
+          ) : error ? (
+            <div className="text-center py-4 text-red-500">{error}</div>
+          ) : topAgents.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">No agent data available</div>
+          ) : (
+            <div className="space-y-2">
+              {topAgents.map((agent, index) => (
               <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
@@ -93,7 +134,8 @@ const AgentsStatus: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
