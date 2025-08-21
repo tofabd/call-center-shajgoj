@@ -47,153 +47,134 @@ class CleanupStuckCalls extends Command
 
     /**
      * Execute the actual cleanup logic
+     *
+     * This command handles two main scenarios:
+     * 1. Multiple calls on same extension - cleans up all except the newest
+     * 2. New call arrives on busy extension - cleans up all older calls
+     *
+     * The logic ensures that each extension always has only ONE active call
+     * (the most recent one), preventing conflicts and stuck calls.
      */
     private function executeCleanup(): void
     {
         $startTime = microtime(true);
-        $timeoutMinutes = 5; // Default timeout like the job
 
-        $this->info("🤖 Starting cleanup for calls stuck longer than {$timeoutMinutes} minutes");
+        $this->info("🤖 Starting cleanup for calls with extension conflicts");
+        $this->line("   📋 Logic: Keep NEWEST call per extension, clean up ALL OLDER ones");
+        $this->line("   🎯 Goal: Each extension should have only ONE active call");
 
-        // 1. Clean up answered calls that are stuck
-        $stuckAnsweredCalls = Call::whereNotNull('answered_at')
-            ->whereNull('ended_at')
-            ->where('answered_at', '<', now()->subMinutes($timeoutMinutes))
-            ->get();
+        // 1. Find all active calls (answered or ringing) grouped by extension
+        $activeCallsByExtension = Call::whereNull('ended_at')
+            ->whereNotNull('agent_exten')
+            ->orderBy('agent_exten')
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->groupBy('agent_exten');
 
-        // 2. Clean up ringing calls that never got answered
-        $stuckRingingCalls = Call::whereNull('answered_at')
-            ->whereNull('ended_at')
-            ->where('created_at', '<', now()->subMinutes($timeoutMinutes))
-            ->get();
+        // 2. Process extensions with multiple calls
+        $extensionsWithConflicts = $activeCallsByExtension->filter(function ($calls, $extension) {
+            return $calls->count() > 1;
+        });
 
-        // Initialize counters
-        $totalStuckCalls = $stuckAnsweredCalls->count() + $stuckRingingCalls->count();
-        $answeredCallsToCleanup = 0;
-        $ringingCallsToCleanup = 0;
-
-        if ($totalStuckCalls === 0) {
-            $this->info("✅ No stuck calls found. All calls are healthy!");
+        if ($extensionsWithConflicts->isEmpty()) {
+            $this->info("✅ No extension conflicts found. All extensions have single calls!");
             return;
         }
 
-        $this->info("📊 Found {$totalStuckCalls} total stuck call(s)");
-        $this->line("   • Answered calls stuck: " . $stuckAnsweredCalls->count());
-        $this->line("   • Ringing calls stuck: " . $stuckRingingCalls->count());
+        $this->info("📊 Found " . $extensionsWithConflicts->count() . " extension(s) with multiple calls");
+        $this->line("   🔍 These extensions have conflicts that need resolution");
 
-        // Process answered calls
-        if ($stuckAnsweredCalls->isNotEmpty()) {
-            $answeredCallsToCleanup = $this->processAnsweredCalls($stuckAnsweredCalls);
+        $totalCleaned = 0;
+        $extensionsProcessed = 0;
+
+        foreach ($extensionsWithConflicts as $extension => $calls) {
+            $this->newLine();
+            $this->info("🔧 Processing Extension: {$extension} ({$calls->count()} active calls)");
+            $this->line("   📅 Call timeline:");
+
+            // Show call timeline for this extension
+            foreach ($calls as $index => $call) {
+                $callType = $call->answered_at ? 'Answered' : 'Ringing';
+                $status = $index === $calls->count() - 1 ? '← NEWEST (KEEPING)' : '← OLDER (CLEANING UP)';
+                $callNumber = $index + 1;
+                $this->line("      {$callNumber}. Call ID {$call->id} - {$callType} at {$call->created_at->format('H:i:s')} {$status}");
+            }
+
+            $cleanedCount = $this->processExtensionConflicts($extension, $calls);
+            $totalCleaned += $cleanedCount;
+            $extensionsProcessed++;
+
+            if ($cleanedCount > 0) {
+                $this->line("   ✅ Cleaned up {$cleanedCount} call(s) from extension {$extension}");
+                $this->line("   🎯 Extension {$extension} now has 1 active call (conflict resolved)");
+            } else {
+                $this->line("   ℹ️ No cleanup needed for extension {$extension}");
+            }
         }
-
-        // Process ringing calls
-        if ($stuckRingingCalls->isNotEmpty()) {
-            $ringingCallsToCleanup = $this->processRingingCalls($stuckRingingCalls);
-        }
-
-        // Calculate total cleanup needed
-        $totalCleanupNeeded = $answeredCallsToCleanup + $ringingCallsToCleanup;
 
         // Calculate execution time
         $executionTime = microtime(true) - $startTime;
         $executionTimeMs = round($executionTime * 1000, 2);
 
         // Summary
-        if ($totalCleanupNeeded > 0) {
-            $this->newLine();
-            $this->info("🎉 Summary - Successfully cleaned up {$totalCleanupNeeded} stuck call(s)!");
-            $this->line("   • Answered calls cleaned: {$answeredCallsToCleanup}");
-            $this->line("   • Ringing calls cleaned: {$ringingCallsToCleanup}");
-            $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
+        $this->newLine();
+        if ($totalCleaned > 0) {
+            $this->info("🎉 Summary - Successfully cleaned up {$totalCleaned} call(s) from {$extensionsProcessed} extension(s)!");
+            $this->line("   🎯 All extension conflicts have been resolved");
+            $this->line("   📞 Each extension now has only ONE active call");
         } else {
-            $this->newLine();
             $this->info("ℹ️ No calls were eligible for cleanup");
-            $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
         }
+        $this->line("   • Extensions processed: {$extensionsProcessed}");
+        $this->line("   • Total calls cleaned: {$totalCleaned}");
+        $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
 
         // Log the manual execution
-        Log::info('Manual cleanup command executed', [
+        Log::info('Manual cleanup command executed - Extension conflict resolution', [
             'command' => 'calls:cleanup',
-            'timeout_minutes' => $timeoutMinutes,
-            'total_stuck_found' => $totalStuckCalls,
-            'total_cleaned' => $totalCleanupNeeded,
-            'answered_cleaned' => $answeredCallsToCleanup,
-            'ringing_cleaned' => $ringingCallsToCleanup,
+            'extensions_with_conflicts' => $extensionsWithConflicts->count(),
+            'total_calls_cleaned' => $totalCleaned,
             'processing_time_ms' => $executionTimeMs,
-            'executed_by' => 'artisan_command'
+            'executed_by' => 'artisan_command',
+            'cleanup_strategy' => 'Keep newest call per extension, clean up all older ones'
         ]);
     }
 
     /**
-     * Process answered calls that are stuck
+     * Process extensions with multiple calls to clean up older calls.
+     * Handles both scenarios:
+     * 1. Multiple calls on same extension - clean up all except newest
+     * 2. New call arrives on busy extension - clean up all older calls
      */
-    private function processAnsweredCalls($stuckAnsweredCalls): int
+    private function processExtensionConflicts(string $extension, $calls): int
     {
-        if ($stuckAnsweredCalls->isEmpty()) {
-            return 0;
-        }
-
-        // Smart cleanup logic: Clean up if extension is free OR if there are newer calls
-        $callsToCleanup = $stuckAnsweredCalls->filter(function ($call) {
-            $extension = $call->agent_exten;
-            $stuckDuration = $call->answered_at->diffInMinutes(now(), false);
-
-            // CRITICAL: If call is stuck for 30+ minutes, clean it up regardless of extension status
-            if ($stuckDuration >= 30) {
-                $this->line("🚨 Critical cleanup - Answered Call ID {$call->id} stuck for {$stuckDuration} minutes (30+ min override)");
-                return true; // Force cleanup for 30+ minute stuck calls
-            }
-
-            // Get all active calls on this extension (including the stuck one)
-            $allActiveCallsOnExtension = Call::where('agent_exten', $extension)
-                ->whereNotNull('answered_at')
-                ->whereNull('ended_at')
-                ->orderBy('answered_at', 'asc')  // Oldest first
-                ->get();
-
-            if ($allActiveCallsOnExtension->count() === 1) {
-                // Only this stuck call exists on extension - safe to clean up
-                return true;
-            }
-
-            // Multiple calls on extension - check if this is the oldest (stuck) one
-            $oldestCall = $allActiveCallsOnExtension->first();
-            if ($oldestCall->id === $call->id) {
-                // This is the oldest call - clean it up to make room for newer ones
-                return true;
-            }
-
-            // This is not the oldest call - don't clean up (let newer calls continue)
-            return false;
-        });
-
-        if ($callsToCleanup->isEmpty()) {
-            $this->line("ℹ️ Found stuck answered calls but none eligible for cleanup (newer calls exist)");
-            Log::info("ℹ️ CleanupStuckCalls: Found stuck answered calls but none eligible for cleanup (newer calls exist)", [
-                'total_stuck_answered' => $stuckAnsweredCalls->count(),
-                'eligible_for_cleanup' => 0
-            ]);
-            return 0;
-        }
-
-        $this->warn("⚠️ Found {$callsToCleanup->count()} answered call(s) to clean up");
-        Log::info("⚠️ CleanupStuckCalls: Found {$callsToCleanup->count()} answered call(s) to clean up");
-
         $cleanedCount = 0;
         $errors = [];
 
+        // Sort calls by creation date (oldest first)
+        $calls = $calls->sortBy('created_at');
+
+        // ALWAYS keep only the newest call, clean up ALL others
+        $callsToCleanup = $calls->slice(0, -1); // All except the last (newest) one
+
+        if ($callsToCleanup->isEmpty()) {
+            return 0;
+        }
+
+        $newestCall = $calls->last();
+        $this->warn("⚠️ Found {$callsToCleanup->count()} older call(s) to clean up from extension {$extension}");
+        $this->line("   📞 Keeping newest call: ID {$newestCall->id} (Created: {$newestCall->created_at->format('H:i:s')})");
+
         foreach ($callsToCleanup as $call) {
             try {
-                $stuckDuration = $call->answered_at->diffInMinutes(now(), false);
-
                 // Mark the call as ended
                 $call->ended_at = now();
 
-                // Set hangup cause based on stuck duration
-                if ($stuckDuration >= 30) {
-                    $call->hangup_cause = 'critical_timeout_override';
+                // Set hangup cause based on call state
+                if ($call->answered_at) {
+                    $call->hangup_cause = 'extension_conflict_answered_cleanup';
                 } else {
-                    $call->hangup_cause = 'queue_cleanup_timeout';
+                    $call->hangup_cause = 'extension_conflict_ringing_cleanup';
                 }
 
                 // Calculate talk duration if possible
@@ -207,21 +188,25 @@ class CleanupStuckCalls extends Command
                 broadcast(new CallUpdated($call));
 
                 $cleanedCount++;
-                $this->line("✅ Cleaned up ANSWERED Call ID: {$call->id} (Extension: {$call->agent_exten}, Stuck: {$stuckDuration} min)");
 
-                Log::info("✅ CleanupStuckCalls: Cleaned up ANSWERED Call ID: {$call->id}", [
+                // Show call type in cleanup message
+                $callType = $call->answered_at ? 'Answered' : 'Ringing';
+                $this->line("   ✅ Cleaned up {$callType} Call ID: {$call->id} (Created: {$call->created_at->format('H:i:s')})");
+
+                Log::info("✅ CleanupStuckCalls: Cleaned up {$callType} Call ID: {$call->id}", [
                     'call_id' => $call->id,
                     'linkedid' => $call->linkedid,
-                    'extension' => $call->agent_exten,
-                    'stuck_duration_minutes' => $stuckDuration,
+                    'extension' => $extension,
+                    'call_type' => $callType,
                     'cleanup_time' => now(),
-                    'cleanup_type' => 'answered_manual_command'
+                    'cleanup_type' => 'extension_conflict_command',
+                    'reason' => 'Multiple calls on same extension - keeping newest'
                 ]);
 
             } catch (\Exception $e) {
-                $errorMsg = "Failed to clean up Answered Call ID: {$call->id} - {$e->getMessage()}";
+                $errorMsg = "Failed to clean up Call ID: {$call->id} - {$e->getMessage()}";
                 $this->error($errorMsg);
-                Log::error("CleanupStuckCalls: Failed to clean up stuck answered call", [
+                Log::error("CleanupStuckCalls: Failed to clean up extension conflict call", [
                     'call_id' => $call->id,
                     'error' => $e->getMessage(),
                 ]);
@@ -230,120 +215,8 @@ class CleanupStuckCalls extends Command
         }
 
         if (!empty($errors)) {
-            $this->warn("⚠️ " . count($errors) . " error(s) occurred during answered call cleanup");
-            Log::warning("⚠️ CleanupStuckCalls: " . count($errors) . " error(s) occurred during answered call cleanup", [
-                'errors' => $errors
-            ]);
-        }
-
-        return $cleanedCount;
-    }
-
-    /**
-     * Process ringing calls that never got answered
-     */
-    private function processRingingCalls($stuckRingingCalls): int
-    {
-        if ($stuckRingingCalls->isEmpty()) {
-            return 0;
-        }
-
-        // Smart cleanup logic for ringing calls (same as answered calls)
-        $ringingCallsToCleanup = $stuckRingingCalls->filter(function ($call) {
-            $extension = $call->agent_exten;
-            $ringingDuration = $call->created_at->diffInMinutes(now(), false);
-
-            // CRITICAL: If ringing for 30+ minutes, clean it up regardless of extension status
-            if ($ringingDuration >= 30) {
-                $this->line("🚨 Critical cleanup - Ringing Call ID {$call->id} stuck for {$ringingDuration} minutes (30+ min override)");
-                return true; // Force cleanup for 30+ minute ringing calls
-            }
-
-            // Get all active calls on this extension (including the ringing one)
-            $allActiveCallsOnExtension = Call::where('agent_exten', $extension)
-                ->whereNull('ended_at')
-                ->orderBy('created_at', 'asc')  // Oldest first
-                ->get();
-
-            if ($allActiveCallsOnExtension->count() === 1) {
-                // Only this ringing call exists on extension - safe to clean up
-                return true;
-            }
-
-            // Multiple calls on extension - check if this is the oldest (ringing) one
-            $oldestCall = $allActiveCallsOnExtension->first();
-            if ($oldestCall->id === $call->id) {
-                // This is the oldest call - clean it up to make room for newer ones
-                return true;
-            }
-
-            // This is not the oldest call - don't clean up (let newer calls continue)
-            return false;
-        });
-
-        if ($ringingCallsToCleanup->isEmpty()) {
-            $this->line("ℹ️ Found stuck ringing calls but none eligible for cleanup (newer calls exist)");
-            Log::info("ℹ️ CleanupStuckCalls: Found stuck ringing calls but none eligible for cleanup (newer calls exist)", [
-                'total_stuck_ringing' => $stuckRingingCalls->count(),
-                'eligible_for_cleanup' => 0
-            ]);
-            return 0;
-        }
-
-        $this->warn("⚠️ Found {$ringingCallsToCleanup->count()} ringing call(s) to clean up");
-        Log::info("⚠️ CleanupStuckCalls: Found {$ringingCallsToCleanup->count()} ringing call(s) to clean up");
-
-        $cleanedCount = 0;
-        $errors = [];
-
-        foreach ($ringingCallsToCleanup as $call) {
-            try {
-                $ringingDuration = $call->created_at->diffInMinutes(now(), false);
-
-                // Mark the call as ended
-                $call->ended_at = now();
-
-                // Set hangup cause based on ringing duration
-                if ($ringingDuration >= 30) {
-                    $call->hangup_cause = 'critical_ringing_timeout_override';
-                } else {
-                    $call->hangup_cause = 'ringing_cleanup_timeout';
-                }
-
-                // No talk duration since never answered
-                $call->talk_seconds = 0;
-
-                $call->save();
-
-                // Broadcast the update to frontend
-                broadcast(new CallUpdated($call));
-
-                $cleanedCount++;
-                $this->line("🔔 Cleaned up RINGING Call ID: {$call->id} (Extension: {$call->agent_exten}, Ringing: {$ringingDuration} min)");
-
-                Log::info("🔔 CleanupStuckCalls: Cleaned up RINGING Call ID: {$call->id}", [
-                    'call_id' => $call->id,
-                    'linkedid' => $call->linkedid,
-                    'extension' => $call->agent_exten,
-                    'ringing_duration_minutes' => $ringingDuration,
-                    'cleanup_time' => now(),
-                    'cleanup_type' => 'ringing_manual_command'
-                ]);
-
-            } catch (\Exception $e) {
-                $errorMsg = "Failed to clean up Ringing Call ID: {$call->id} - {$e->getMessage()}";
-                $this->error($errorMsg);
-                Log::error("CleanupStuckCalls: Failed to clean up ringing call", [
-                    'call_id' => $call->id,
-                    'error' => $e->getMessage(),
-                ]);
-                $errors[] = $errorMsg;
-            }
-        }
-
-        if (!empty($errors)) {
-            $this->warn("⚠️ " . count($errors) . " error(s) occurred during ringing call cleanup");
-            Log::warning("⚠️ CleanupStuckCalls: " . count($errors) . " error(s) occurred during ringing call cleanup", [
+            $this->warn("⚠️ " . count($errors) . " error(s) occurred during extension conflict cleanup");
+            Log::warning("⚠️ CleanupStuckCalls: " . count($errors) . " error(s) occurred during extension conflict cleanup", [
                 'errors' => $errors
             ]);
         }
