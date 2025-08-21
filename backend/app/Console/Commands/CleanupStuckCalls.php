@@ -1,119 +1,127 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Console\Commands;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Bus\Queueable as BusQueueable;
-use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Console\Command;
 use App\Models\Call;
 use Illuminate\Support\Facades\Log;
+use App\Events\CallUpdated;
 
-class CleanupStuckCallsJob implements ShouldQueue
+class CleanupStuckCalls extends Command
 {
-    use Dispatchable, BusQueueable, Queueable, InteractsWithQueue;
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'calls:cleanup';
 
     /**
-     * The number of times the job may be attempted.
+     * The console command description.
+     *
+     * @var string
      */
-    public $tries = 3;
+    protected $description = 'Clean up stuck calls using the same logic as CleanupStuckCallsJob';
 
     /**
-     * The number of seconds the job can run before timing out.
+     * Execute the console command.
      */
-    public $timeout = 60; // 5 minutes
+    public function handle()
+    {
+        $this->info('🧹 Starting stuck calls cleanup...');
 
-    /**
-     * Create a new job instance.
-     */
-    public function __construct(
-        public int $timeoutMinutes = 5
-    ) {
-        //
+        try {
+            $this->executeCleanup();
+            $this->info('✅ Cleanup completed successfully!');
+            return 0;
+        } catch (\Exception $e) {
+            $this->error('❌ Cleanup failed: ' . $e->getMessage());
+            Log::error('Manual cleanup command failed', [
+                'command' => 'calls:cleanup',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return 1;
+        }
     }
 
     /**
-     * Execute the job.
+     * Execute the actual cleanup logic
      */
-    public function handle(): void
+    private function executeCleanup(): void
     {
         $startTime = microtime(true);
-        Log::info("🤖 CleanupStuckCallsJob: Starting cleanup for calls stuck longer than {$this->timeoutMinutes} minutes");
+        $timeoutMinutes = 5; // Default timeout like the job
+
+        $this->info("🤖 Starting cleanup for calls stuck longer than {$timeoutMinutes} minutes");
 
         // 1. Clean up answered calls that are stuck
         $stuckAnsweredCalls = Call::whereNotNull('answered_at')
             ->whereNull('ended_at')
-            ->where('answered_at', '<', now()->subMinutes($this->timeoutMinutes))
+            ->where('answered_at', '<', now()->subMinutes($timeoutMinutes))
             ->get();
 
         // 2. Clean up ringing calls that never got answered
         $stuckRingingCalls = Call::whereNull('answered_at')
             ->whereNull('ended_at')
-            ->where('created_at', '<', now()->subMinutes($this->timeoutMinutes)) // Use same timeout as answered calls
+            ->where('created_at', '<', now()->subMinutes($timeoutMinutes))
             ->get();
 
         // Initialize counters
         $totalStuckCalls = $stuckAnsweredCalls->count() + $stuckRingingCalls->count();
         $answeredCallsToCleanup = 0;
         $ringingCallsToCleanup = 0;
-        $totalCleanupNeeded = 0;
 
         if ($totalStuckCalls === 0) {
-            Log::info("✅ CleanupStuckCallsJob: No stuck calls found. All calls are healthy!", [
-                'timeout_minutes' => $this->timeoutMinutes,
-                'total_stuck_calls' => 0,
-                'cleanup_processes_needed' => 0
-            ]);
+            $this->info("✅ No stuck calls found. All calls are healthy!");
             return;
         }
 
-        Log::info("📊 CleanupStuckCallsJob: Found {$totalStuckCalls} total stuck call(s)", [
-            'answered_calls_stuck' => $stuckAnsweredCalls->count(),
-            'ringing_calls_stuck' => $stuckRingingCalls->count(),
-            'total_stuck_calls' => $totalStuckCalls
-        ]);
+        $this->info("📊 Found {$totalStuckCalls} total stuck call(s)");
+        $this->line("   • Answered calls stuck: " . $stuckAnsweredCalls->count());
+        $this->line("   • Ringing calls stuck: " . $stuckRingingCalls->count());
 
-        // Process answered calls (existing logic)
-        $answeredCallsToCleanup = $this->processAnsweredCalls($stuckAnsweredCalls);
+        // Process answered calls
+        if ($stuckAnsweredCalls->isNotEmpty()) {
+            $answeredCallsToCleanup = $this->processAnsweredCalls($stuckAnsweredCalls);
+        }
 
-        // Process ringing calls (new logic)
-        $ringingCallsToCleanup = $this->processRingingCalls($stuckRingingCalls);
+        // Process ringing calls
+        if ($stuckRingingCalls->isNotEmpty()) {
+            $ringingCallsToCleanup = $this->processRingingCalls($stuckRingingCalls);
+        }
 
         // Calculate total cleanup needed
         $totalCleanupNeeded = $answeredCallsToCleanup + $ringingCallsToCleanup;
 
-                // Calculate execution time
+        // Calculate execution time
         $executionTime = microtime(true) - $startTime;
         $executionTimeMs = round($executionTime * 1000, 2);
 
-        // Format human-readable processing time
-        $processingTimeMessage = $this->formatProcessingTime($executionTime);
-
-        // Summary with counter and timing
+        // Summary
         if ($totalCleanupNeeded > 0) {
-            Log::info("🎉 CleanupStuckCallsJob: Summary - Successfully cleaned up {$totalCleanupNeeded} stuck call(s)!");
-            Log::info("⏱️ Clean up processing time: {$processingTimeMessage}");
-            Log::info("📊 CleanupStuckCallsJob: Detailed summary", [
-                'answered_calls_cleaned' => $answeredCallsToCleanup,
-                'ringing_calls_cleaned' => $ringingCallsToCleanup,
-                'total_cleaned_count' => $totalCleanupNeeded,
-                'cleanup_processes_completed' => $totalCleanupNeeded,
-                'timeout_minutes' => $this->timeoutMinutes,
-                'execution_time' => now(),
-                'processing_time_ms' => $executionTimeMs,
-                'processing_time_seconds' => round($executionTime, 3)
-            ]);
+            $this->newLine();
+            $this->info("🎉 Summary - Successfully cleaned up {$totalCleanupNeeded} stuck call(s)!");
+            $this->line("   • Answered calls cleaned: {$answeredCallsToCleanup}");
+            $this->line("   • Ringing calls cleaned: {$ringingCallsToCleanup}");
+            $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
         } else {
-            Log::info("ℹ️ CleanupStuckCallsJob: No calls were eligible for cleanup");
-            Log::info("⏱️ Clean up processing time: {$processingTimeMessage}");
-            Log::info("📊 CleanupStuckCallsJob: Detailed summary", [
-                'total_stuck_found' => $totalStuckCalls,
-                'cleanup_processes_needed' => 0,
-                'processing_time_ms' => $executionTimeMs,
-                'processing_time_seconds' => round($executionTime, 3)
-            ]);
+            $this->newLine();
+            $this->info("ℹ️ No calls were eligible for cleanup");
+            $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
         }
+
+        // Log the manual execution
+        Log::info('Manual cleanup command executed', [
+            'command' => 'calls:cleanup',
+            'timeout_minutes' => $timeoutMinutes,
+            'total_stuck_found' => $totalStuckCalls,
+            'total_cleaned' => $totalCleanupNeeded,
+            'answered_cleaned' => $answeredCallsToCleanup,
+            'ringing_cleaned' => $ringingCallsToCleanup,
+            'processing_time_ms' => $executionTimeMs,
+            'executed_by' => 'artisan_command'
+        ]);
     }
 
     /**
@@ -132,12 +140,7 @@ class CleanupStuckCallsJob implements ShouldQueue
 
             // CRITICAL: If call is stuck for 30+ minutes, clean it up regardless of extension status
             if ($stuckDuration >= 30) {
-                Log::info("🚨 CleanupStuckCallsJob: Critical cleanup - Answered Call ID {$call->id} stuck for {$stuckDuration} minutes (30+ min override)", [
-                    'call_id' => $call->id,
-                    'extension' => $extension,
-                    'stuck_duration_minutes' => $stuckDuration,
-                    'cleanup_reason' => 'critical_timeout_override'
-                ]);
+                $this->line("🚨 Critical cleanup - Answered Call ID {$call->id} stuck for {$stuckDuration} minutes (30+ min override)");
                 return true; // Force cleanup for 30+ minute stuck calls
             }
 
@@ -165,14 +168,16 @@ class CleanupStuckCallsJob implements ShouldQueue
         });
 
         if ($callsToCleanup->isEmpty()) {
-            Log::info("ℹ️ CleanupStuckCallsJob: Found stuck answered calls but none eligible for cleanup (newer calls exist)", [
+            $this->line("ℹ️ Found stuck answered calls but none eligible for cleanup (newer calls exist)");
+            Log::info("ℹ️ CleanupStuckCalls: Found stuck answered calls but none eligible for cleanup (newer calls exist)", [
                 'total_stuck_answered' => $stuckAnsweredCalls->count(),
                 'eligible_for_cleanup' => 0
             ]);
             return 0;
         }
 
-        Log::info("⚠️ CleanupStuckCallsJob: Found {$callsToCleanup->count()} answered call(s) to clean up");
+        $this->warn("⚠️ Found {$callsToCleanup->count()} answered call(s) to clean up");
+        Log::info("⚠️ CleanupStuckCalls: Found {$callsToCleanup->count()} answered call(s) to clean up");
 
         $cleanedCount = 0;
         $errors = [];
@@ -199,21 +204,24 @@ class CleanupStuckCallsJob implements ShouldQueue
                 $call->save();
 
                 // Broadcast the update to frontend
-                broadcast(new \App\Events\CallUpdated($call));
+                broadcast(new CallUpdated($call));
 
                 $cleanedCount++;
-                Log::info("✅ CleanupStuckCallsJob: Cleaned up ANSWERED Call ID: {$call->id}", [
+                $this->line("✅ Cleaned up ANSWERED Call ID: {$call->id} (Extension: {$call->agent_exten}, Stuck: {$stuckDuration} min)");
+
+                Log::info("✅ CleanupStuckCalls: Cleaned up ANSWERED Call ID: {$call->id}", [
                     'call_id' => $call->id,
                     'linkedid' => $call->linkedid,
                     'extension' => $call->agent_exten,
                     'stuck_duration_minutes' => $stuckDuration,
                     'cleanup_time' => now(),
-                    'cleanup_type' => 'answered_queue_job'
+                    'cleanup_type' => 'answered_manual_command'
                 ]);
 
             } catch (\Exception $e) {
                 $errorMsg = "Failed to clean up Answered Call ID: {$call->id} - {$e->getMessage()}";
-                Log::error("CleanupStuckCallsJob: Failed to clean up stuck answered call", [
+                $this->error($errorMsg);
+                Log::error("CleanupStuckCalls: Failed to clean up stuck answered call", [
                     'call_id' => $call->id,
                     'error' => $e->getMessage(),
                 ]);
@@ -222,7 +230,8 @@ class CleanupStuckCallsJob implements ShouldQueue
         }
 
         if (!empty($errors)) {
-            Log::warning("⚠️ CleanupStuckCallsJob: " . count($errors) . " error(s) occurred during answered call cleanup", [
+            $this->warn("⚠️ " . count($errors) . " error(s) occurred during answered call cleanup");
+            Log::warning("⚠️ CleanupStuckCalls: " . count($errors) . " error(s) occurred during answered call cleanup", [
                 'errors' => $errors
             ]);
         }
@@ -246,12 +255,7 @@ class CleanupStuckCallsJob implements ShouldQueue
 
             // CRITICAL: If ringing for 30+ minutes, clean it up regardless of extension status
             if ($ringingDuration >= 30) {
-                Log::info("🚨 CleanupStuckCallsJob: Critical cleanup - Ringing Call ID {$call->id} stuck for {$ringingDuration} minutes (30+ min override)", [
-                    'call_id' => $call->id,
-                    'extension' => $extension,
-                    'ringing_duration_minutes' => $ringingDuration,
-                    'cleanup_reason' => 'critical_ringing_timeout_override'
-                ]);
+                $this->line("🚨 Critical cleanup - Ringing Call ID {$call->id} stuck for {$ringingDuration} minutes (30+ min override)");
                 return true; // Force cleanup for 30+ minute ringing calls
             }
 
@@ -278,14 +282,16 @@ class CleanupStuckCallsJob implements ShouldQueue
         });
 
         if ($ringingCallsToCleanup->isEmpty()) {
-            Log::info("ℹ️ CleanupStuckCallsJob: Found stuck ringing calls but none eligible for cleanup (newer calls exist)", [
+            $this->line("ℹ️ Found stuck ringing calls but none eligible for cleanup (newer calls exist)");
+            Log::info("ℹ️ CleanupStuckCalls: Found stuck ringing calls but none eligible for cleanup (newer calls exist)", [
                 'total_stuck_ringing' => $stuckRingingCalls->count(),
                 'eligible_for_cleanup' => 0
             ]);
             return 0;
         }
 
-        Log::info("⚠️ CleanupStuckCallsJob: Found {$ringingCallsToCleanup->count()} ringing call(s) to clean up");
+        $this->warn("⚠️ Found {$ringingCallsToCleanup->count()} ringing call(s) to clean up");
+        Log::info("⚠️ CleanupStuckCalls: Found {$ringingCallsToCleanup->count()} ringing call(s) to clean up");
 
         $cleanedCount = 0;
         $errors = [];
@@ -310,21 +316,24 @@ class CleanupStuckCallsJob implements ShouldQueue
                 $call->save();
 
                 // Broadcast the update to frontend
-                broadcast(new \App\Events\CallUpdated($call));
+                broadcast(new CallUpdated($call));
 
                 $cleanedCount++;
-                Log::info("🔔 CleanupStuckCallsJob: Cleaned up RINGING Call ID: {$call->id}", [
+                $this->line("🔔 Cleaned up RINGING Call ID: {$call->id} (Extension: {$call->agent_exten}, Ringing: {$ringingDuration} min)");
+
+                Log::info("🔔 CleanupStuckCalls: Cleaned up RINGING Call ID: {$call->id}", [
                     'call_id' => $call->id,
                     'linkedid' => $call->linkedid,
                     'extension' => $call->agent_exten,
                     'ringing_duration_minutes' => $ringingDuration,
                     'cleanup_time' => now(),
-                    'cleanup_type' => 'ringing_queue_job'
+                    'cleanup_type' => 'ringing_manual_command'
                 ]);
 
             } catch (\Exception $e) {
                 $errorMsg = "Failed to clean up Ringing Call ID: {$call->id} - {$e->getMessage()}";
-                Log::error("CleanupStuckCallsJob: Failed to clean up ringing call", [
+                $this->error($errorMsg);
+                Log::error("CleanupStuckCalls: Failed to clean up ringing call", [
                     'call_id' => $call->id,
                     'error' => $e->getMessage(),
                 ]);
@@ -333,7 +342,8 @@ class CleanupStuckCallsJob implements ShouldQueue
         }
 
         if (!empty($errors)) {
-            Log::warning("⚠️ CleanupStuckCallsJob: " . count($errors) . " error(s) occurred during ringing call cleanup", [
+            $this->warn("⚠️ " . count($errors) . " error(s) occurred during ringing call cleanup");
+            Log::warning("⚠️ CleanupStuckCalls: " . count($errors) . " error(s) occurred during ringing call cleanup", [
                 'errors' => $errors
             ]);
         }
