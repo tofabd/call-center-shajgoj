@@ -51,7 +51,7 @@ export const extensionService = {
   },
 
   // Update extension
-  async updateExtension(id: number, data: { agent_name?: string; status?: string }): Promise<Extension> {
+  async updateExtension(id: number, data: { extension?: string; agent_name?: string; status?: string }): Promise<Extension> {
     const response = await api.put(`/extensions/${id}`, data);
     return response.data.data;
   },

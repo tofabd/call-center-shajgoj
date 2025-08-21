@@ -105,6 +105,7 @@ class ExtensionController extends Controller
     public function update(Request $request, Extension $extension): JsonResponse
     {
         $validator = Validator::make($request->all(), [
+            'extension' => 'nullable|string|max:10|unique:extensions,extension,' . $extension->id,
             'agent_name' => 'nullable|string|max:255',
             'status' => 'nullable|in:online,offline,unknown',
         ]);
@@ -118,7 +119,7 @@ class ExtensionController extends Controller
         }
 
         try {
-            $extension->update($request->only(['agent_name', 'status']));
+            $extension->update($request->only(['extension', 'agent_name', 'status']));
 
             return response()->json([
                 'success' => true,
