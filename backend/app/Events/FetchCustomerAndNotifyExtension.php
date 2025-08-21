@@ -9,7 +9,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Models\User;
- use App\Services\WooComService;
+ // use App\Services\WooComService; // WooCommerce service removed
 use Illuminate\Support\Facades\Log;
 
 class FetchCustomerAndNotifyExtension implements ShouldBroadcast
@@ -23,8 +23,8 @@ class FetchCustomerAndNotifyExtension implements ShouldBroadcast
     public function __construct(public User $user, public string $callerId)
     {
         // Comment out WooCommerce integration and use demo data instead
-         $this->orders = $this->fetchWooCommerceOrders($callerId);
-        // $this->callData = $this->generateDemoCallData($callerId);
+        // $this->orders = $this->fetchWooCommerceOrders($callerId);
+        $this->callData = $this->generateDemoCallData($callerId);
     }
 
     public function broadcastOn(): array
@@ -120,7 +120,8 @@ class FetchCustomerAndNotifyExtension implements ShouldBroadcast
     }
 
 
-    // Commented out WooCommerce integration
+    // WooCommerce integration removed - using demo data instead
+    /*
     private function fetchWooCommerceOrders(string $phoneNumber): array
     {
         try {
@@ -170,5 +171,6 @@ class FetchCustomerAndNotifyExtension implements ShouldBroadcast
             return [];
         }
     }
+    */
 
 }

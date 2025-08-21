@@ -34,7 +34,6 @@ class Start extends Command
         $command = "wt -d \"$projectPath\" cmd /k \"title Laravel Server && php artisan serve\" ; ";
         $command .= "new-tab -d \"$projectPath\" cmd /k \"title Queue Worker && php artisan queue:work\" ; ";
         $command .= "new-tab -d \"$projectPath\" cmd /k \"title Reverb WebSocket && php artisan reverb:start\" ; ";
-        $command .= "new-tab -d \"$projectPath\" cmd /k \"title Scheduler && php artisan schedule:work\" ; ";
         $command .= "new-tab -d \"$projectPath\" cmd /k \"title AMI Connection && php artisan app:listen-to-ami\"";
 
         $process = Process::fromShellCommandline($command);
