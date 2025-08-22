@@ -46,18 +46,32 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
   // Handle modal open/close animations
   useEffect(() => {
     if (isOpen) {
+      // Start animation immediately when modal opens
       setIsAnimating(true);
-      // Small delay to ensure smooth animation
-      const timer = setTimeout(() => setIsAnimating(false), 50);
+      // Use a minimal delay for the smoothest possible animation
+      const timer = setTimeout(() => {
+        setIsAnimating(false);
+      }, 10); // Very short delay for immediate visual feedback
+      
       return () => clearTimeout(timer);
     }
+    // Note: We don't reset isAnimating on close to allow for smooth exit animation
   }, [isOpen]);
+
+  // Handle modal close animation
+  const handleClose = () => {
+    setIsAnimating(true);
+    // Wait for exit animation to complete before calling onClose
+    setTimeout(() => {
+      onClose();
+    }, 200); // Match the transition duration
+  };
 
   // Close modal when Escape key is pressed
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleClose();
       }
     };
 
@@ -80,7 +94,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
       setError(null);
       setLoading(true);
       
-      // Small delay to ensure modal is visible before loading data
+      // Wait for modal animation to complete before loading data
       const timer = setTimeout(() => {
         callLogService
           .getCallDetails(selectedCallId)
@@ -93,7 +107,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
           .finally(() => {
             setLoading(false);
           });
-      }, 100);
+      }, 250); // Increased delay to match animation duration
 
       return () => clearTimeout(timer);
     }
@@ -142,18 +156,18 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
     <>
       {/* Backdrop */}
       <div 
-        className={`fixed inset-0 bg-black/50 z-40 transition-all duration-300 ${
+        className={`fixed inset-0 bg-black/50 z-40 transition-all duration-200 ease-out ${
           isAnimating ? 'opacity-0' : 'opacity-100'
         }`}
-        onClick={onClose}
+        onClick={handleClose}
       />
       
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div 
-          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300 transform ${
+          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col transition-all duration-200 ease-out transform ${
             isAnimating 
-              ? 'opacity-0 scale-95 translate-y-4' 
+              ? 'opacity-0 scale-95 translate-y-2' 
               : 'opacity-100 scale-100 translate-y-0'
           }`}
         >
@@ -171,7 +185,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
             >
               <X className="h-5 w-5" />
@@ -179,7 +193,9 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
           </div>
 
           {/* Content */}
-          <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
+          <div className={`flex-1 min-h-0 overflow-y-auto narrow-scrollbar transition-all duration-300 ease-out ${
+            isAnimating ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'
+          }`}>
             {!selectedCallId || !isManualSelection ? (
               <div className="p-8 flex items-center justify-center h-full">
                 <div className="text-center">
@@ -193,10 +209,77 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                 </div>
               </div>
             ) : loading ? (
-              <div className="p-8 flex items-center justify-center h-full">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 dark:border-blue-400/20 border-t-blue-500 dark:border-t-blue-400 animate-spin"></div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading details...</p>
+              <div className="p-6">
+                <div className="w-full space-y-6">
+                  {/* Summary banner skeleton */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 mb-6">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                        <div className="h-7 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                        <div className="h-5 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-28 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                        <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sectioned details skeleton */}
+                  <div className="space-y-3">
+                    {/* Participants skeleton */}
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                      <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                        {[...Array(6)].map((_, i) => (
+                          <div key={i} className="space-y-1">
+                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Channel skeleton */}
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                      <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="space-y-1">
+                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                            <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Timing skeleton */}
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                      <div className="h-4 w-14 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="space-y-1">
+                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Identifiers skeleton */}
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                      <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="space-y-1">
+                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : error ? (

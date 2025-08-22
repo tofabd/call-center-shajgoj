@@ -7,7 +7,7 @@ import '@services/echo'; // Import Echo setup
 // Removed WooCommerce order modals
 import CallHistory from '@/components/CallConsole/CallHistory';
 import LiveCalls from '@/components/CallConsole/LiveCalls';
-import CallDetails from '@/components/CallConsole/CallDetails';
+import CallDetails from '@/components/CallConsole/CallDetailsModal';
 import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 // Removed OrderNotesPanel
 
