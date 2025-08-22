@@ -34,6 +34,7 @@ class CleanupStuckCalls extends Command
 
         try {
             $this->executeTimeBasedCleanup();
+            $this->executeRingingStuckCallCleanup();
             $this->executeStaleCallCleanup();
             $this->info('✅ Cleanup completed successfully!');
             return 0;
@@ -157,6 +158,102 @@ class CleanupStuckCalls extends Command
             'executed_by' => 'artisan_command',
             'cleanup_strategy' => 'Clean up older calls when newer calls exist on same extension',
             'time_threshold_minutes' => 2
+        ]);
+    }
+
+    /**
+     * Execute ringing stuck call cleanup (5+ minutes active)
+     *
+     * Special cleanup: Remove ALL RINGING calls that have been active for 5+ minutes
+     * No extension checking, no complex logic - just clean up old ringing calls
+     */
+    private function executeRingingStuckCallCleanup(): void
+    {
+        $startTime = microtime(true);
+
+        $this->info("📞 Starting RINGING STUCK CALL cleanup (5+ minutes active)");
+        $this->line("   📋 Logic: Remove ALL RINGING calls active for 5+ minutes (no extension checking)");
+        $this->line("   🎯 Goal: Clean up stuck ringing calls that are clearly abandoned");
+
+        // Find all active RINGING calls that are 5+ minutes older
+        $cutoffTime = now()->subMinutes(5);
+
+        $ringingStuckCalls = Call::whereNull('ended_at')
+            ->whereNull('answered_at') // Only ringing calls (not answered)
+            ->where('started_at', '<', $cutoffTime)
+            ->orderBy('started_at', 'asc') // Process from oldest to newest
+            ->get();
+
+        if ($ringingStuckCalls->isEmpty()) {
+            $this->info("✅ No ringing stuck calls found (5+ minutes active)");
+            return;
+        }
+
+        $this->info("📊 Found {$ringingStuckCalls->count()} ringing stuck calls (5+ minutes active)");
+        $this->line("   🔍 Processing from oldest to newest...");
+
+        $totalProcessed = 0;
+        $totalCleaned = 0;
+        $errors = [];
+
+        foreach ($ringingStuckCalls as $call) {
+            $this->newLine();
+            $duration = $call->started_at->diffInMinutes(now());
+
+            $this->info("🔧 Processing Ringing Stuck Call ID: {$call->id} (Extension: {$call->agent_exten}, Duration: {$duration} minutes)");
+
+            try {
+                if ($this->cleanupRingingStuckCall($call)) {
+                    $this->line("   🧹 Cleaning up ringing stuck call ID: {$call->id}");
+                    $this->line("   ✅ Call cleaned up successfully");
+                    $totalCleaned++;
+                } else {
+                    $this->warn("   ⚠️ Failed to clean up ringing stuck call ID: {$call->id}");
+                    $errors[] = "Failed to clean up ringing stuck Call ID: {$call->id}";
+                }
+
+                $totalProcessed++;
+
+            } catch (\Exception $e) {
+                $errorMsg = "Error processing ringing stuck Call ID: {$call->id} - {$e->getMessage()}";
+                $this->error($errorMsg);
+                $errors[] = $errorMsg;
+                Log::error("Ringing stuck call cleanup error", [
+                    'call_id' => $call->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+        }
+
+        // Calculate execution time
+        $executionTime = microtime(true) - $startTime;
+        $executionTimeMs = round($executionTime * 1000, 2);
+
+        // Summary
+        $this->newLine();
+        $this->info("🎉 Ringing Stuck Call Cleanup Summary:");
+        $this->line("   • Total ringing stuck calls processed: {$totalProcessed}");
+        $this->line("   • Ringing stuck calls cleaned up: {$totalCleaned}");
+        $this->line("   • Processing time: " . $this->formatProcessingTime($executionTime));
+
+        if (!empty($errors)) {
+            $this->warn("⚠️ " . count($errors) . " error(s) occurred during ringing stuck call cleanup");
+            foreach ($errors as $error) {
+                $this->line("   • {$error}");
+            }
+        }
+
+        // Log the ringing stuck call cleanup execution
+        Log::info('Ringing stuck call cleanup executed successfully', [
+            'command' => 'calls:cleanup',
+            'cleanup_type' => 'ringing_stuck_call_cleanup',
+            'total_calls_processed' => $totalProcessed,
+            'total_calls_cleaned' => $totalCleaned,
+            'processing_time_ms' => $executionTimeMs,
+            'executed_by' => 'artisan_command',
+            'cleanup_strategy' => 'Remove ALL RINGING calls active for 5+ minutes (simple cleanup)',
+            'time_threshold_minutes' => 5
         ]);
     }
 
@@ -322,6 +419,56 @@ class CleanupStuckCalls extends Command
 
         } catch (\Exception $e) {
             Log::error("❌ Time-based cleanup failed", [
+                'call_id' => $call->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Clean up a ringing stuck call by marking it as ended
+     *
+     * Special cleanup: No extension checking, just mark as ended
+     * Only for RINGING calls that are 5+ minutes old
+     *
+     * @param Call $call The ringing stuck call to clean up
+     * @return bool True if successful, false if failed
+     */
+    private function cleanupRingingStuckCall(Call $call): bool
+    {
+        try {
+            // Mark the call as ended
+            $call->ended_at = now();
+
+            // Set hangup cause for ringing stuck call cleanup
+            $call->hangup_cause = 'ringing_stuck_call_cleanup_5_minutes';
+
+            // Save the changes
+            $call->save();
+
+            // Broadcast the update to frontend (IMPORTANT: This updates frontend status!)
+            broadcast(new CallUpdated($call));
+
+            // Log the cleanup
+            Log::info("✅ Ringing stuck call cleanup: Cleaned up call", [
+                'call_id' => $call->id,
+                'linkedid' => $call->linkedid,
+                'extension' => $call->agent_exten,
+                'call_type' => 'Ringing',
+                'started_at' => $call->started_at,
+                'ended_at' => $call->ended_at,
+                'cleanup_time' => now(),
+                'cleanup_reason' => 'Ringing call active for 5+ minutes (stuck)',
+                'hangup_cause' => $call->hangup_cause,
+                'total_duration_minutes' => $call->started_at->diffInMinutes(now())
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Ringing stuck call cleanup failed", [
                 'call_id' => $call->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
