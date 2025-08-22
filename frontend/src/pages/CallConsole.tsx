@@ -6,6 +6,7 @@ import type { CallLog } from '@services/callLogService';
 import '@services/echo'; // Import Echo setup
 // Removed WooCommerce order modals
 import CallMonitor from '@/components/CallConsole/CallMonitor';
+import LiveCalls from '@/components/CallConsole/LiveCalls';
 import CallDetails from '@/components/CallConsole/CallDetails';
 import AgentsStatus from '@/components/CallConsole/AgentsStatus';
 // Removed OrderNotesPanel
@@ -55,6 +56,8 @@ interface UniqueCall {
 const CallConsole: React.FC = () => {
   const [callLogs, setCallLogs] = useState<UniqueCall[]>([]);
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
+  const [isCallDetailsModalOpen, setIsCallDetailsModalOpen] = useState(false);
+  const [isManualSelection, setIsManualSelection] = useState(false);
   
   const [loading, setLoading] = useState(true);
 
@@ -111,14 +114,14 @@ const CallConsole: React.FC = () => {
     fetchData();
   }, []);
 
-  // Debug useEffect to monitor auto-selection
+  // Debug useEffect to monitor selection
   useEffect(() => {
     if (selectedCallId) {
-      console.log('🔍 Call selected:', selectedCallId);
+      console.log('🔍 Call selected:', selectedCallId, 'Manual:', isManualSelection);
     }
-  }, [selectedCallId]);
+  }, [selectedCallId, isManualSelection]);
 
-  // Set up real-time Echo listener for call updates with auto-selection
+  // Set up real-time Echo listener for call updates (no auto-selection)
   useEffect(() => {
     if (window.Echo) {
       console.log('🚀 Setting up Echo listener for call-console channel');
@@ -180,11 +183,7 @@ const CallConsole: React.FC = () => {
             return [newItem, ...prevLogs];
           }
         });
-        // optionally auto-select on ringing/answered
-        const autoSelectStatuses = ['ringing', 'started', 'answered', 'ring', 'start', 'calling', 'incoming'];
-        if (autoSelectStatuses.includes((data.status || '').toLowerCase())) {
-          setTimeout(() => setSelectedCallId(data.id), 50);
-        }
+        // Removed auto-selection - calls are only selected manually now
       });
 
       // Test the connection
@@ -211,12 +210,23 @@ const CallConsole: React.FC = () => {
     if (selectedCallId === callId) {
       // If same call is clicked, deselect it
       setSelectedCallId(null);
+      setIsCallDetailsModalOpen(false);
+      setIsManualSelection(false);
       return;
     }
 
     setSelectedCallId(callId);
+    setIsManualSelection(true); // Mark as manual selection
+    setIsCallDetailsModalOpen(true);
     
     // Customer profile integration removed
+  };
+
+  // Function to close call details modal
+  const handleCloseCallDetailsModal = () => {
+    setIsCallDetailsModalOpen(false);
+    setSelectedCallId(null);
+    setIsManualSelection(false);
   };
 
   // Function to toggle call expansion
@@ -243,7 +253,7 @@ const CallConsole: React.FC = () => {
       {/* WooCommerce modals removed */}
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
-        {/* Left Sidebar - Incoming Calls Component */}
+        {/* Left Column - Call Monitor (Completed/Inactive Calls) */}
         <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
           <CallMonitor
             callLogs={callLogs}
@@ -257,21 +267,29 @@ const CallConsole: React.FC = () => {
           />
         </div>
 
-        {/* Right Column: Call Details */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <div className="h-full min-h-0 flex gap-6">
-            {/* Call Details - Left Half */}
-            <div className="flex-1 min-w-0">
-              <CallDetails selectedCallId={selectedCallId} />
-            </div>
-            
-                         {/* Agents Status - Right Half */}
-             <div className="flex-1 min-w-0">
-               <AgentsStatus />
-             </div>
-          </div>
+        {/* Center Column - Live Calls */}
+        <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
+          <LiveCalls
+            callLogs={callLogs}
+            selectedCallId={selectedCallId}
+            onCallSelect={handleCallSelect}
+            echoConnected={echoConnected}
+          />
+        </div>
+
+        {/* Right Column: Agents Status Only */}
+        <div className="flex-1 min-w-0">
+          <AgentsStatus />
         </div>
       </div>
+
+      {/* Call Details Modal */}
+      <CallDetails
+        selectedCallId={selectedCallId}
+        isOpen={isCallDetailsModalOpen}
+        onClose={handleCloseCallDetailsModal}
+        isManualSelection={isManualSelection}
+      />
     </div>
   );
 };

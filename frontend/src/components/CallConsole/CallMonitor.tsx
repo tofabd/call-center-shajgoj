@@ -69,11 +69,20 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
   onCallSelect,
   onToggleExpansion
 }) => {
+  // Filter only non-active calls (completed, busy, canceled, failed, etc.)
+  const nonActiveCalls = callLogs.filter(call => {
+    const status = call.status.toLowerCase();
+    return ![
+      'ringing', 'ring', 'calling', 'incoming', 
+      'started', 'start', 'answered', 'in_progress'
+    ].includes(status);
+  });
+
   // Force re-render when call data changes to ensure real-time updates
   React.useEffect(() => {
     // This effect ensures the component re-renders when callLogs change
-    console.log('📊 CallMonitor: Call logs updated, count:', callLogs.length);
-  }, [callLogs]);
+    console.log('📊 CallMonitor: Non-active calls updated, count:', nonActiveCalls.length);
+  }, [nonActiveCalls]);
 
   React.useEffect(() => {
     // Log when selectedCallId changes to track auto-selection
@@ -151,7 +160,7 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Monitor</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Real-time call monitoring</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Completed and inactive calls</p>
             </div>
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
@@ -186,33 +195,28 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
           ) : callLogs.length > 0 ? (
             <div className="flex-1 overflow-y-auto narrow-scrollbar">
               <div className="p-4 space-y-3">
-                {callLogs
+                {nonActiveCalls
                   .sort((a, b) => {
-                    // Priority order: ringing > started > answered/in_progress > completed > failed statuses
+                    // Sort primarily by start time (most recent first), then by status priority
+                    const timeComparison = new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+                    if (timeComparison !== 0) {
+                      return timeComparison;
+                    }
+                    
+                    // If times are equal, use status priority as secondary sort
                     const statusPriority = {
-                      'ringing': 1,
-                      'ring': 1,
-                      'incoming': 1,
-                      'calling': 1,
-                      'started': 2,
-                      'start': 2,
-                      'answered': 3,
-                      'in_progress': 3,  // Same priority as answered
-                      'completed': 4,
-                      'busy': 4,
-                      'no answer': 4,
-                      'no_answer': 4,
+                      'completed': 1,
+                      'busy': 2,
+                      'no answer': 3,
+                      'no_answer': 3,
                       'canceled': 4,
                       'cancelled': 4,
-                      'congestion': 4,
-                      'missed': 4,
-                      'failed': 4
+                      'congestion': 5,
+                      'missed': 6,
+                      'failed': 7
                     } as Record<string, number>;
-                    const aPriority = statusPriority[a.status.toLowerCase()] || 6;
-                    const bPriority = statusPriority[b.status.toLowerCase()] || 6;
-                    if (aPriority === bPriority) {
-                      return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-                    }
+                    const aPriority = statusPriority[a.status.toLowerCase()] || 8;
+                    const bPriority = statusPriority[b.status.toLowerCase()] || 8;
                     return aPriority - bPriority;
                   })
                   .map((call) => (
@@ -413,8 +417,8 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
                 <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <PhoneIncoming className="h-10 w-10 text-gray-400" />
                 </div>
-                <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Incoming Calls</h4>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Waiting for new calls...</p>
+                <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Completed Calls</h4>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are currently active</p>
               </div>
             </div>
           )}
@@ -428,6 +432,10 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
               <span className={echoConnected ? 'text-green-600' : 'text-red-600'}>
                 {echoConnected ? 'Connected' : 'Disconnected'}
               </span>
+            </div>
+            <div className="flex justify-between items-center mt-1">
+              <span>Completed Calls:</span>
+              <span>{nonActiveCalls.length}</span>
             </div>
             <div className="flex justify-between items-center mt-1">
               <span>Total Calls:</span>
