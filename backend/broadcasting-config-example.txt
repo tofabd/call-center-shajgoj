@@ -1,0 +1,27 @@
+# Broadcasting Configuration for Real-time Extension Status
+# Add these to your .env file
+
+# For Pusher (recommended for production)
+BROADCAST_CONNECTION=pusher
+PUSHER_APP_KEY=your_pusher_key
+PUSHER_APP_SECRET=your_pusher_secret
+PUSHER_APP_ID=your_pusher_app_id
+PUSHER_APP_CLUSTER=mt1
+
+# For Redis (if you have Redis server)
+# BROADCAST_CONNECTION=redis
+# REDIS_HOST=127.0.0.1
+# REDIS_PASSWORD=null
+# REDIS_PORT=6379
+
+# For local development with Reverb (Laravel's built-in WebSocket server)
+# BROADCAST_CONNECTION=reverb
+# REVERB_APP_KEY=your_reverb_key
+# REVERB_APP_SECRET=your_reverb_secret
+# REVERB_APP_ID=your_reverb_app_id
+# REVERB_HOST=127.0.0.1
+# REVERB_PORT=8080
+# REVERB_SCHEME=http
+
+# Enable broadcasting
+BROADCAST_DRIVER=pusher

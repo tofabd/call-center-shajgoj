@@ -10,3 +10,8 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('call-received-{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
+
+// Channel for extension status updates (public channel)
+Broadcast::channel('extensions', function () {
+    return true; // Allow anyone to listen to extension updates
+});

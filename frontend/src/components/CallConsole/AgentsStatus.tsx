@@ -1,19 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { extensionService } from '../../services/extensionService';
+import { extensionRealtimeService } from '../../services/extensionRealtimeService';
 import type { Extension } from '../../services/extensionService';
+import type { ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
 
 const AgentsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'unavailable'>('unavailable');
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
     loadExtensions();
     
-    // Refresh data every 30 seconds
-    const interval = setInterval(loadExtensions, 30000);
+    // Subscribe to real-time extension status updates
+    const unsubscribe = extensionRealtimeService.subscribeToAll((update: ExtensionStatusUpdate) => {
+      setExtensions(prevExtensions => 
+        prevExtensions.map(ext => 
+          ext.id === update.id 
+            ? { ...ext, ...update }
+            : ext
+        )
+      );
+      setLastUpdate(new Date());
+    });
     
-    return () => clearInterval(interval);
+    // Fallback polling every 60 seconds (reduced frequency since we have real-time)
+    const interval = setInterval(loadExtensions, 60000);
+    
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Monitor real-time connection status
+  useEffect(() => {
+    const updateRealtimeStatus = () => {
+      setRealtimeStatus(extensionRealtimeService.getConnectionStatus());
+    };
+
+    // Update immediately
+    updateRealtimeStatus();
+
+    // Update every 5 seconds
+    const statusInterval = setInterval(updateRealtimeStatus, 5000);
+
+    return () => clearInterval(statusInterval);
   }, []);
 
   const loadExtensions = async () => {
@@ -73,6 +107,29 @@ const AgentsStatus: React.FC = () => {
               </p>
             </div>
           </div>
+          
+          {/* Real-time Status Indicator */}
+          <div className="flex items-center space-x-2">
+            <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
+              realtimeStatus === 'connected' 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                : realtimeStatus === 'disconnected'
+                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                realtimeStatus === 'connected' 
+                  ? 'bg-green-500 animate-pulse' 
+                  : realtimeStatus === 'disconnected'
+                  ? 'bg-yellow-500'
+                  : 'bg-gray-500'
+              }`}></div>
+              <span>
+                {realtimeStatus === 'connected' ? 'Live' : 
+                 realtimeStatus === 'disconnected' ? 'Reconnecting' : 'Offline'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -121,7 +178,9 @@ const AgentsStatus: React.FC = () => {
               {extensions.map((extension) => (
                 <div 
                   key={extension.id} 
-                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow"
+                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 ${
+                    extension.status === 'online' ? 'ring-2 ring-green-200 dark:ring-green-800/30' : ''
+                  }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="flex-shrink-0">
@@ -180,6 +239,17 @@ const AgentsStatus: React.FC = () => {
                 <div className="text-xs text-red-600 dark:text-red-400">Offline</div>
               </div>
             </div>
+            
+            {/* Last Update Indicator */}
+            {lastUpdate && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Last real-time update: {lastUpdate.toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

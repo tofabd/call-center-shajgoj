@@ -74,66 +74,45 @@ class ExtensionService
 
             $allExtensions = [];
 
-            // 1. Get SIP peers using SIPpeers command with robust response reading
-            Log::info("Getting SIP peers...");
-            $command = "Action: SIPpeers\r\n\r\n";
-            fwrite($socket, $command);
-
-            // Read response with multiple attempts and longer timeout
-            $response = '';
-            $startTime = time();
-            $timeout = 10; // 10 seconds timeout
-
-            while (time() - $startTime < $timeout) {
-                $buffer = fgets($socket);
-                if ($buffer === false) {
-                    break;
-                }
-                $response .= $buffer;
-
-                // Check if we have a complete response
-                if (strpos($response, 'Event: PeerEntry') !== false &&
-                    strpos($response, 'Event: PeerlistComplete') !== false) {
-                    break;
-                }
-
-                // Also check for other completion indicators
-                if (strpos($response, 'Event: PeerlistComplete') !== false) {
-                    break;
-                }
-
-                usleep(100000); // 100ms delay
-            }
-
-            Log::debug("SIPpeers raw response", ['response' => $response, 'length' => strlen($response)]);
-            $sipPeers = $this->parseSIPPeersResponse($response);
-            Log::debug("Parsed SIP peers", ['count' => count($sipPeers), 'peers' => $sipPeers]);
+            // 1. Try SIPpeers command first (most comprehensive)
+            Log::info("Getting SIP peers using SIPpeers...");
+            $sipPeers = $this->getSIPPeers($socket);
+            Log::info("SIPpeers found: " . count($sipPeers) . " extensions");
             $allExtensions = array_merge($allExtensions, $sipPeers);
 
-            // 2. Get SIP registry (currently registered extensions)
-            Log::info("Getting SIP registry...");
-            $command = "Action: SIPshowregistry\r\n\r\n";
-            fwrite($socket, $command);
-            $response = $this->readResponse($socket);
-            Log::debug("SIPshowregistry raw response", ['response' => $response, 'length' => strlen($response)]);
-            $sipRegistry = $this->parseSIPRegistryResponse($response);
-            Log::debug("Parsed SIP registry", ['count' => count($sipRegistry), 'registry' => $sipRegistry]);
+            // 2. Try alternative command if SIPpeers didn't work
+            if (count($sipPeers) === 0) {
+                Log::info("SIPpeers returned no results, trying SIPshowpeer...");
+                $sipShowPeer = $this->getSIPShowPeer($socket);
+                Log::info("SIPshowpeer found: " . count($sipShowPeer) . " extensions");
+                $allExtensions = array_merge($allExtensions, $sipShowPeer);
+            }
 
+            // 3. Get SIP registry (currently registered extensions)
+            Log::info("Getting SIP registry...");
+            $sipRegistry = $this->getSIPRegistry($socket);
+            Log::info("SIP registry found: " . count($sipRegistry) . " extensions");
+            
             // Merge registry info with peers info
             $allExtensions = $this->mergeExtensionInfo($allExtensions, $sipRegistry);
 
-            // 3. Get SIP status using SIPshowstatus command
+            // 4. Get SIP status using SIPshowstatus command
             Log::info("Getting SIP status...");
-            $command = "Action: SIPshowstatus\r\n\r\n";
-            fwrite($socket, $command);
-            $response = $this->readResponse($socket);
-            Log::debug("SIPshowstatus raw response", ['response' => $response, 'length' => strlen($response)]);
-            $sipStatus = $this->parseSIPStatusResponse($response);
-            Log::debug("Parsed SIP status", ['count' => count($sipStatus), 'status' => $sipStatus]);
+            $sipStatus = $this->getSIPStatus($socket);
+            Log::info("SIP status found: " . count($sipStatus) . " extensions");
 
             // Merge status info
             $allExtensions = $this->mergeExtensionInfo($allExtensions, $sipStatus);
 
+            // 5. Try CLI command as fallback
+            if (count($allExtensions) === 0) {
+                Log::info("No extensions found via AMI, trying CLI command...");
+                $cliExtensions = $this->getCLIExtensions($socket);
+                Log::info("CLI command found: " . count($cliExtensions) . " extensions");
+                $allExtensions = array_merge($allExtensions, $cliExtensions);
+            }
+
+            Log::info("Final merged extensions count: " . count($allExtensions));
             Log::debug("Final merged extensions", ['count' => count($allExtensions), 'extensions' => $allExtensions]);
 
             fclose($socket);
@@ -142,6 +121,7 @@ class ExtensionService
 
         } catch (\Exception $e) {
             Log::error("Error getting all SIP extensions: " . $e->getMessage());
+            Log::error("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -294,13 +274,55 @@ class ExtensionService
      */
     public function updateExtensionStatus(string $extension, string $status): bool
     {
-        $ext = Extension::where('extension', $extension)->first();
+        try {
+            $ext = Extension::where('extension', $extension)->first();
 
-        if ($ext) {
-            return $ext->updateStatus($status);
+            if (!$ext) {
+                Log::warning("Extension not found for status update", [
+                    'extension' => $extension,
+                    'status' => $status
+                ]);
+                return false;
+            }
+
+            $oldStatus = $ext->status;
+            $result = $ext->updateStatus($status);
+
+            Log::info("Extension status update attempt", [
+                'extension' => $extension,
+                'old_status' => $oldStatus,
+                'new_status' => $status,
+                'result' => $result
+            ]);
+
+            // Broadcast status update if status actually changed
+            if ($result && $oldStatus !== $status) {
+                $ext->refresh(); // Refresh to get updated timestamps
+
+                try {
+                    broadcast(new \App\Events\ExtensionStatusUpdated($ext));
+                    Log::info("Extension status broadcasted successfully", [
+                        'extension' => $extension,
+                        'status' => $status
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to broadcast extension status update", [
+                        'extension' => $extension,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("Error updating extension status", [
+                'extension' => $extension,
+                'status' => $status,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
         }
-
-        return false;
     }
 
     /**
@@ -475,9 +497,16 @@ class ExtensionService
             }
         }
 
+        // Don't forget the last peer
         if ($currentPeer && isset($currentPeer['extension'])) {
             $peers[] = $currentPeer;
         }
+
+        Log::debug("Parsed SIP peers response", [
+            'total_lines' => count($lines),
+            'peers_found' => count($peers),
+            'response_preview' => substr($response, 0, 200) . '...'
+        ]);
 
         return $peers;
     }
@@ -642,5 +671,136 @@ class ExtensionService
             'timeout' => 'timeout',
             default => 'unknown'
         };
+    }
+
+    /**
+     * Get SIP peers using SIPpeers command
+     */
+    private function getSIPPeers($socket): array
+    {
+        $command = "Action: SIPpeers\r\n\r\n";
+        fwrite($socket, $command);
+
+        $response = $this->readCompleteResponse($socket, 'Event: PeerlistComplete');
+        Log::debug("SIPpeers raw response", ['response' => $response, 'length' => strlen($response)]);
+        
+        return $this->parseSIPPeersResponse($response);
+    }
+
+    /**
+     * Get SIP peers using SIPshowpeer command
+     */
+    private function getSIPShowPeer($socket): array
+    {
+        $command = "Action: SIPshowpeer\r\n\r\n";
+        fwrite($socket, $command);
+
+        $response = $this->readCompleteResponse($socket, 'Event: PeerlistComplete');
+        Log::debug("SIPshowpeer raw response", ['response' => $response, 'length' => strlen($response)]);
+        
+        return $this->parseDetailedSIPPeersResponse($response);
+    }
+
+    /**
+     * Get SIP registry
+     */
+    private function getSIPRegistry($socket): array
+    {
+        $command = "Action: SIPshowregistry\r\n\r\n";
+        fwrite($socket, $command);
+
+        $response = $this->readCompleteResponse($socket, 'Event: RegistryComplete');
+        Log::debug("SIPshowregistry raw response", ['response' => $response, 'length' => strlen($response)]);
+        
+        return $this->parseSIPRegistryResponse($response);
+    }
+
+    /**
+     * Get SIP status
+     */
+    private function getSIPStatus($socket): array
+    {
+        $command = "Action: SIPshowstatus\r\n\r\n";
+        fwrite($socket, $command);
+
+        $response = $this->readCompleteResponse($socket, 'Event: StatusComplete');
+        Log::debug("SIPshowstatus raw response", ['response' => $response, 'length' => strlen($response)]);
+        
+        return $this->parseSIPStatusResponse($response);
+    }
+
+    /**
+     * Get extensions using CLI command
+     */
+    private function getCLIExtensions($socket): array
+    {
+        $command = "Action: Command\r\nCommand: sip show peers\r\n\r\n";
+        fwrite($socket, $command);
+
+        $response = $this->readCompleteResponse($socket, 'Event: CommandComplete');
+        Log::debug("CLI command raw response", ['response' => $response, 'length' => strlen($response)]);
+        
+        return $this->parseCommandResponse($response);
+    }
+
+    /**
+     * Read complete AMI response with proper completion detection
+     */
+    private function readCompleteResponse($socket, string $completionEvent): string
+    {
+        $response = '';
+        $startTime = time();
+        $timeout = 15; // 15 seconds timeout
+        $lastData = '';
+        $consecutiveEmptyLines = 0;
+
+        while (time() - $startTime < $timeout) {
+            $buffer = fgets($socket);
+            if ($buffer === false) {
+                break;
+            }
+            
+            $response .= $buffer;
+            $lastData = $buffer;
+
+            // Check for completion event
+            if (strpos($response, $completionEvent) !== false) {
+                Log::debug("Found completion event: {$completionEvent}");
+                break;
+            }
+
+            // Check for consecutive empty lines (common AMI response end indicator)
+            if (trim($buffer) === '') {
+                $consecutiveEmptyLines++;
+                if ($consecutiveEmptyLines >= 2) {
+                    Log::debug("Found consecutive empty lines, assuming response complete");
+                    break;
+                }
+            } else {
+                $consecutiveEmptyLines = 0;
+            }
+
+            // Check for response end patterns
+            if (strpos($response, "\r\n\r\n") !== false && 
+                (strpos($lastData, "\r\n") !== false && trim($lastData) === '')) {
+                Log::debug("Found response end pattern");
+                break;
+            }
+
+            // Small delay to prevent busy waiting
+            usleep(50000); // 50ms
+        }
+
+        if (time() - $startTime >= $timeout) {
+            Log::warning("Response reading timed out after {$timeout} seconds");
+        }
+
+        Log::debug("Response reading completed", [
+            'time_taken' => time() - $startTime,
+            'response_length' => strlen($response),
+            'completion_event_found' => strpos($response, $completionEvent) !== false
+        ]);
+
+        return $response;
     }
 }

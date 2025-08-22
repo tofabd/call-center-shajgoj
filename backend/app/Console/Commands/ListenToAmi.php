@@ -10,6 +10,7 @@ use App\Models\CallLeg;
 use App\Models\BridgeSegment;
 use App\Models\Extension;
 use App\Events\CallUpdated;
+use App\Events\ExtensionStatusUpdated;
 use App\Services\ExtensionService;
 
 /**
@@ -754,17 +755,23 @@ use App\Services\ExtensionService;
         $status = $fields['Status'] ?? null;
 
         if (!$extension || !$status) {
+            $this->warn("⚠️ ExtensionStatus event missing required fields: Exten or Status");
             return;
         }
 
         try {
             // Update extension status in database
-            $this->extensionService->updateExtensionStatus($extension, $this->mapExtensionStatus($status));
+            $success = $this->extensionService->updateExtensionStatus($extension, $this->mapExtensionStatus($status));
 
-            $this->info("📱 Extension status updated: {$extension} -> {$status}");
+            if ($success) {
+                $this->info("📱 Extension status updated: {$extension} -> {$status}");
+            } else {
+                $this->warn("⚠️ Failed to update extension status: {$extension} -> {$status}");
+            }
 
         } catch (\Exception $e) {
-            $this->error("Failed to update extension status: " . $e->getMessage());
+            $this->error("❌ Failed to update extension status: " . $e->getMessage());
+            $this->error("Stack trace: " . $e->getTraceAsString());
         }
     }
 

@@ -21,7 +21,7 @@ class SyncExtensions extends Command
      *
      * @var string
      */
-    protected $description = 'Sync extensions from Asterisk AMI';
+    protected $description = 'Sync ALL extensions from Asterisk AMI (including offline, unreachable, etc.)';
 
     /**
      * Execute the console command.
@@ -45,9 +45,9 @@ class SyncExtensions extends Command
 
             $this->line("📊 Current state: {$extensionsBefore} total extensions, {$onlineBefore} online");
 
-            // Attempt to get registered extensions from AMI
+            // Attempt to get ALL extensions from AMI (including offline, unreachable, etc.)
             $this->info('🔌 Connecting to Asterisk AMI...');
-            $amiExtensions = $extensionService->getRegisteredExtensions();
+            $amiExtensions = $extensionService->getAllSipExtensions();
 
             $this->info("📡 Found " . count($amiExtensions) . " extensions in Asterisk AMI");
 

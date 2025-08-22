@@ -12,13 +12,35 @@ declare global {
 // Make Pusher available globally
 window.Pusher = Pusher;
 
-// Initialize Echo only if required environment variables are present
+// Initialize Echo with support for multiple broadcasters
 let echo: any = null;
 
+// Try Pusher first (production)
+const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+
+// Fallback to Reverb (local development)
 const reverbKey = import.meta.env.VITE_REVERB_APP_KEY;
 const reverbHost = import.meta.env.VITE_REVERB_HOST;
 
-if (reverbKey && reverbHost) {
+if (pusherKey && pusherCluster) {
+  try {
+    echo = new Echo({
+      broadcaster: 'pusher',
+      key: pusherKey,
+      cluster: pusherCluster,
+      forceTLS: true,
+    });
+
+    window.Echo = echo;
+    console.log('✅ Echo initialized successfully with Pusher');
+  } catch (error) {
+    console.error('❌ Failed to initialize Echo with Pusher:', error);
+  }
+}
+
+// If Pusher failed or not configured, try Reverb
+if (!echo && reverbKey && reverbHost) {
   try {
     echo = new Echo({
       broadcaster: 'reverb',
@@ -30,29 +52,21 @@ if (reverbKey && reverbHost) {
       enabledTransports: ['ws', 'wss'],
     });
 
-    // Make Echo available globally
     window.Echo = echo;
-    
     console.log('✅ Echo initialized successfully with Reverb');
   } catch (error) {
-    console.error('❌ Failed to initialize Echo:', error);
-    
-    // Create a mock Echo object to prevent errors
-    window.Echo = {
-      channel: () => ({
-        listen: () => console.warn('Echo not properly configured - real-time features disabled')
-      }),
-      leaveChannel: () => {}
-    };
+    console.error('❌ Failed to initialize Echo with Reverb:', error);
   }
-} else {
-  console.warn('⚠️ Echo not initialized - missing VITE_REVERB_APP_KEY or VITE_REVERB_HOST environment variables');
+}
+
+// If both failed, create mock Echo
+if (!echo) {
+  console.warn('⚠️ Echo not initialized - missing broadcast configuration');
   console.warn('Real-time features will be disabled. Please check your .env file.');
   
-  // Create a mock Echo object to prevent errors
   window.Echo = {
     channel: () => ({
-      listen: () => console.warn('Echo not configured - add VITE_REVERB_APP_KEY and VITE_REVERB_HOST to .env file')
+      listen: () => console.warn('Echo not configured - add broadcast configuration to .env file')
     }),
     leaveChannel: () => {}
   };
