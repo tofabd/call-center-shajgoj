@@ -4,7 +4,7 @@ import { extensionRealtimeService } from '../../services/extensionRealtimeServic
 import type { Extension } from '../../services/extensionService';
 import type { ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
 
-const AgentsStatus: React.FC = () => {
+const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,45 +216,10 @@ const AgentsStatus: React.FC = () => {
           </div>
         )}
         
-        {/* Summary */}
-        {extensions.length > 0 && (
-          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                  {extensions.length}
-                </div>
-                <div className="text-xs text-indigo-600 dark:text-indigo-400">Total Extensions</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {extensions.filter(ext => ext.status === 'online').length}
-                </div>
-                <div className="text-xs text-green-600 dark:text-green-400">Online</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {extensions.filter(ext => ext.status === 'offline').length}
-                </div>
-                <div className="text-xs text-red-600 dark:text-red-400">Offline</div>
-              </div>
-            </div>
-            
-            {/* Last Update Indicator */}
-            {lastUpdate && (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-center">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    Last real-time update: {lastUpdate.toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+
       </div>
     </div>
   );
 };
 
-export default AgentsStatus;
+export default ExtensionsStatus;

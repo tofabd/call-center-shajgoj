@@ -25,7 +25,7 @@ interface UniqueCall {
   otherParty?: string | null;
 }
 
-interface CallMonitorProps {
+interface CallHistoryProps {
   callLogs: UniqueCall[];
   selectedCallId: number | null;
   loading: boolean;
@@ -59,7 +59,7 @@ const RingingIcon: React.FC = () => {
   );
 };
 
-const CallMonitor: React.FC<CallMonitorProps> = ({
+const CallHistory: React.FC<CallHistoryProps> = ({
   callLogs,
   selectedCallId,
   loading,
@@ -81,13 +81,13 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
   // Force re-render when call data changes to ensure real-time updates
   React.useEffect(() => {
     // This effect ensures the component re-renders when callLogs change
-    console.log('📊 CallMonitor: Non-active calls updated, count:', nonActiveCalls.length);
+    console.log('📊 CallHistory: Non-active calls updated, count:', nonActiveCalls.length);
   }, [nonActiveCalls]);
 
   React.useEffect(() => {
     // Log when selectedCallId changes to track auto-selection
     if (selectedCallId) {
-      console.log('🎯 CallMonitor: Selected call ID changed to:', selectedCallId);
+      console.log('🎯 CallHistory: Selected call ID changed to:', selectedCallId);
     }
   }, [selectedCallId]);
   const formatTime = (timeString: string) => {
@@ -156,10 +156,10 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-600 rounded-lg">
-              <PhoneIncoming className="h-5 w-5 text-white" />
+              <Phone className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Monitor</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and inactive calls</p>
             </div>
             <div className="flex items-center space-x-2">
@@ -423,31 +423,11 @@ const CallMonitor: React.FC<CallMonitorProps> = ({
             </div>
           )}
         </div>
-
-        {/* Debug Panel */}
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
-          <div className="text-xs text-gray-600 dark:text-gray-400">
-            <div className="flex justify-between items-center">
-              <span>Echo Status:</span>
-              <span className={echoConnected ? 'text-green-600' : 'text-red-600'}>
-                {echoConnected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <span>Completed Calls:</span>
-              <span>{nonActiveCalls.length}</span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <span>Total Calls:</span>
-              <span>{callLogs.length}</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
-export default CallMonitor;
+export default CallHistory;
 
 

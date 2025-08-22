@@ -5,10 +5,10 @@ import type { CallLog } from '@services/callLogService';
 // Removed WordPress/WooCommerce API imports
 import '@services/echo'; // Import Echo setup
 // Removed WooCommerce order modals
-import CallMonitor from '@/components/CallConsole/CallMonitor';
+import CallHistory from '@/components/CallConsole/CallHistory';
 import LiveCalls from '@/components/CallConsole/LiveCalls';
 import CallDetails from '@/components/CallConsole/CallDetails';
-import AgentsStatus from '@/components/CallConsole/AgentsStatus';
+import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 // Removed OrderNotesPanel
 
 // Interface for call status update data from backend
@@ -255,7 +255,7 @@ const CallConsole: React.FC = () => {
       <div className="flex gap-4 p-6 h-full overflow-hidden">
         {/* Left Column - Call Monitor (Completed/Inactive Calls) */}
         <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
-          <CallMonitor
+          <CallHistory
             callLogs={callLogs}
             selectedCallId={selectedCallId}
             loading={loading}
@@ -277,9 +277,9 @@ const CallConsole: React.FC = () => {
           />
         </div>
 
-        {/* Right Column: Agents Status Only */}
+        {/* Right Column: Extensions Status */}
         <div className="flex-1 min-w-0">
-          <AgentsStatus />
+          <ExtensionsStatus />
         </div>
       </div>
 

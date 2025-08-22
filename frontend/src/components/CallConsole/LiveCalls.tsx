@@ -292,21 +292,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           )}
         </div>
 
-        {/* Footer Stats */}
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
-          <div className="text-xs text-gray-600 dark:text-gray-400">
-            <div className="flex justify-between items-center">
-              <span>Live Status:</span>
-              <span className={echoConnected ? 'text-green-600' : 'text-red-600'}>
-                {echoConnected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <span>Active Calls:</span>
-              <span className="font-semibold">{sortedActiveCalls.length}</span>
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   );
