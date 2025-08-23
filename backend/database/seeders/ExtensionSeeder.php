@@ -24,6 +24,11 @@ class ExtensionSeeder extends Seeder
             ['extension' => '2003', 'agent_name' => 'Lisa Thompson', 'status' => 'online'],
             ['extension' => '2004', 'agent_name' => 'Robert Kim', 'status' => 'offline'],
             ['extension' => '2005', 'agent_name' => 'Amanda Foster', 'status' => 'online'],
+            ['extension' => '2006', 'agent_name' => 'Michael Davis', 'status' => 'offline'],
+            ['extension' => '2007', 'agent_name' => 'Jennifer Lee', 'status' => 'online'],
+            ['extension' => '2008', 'agent_name' => 'Christopher White', 'status' => 'offline'],
+            ['extension' => '2009', 'agent_name' => 'Jessica Martinez', 'status' => 'online'],
+            ['extension' => '2010', 'agent_name' => 'Daniel Taylor', 'status' => 'offline'],
         ];
 
         foreach ($extensions as $ext) {

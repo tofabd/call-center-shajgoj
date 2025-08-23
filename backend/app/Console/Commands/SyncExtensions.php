@@ -21,7 +21,7 @@ class SyncExtensions extends Command
      *
      * @var string
      */
-    protected $description = 'Sync ALL extensions from Asterisk AMI (including offline, unreachable, etc.)';
+    protected $description = 'Sync extension statuses: Get from DB, check with Asterisk, then update DB';
 
     /**
      * Execute the console command.
@@ -29,7 +29,7 @@ class SyncExtensions extends Command
     public function handle(ExtensionService $extensionService)
     {
         $startTime = microtime(true);
-        $this->info('🔄 Starting extension sync from Asterisk AMI...');
+        $this->info('�� Starting extension sync: DB → Asterisk → DB Update...');
 
         // Log the start of sync process
         Log::info('Extension sync command started', [
@@ -39,66 +39,132 @@ class SyncExtensions extends Command
         ]);
 
         try {
-            // Get current extensions count before sync
-            $extensionsBefore = Extension::count();
-            $onlineBefore = Extension::where('status', 'online')->count();
+            // STEP 1: Get all extensions from database first
+            $this->info('📊 Step 1: Getting extensions from database...');
+            $dbExtensions = Extension::all();
+            $extensionsBefore = $dbExtensions->count();
+            $onlineBefore = $dbExtensions->where('status', 'online')->count();
 
-            $this->line("📊 Current state: {$extensionsBefore} total extensions, {$onlineBefore} online");
+            $this->line("�� Database state: {$extensionsBefore} total extensions, {$onlineBefore} online");
 
-            // Attempt to get ALL extensions from AMI (including offline, unreachable, etc.)
-            $this->info('🔌 Connecting to Asterisk AMI...');
-            $amiExtensions = $extensionService->getAllSipExtensions();
-
-            $this->info("📡 Found " . count($amiExtensions) . " extensions in Asterisk AMI");
-
-            // Log AMI response details
-            Log::info('AMI extensions response received', [
-                'ami_extensions_count' => count($amiExtensions),
-                'ami_extensions' => $amiExtensions,
-                'response_time' => now()->toISOString()
-            ]);
-
-            if (count($amiExtensions) > 0) {
-                $this->table(
-                    ['Extension', 'Status'],
-                    collect($amiExtensions)->map(function ($ext) {
-                        return [
-                            $ext['extension'] ?? 'N/A',
-                            $ext['status'] ?? 'unknown'
-                        ];
-                    })->toArray()
-                );
+            if ($dbExtensions->count() === 0) {
+                $this->warn("⚠️ No extensions found in database. Run initial sync first.");
+                return 1;
             }
 
-            // Perform the sync
-            $this->info('🔄 Syncing extensions with database...');
-            $synced = $extensionService->syncExtensions();
+            // Show current database extensions
+            $this->info('📋 Current Database Extensions:');
+            $this->table(
+                ['Extension', 'Agent Name', 'Status', 'Last Seen'],
+                $dbExtensions->map(function ($ext) {
+                    return [
+                        $ext->extension,
+                        $ext->agent_name ?? 'N/A',
+                        $ext->status,
+                        $ext->last_seen ? $ext->last_seen->format('Y-m-d H:i:s') : 'N/A'
+                    ];
+                })->toArray()
+            );
+
+            // STEP 2: Check status of each extension with Asterisk
+            $this->info('🔌 Step 2: Checking extension statuses with Asterisk...');
+            $statusUpdates = [];
+            $errors = [];
+
+            foreach ($dbExtensions as $dbExtension) {
+                try {
+                    $this->line("Checking extension {$dbExtension->extension}...");
+
+                    // Check individual extension status with Asterisk
+                    $asteriskStatus = $this->checkExtensionStatusWithAsterisk($dbExtension->extension);
+
+                    if ($asteriskStatus !== null) {
+                        $statusUpdates[] = [
+                            'extension' => $dbExtension->extension,
+                            'old_status' => $dbExtension->status,
+                            'new_status' => $asteriskStatus,
+                            'changed' => $dbExtension->status !== $asteriskStatus
+                        ];
+
+                        $this->line("  ✅ {$dbExtension->extension}: {$dbExtension->status} → {$asteriskStatus}");
+                    } else {
+                        $errors[] = "Could not get status for extension {$dbExtension->extension}";
+                        $this->warn("  ⚠️ {$dbExtension->extension}: Status unknown");
+                    }
+
+                } catch (\Exception $e) {
+                    $errors[] = "Error checking extension {$dbExtension->extension}: " . $e->getMessage();
+                    $this->error("  ❌ {$dbExtension->extension}: " . $e->getMessage());
+                }
+            }
+
+            // STEP 3: Update database with new statuses
+            $this->info('🔄 Step 3: Updating database with new statuses...');
+            $updatedCount = 0;
+            $unchangedCount = 0;
+
+            foreach ($statusUpdates as $update) {
+                try {
+                    $extension = Extension::where('extension', $update['extension'])->first();
+
+                    if ($extension) {
+                        $oldStatus = $extension->status;
+                        $extension->status = $update['new_status'];
+                        $extension->last_seen = now();
+                        $extension->save();
+
+                        if ($update['changed']) {
+                            $updatedCount++;
+                            $this->line("  ✅ Updated {$update['extension']}: {$oldStatus} → {$update['new_status']}");
+                        } else {
+                            $unchangedCount++;
+                            $this->line("  ℹ️ No change for {$update['extension']}: {$update['new_status']}");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $this->error("  ❌ Failed to update {$update['extension']}: " . $e->getMessage());
+                }
+            }
+
+            // STEP 4: Show results
+            $this->info('📊 Step 4: Sync Results Summary');
 
             // Get post-sync counts
             $extensionsAfter = Extension::count();
             $onlineAfter = Extension::where('status', 'online')->count();
 
-            $this->info("✅ Successfully synced " . count($synced) . " extensions");
-            $this->line("📊 Post-sync state: {$extensionsAfter} total extensions, {$onlineAfter} online");
+            $this->line("📊 Database state after sync:");
+            $this->line("  Total extensions: {$extensionsBefore} → {$extensionsAfter}");
+            $this->line("  Online extensions: {$onlineBefore} → {$onlineAfter}");
+            $this->line("  Status updates: {$updatedCount}");
+            $this->line("  Unchanged: {$unchangedCount}");
+            $this->line("  Errors: " . count($errors));
 
-            // Show detailed sync results
-            if (count($synced) > 0) {
-                $this->info('📋 Synced Extensions Details:');
+            // Show detailed status changes
+            if (count($statusUpdates) > 0) {
+                $this->info('📋 Status Change Details:');
                 $this->table(
-                    ['Extension', 'Agent Name', 'Status', 'Last Seen', 'Sync Type'],
-                    collect($synced)->map(function ($ext) {
+                    ['Extension', 'Old Status', 'New Status', 'Changed'],
+                    collect($statusUpdates)->map(function ($update) {
                         return [
-                            $ext->extension,
-                            $ext->agent_name ?? 'N/A',
-                            $ext->status,
-                            $ext->last_seen ? $ext->last_seen->format('Y-m-d H:i:s') : 'N/A',
-                            $ext->wasRecentlyCreated ? 'New' : 'Updated'
+                            $update['extension'],
+                            $update['old_status'],
+                            $update['new_status'],
+                            $update['changed'] ? '✅ Yes' : 'ℹ️ No'
                         ];
                     })->toArray()
                 );
             }
 
-            // Show status summary
+            // Show errors if any
+            if (count($errors) > 0) {
+                $this->warn('⚠️ Errors encountered:');
+                foreach ($errors as $error) {
+                    $this->line("  - {$error}");
+                }
+            }
+
+            // Show final status summary
             $this->showStatusSummary();
 
             // Calculate and display processing time
@@ -112,8 +178,9 @@ class SyncExtensions extends Command
                 'extensions_after' => $extensionsAfter,
                 'online_before' => $onlineBefore,
                 'online_after' => $onlineAfter,
-                'ami_extensions_count' => count($amiExtensions),
-                'synced_count' => count($synced),
+                'status_updates' => $updatedCount,
+                'unchanged' => $unchangedCount,
+                'errors' => count($errors),
                 'processing_time_ms' => $processingTime,
                 'completed_at' => now()->toISOString(),
                 'user' => 'artisan_command'
@@ -136,6 +203,60 @@ class SyncExtensions extends Command
         }
 
         return 0;
+    }
+
+    /**
+     * Check individual extension status with Asterisk
+     */
+    private function checkExtensionStatusWithAsterisk(string $extension): ?string
+    {
+        try {
+            // Method 1: Try to get status via ExtensionService
+            $extensionService = new ExtensionService();
+
+            // Check if the extension is online by querying Asterisk
+            $status = $extensionService->getExtensionStatus($extension);
+
+            if ($status !== null) {
+                return $status;
+            }
+
+            // Method 2: Try direct AMI query (if ExtensionService doesn't work)
+            $status = $this->queryAsteriskDirectly($extension);
+
+            return $status;
+
+        } catch (\Exception $e) {
+            Log::warning("Failed to check extension status via ExtensionService", [
+                'extension' => $extension,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Direct AMI query as fallback method
+     */
+    private function queryAsteriskDirectly(string $extension): ?string
+    {
+        try {
+            // This is a fallback method - you might need to implement this
+            // based on your Asterisk AMI configuration
+
+            // Example: Query SIP peer status
+            // $command = "Action: SIPshowpeer\r\nPeer: {$extension}\r\n\r\n";
+
+            // For now, return null to indicate we couldn't check
+            return null;
+
+        } catch (\Exception $e) {
+            Log::warning("Direct AMI query failed", [
+                'extension' => $extension,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 
     /**

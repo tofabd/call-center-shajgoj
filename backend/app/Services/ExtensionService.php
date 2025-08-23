@@ -92,7 +92,7 @@ class ExtensionService
             Log::info("Getting SIP registry...");
             $sipRegistry = $this->getSIPRegistry($socket);
             Log::info("SIP registry found: " . count($sipRegistry) . " extensions");
-            
+
             // Merge registry info with peers info
             $allExtensions = $this->mergeExtensionInfo($allExtensions, $sipRegistry);
 
@@ -394,6 +394,52 @@ class ExtensionService
     }
 
     /**
+     * Get status of a specific extension via Asterisk AMI
+     */
+    public function getExtensionStatus(string $extension): ?string
+    {
+        try {
+            $socket = fsockopen($this->host, $this->port, $errno, $errstr, 10);
+
+            if (!$socket) {
+                Log::error("Failed to connect to AMI: $errstr ($errno)");
+                return null;
+            }
+
+            // Login to AMI
+            if (!$this->login($socket)) {
+                Log::error("Failed to login to AMI");
+                fclose($socket);
+                return null;
+            }
+
+            // Try to get status using SIPshowpeer command
+            $command = "Action: SIPshowpeer\r\nPeer: {$extension}\r\n\r\n";
+            fwrite($socket, $command);
+            $response = $this->readResponse($socket);
+
+            // Parse the response to get status
+            $status = $this->parseSinglePeerStatus($response, $extension);
+
+            // If that didn't work, try SIPshowstatus
+            if ($status === null) {
+                $command = "Action: SIPshowstatus\r\n\r\n";
+                fwrite($socket, $command);
+                $response = $this->readResponse($socket);
+                $status = $this->parseSingleExtensionStatus($response, $extension);
+            }
+
+            fclose($socket);
+
+            return $status;
+
+        } catch (\Exception $e) {
+            Log::error("Error getting extension status: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Private helper methods
      */
     private function login($socket): bool
@@ -683,7 +729,7 @@ class ExtensionService
 
         $response = $this->readCompleteResponse($socket, 'Event: PeerlistComplete');
         Log::debug("SIPpeers raw response", ['response' => $response, 'length' => strlen($response)]);
-        
+
         return $this->parseSIPPeersResponse($response);
     }
 
@@ -697,7 +743,7 @@ class ExtensionService
 
         $response = $this->readCompleteResponse($socket, 'Event: PeerlistComplete');
         Log::debug("SIPshowpeer raw response", ['response' => $response, 'length' => strlen($response)]);
-        
+
         return $this->parseDetailedSIPPeersResponse($response);
     }
 
@@ -711,7 +757,7 @@ class ExtensionService
 
         $response = $this->readCompleteResponse($socket, 'Event: RegistryComplete');
         Log::debug("SIPshowregistry raw response", ['response' => $response, 'length' => strlen($response)]);
-        
+
         return $this->parseSIPRegistryResponse($response);
     }
 
@@ -725,7 +771,7 @@ class ExtensionService
 
         $response = $this->readCompleteResponse($socket, 'Event: StatusComplete');
         Log::debug("SIPshowstatus raw response", ['response' => $response, 'length' => strlen($response)]);
-        
+
         return $this->parseSIPStatusResponse($response);
     }
 
@@ -739,7 +785,7 @@ class ExtensionService
 
         $response = $this->readCompleteResponse($socket, 'Event: CommandComplete');
         Log::debug("CLI command raw response", ['response' => $response, 'length' => strlen($response)]);
-        
+
         return $this->parseCommandResponse($response);
     }
 
@@ -759,7 +805,7 @@ class ExtensionService
             if ($buffer === false) {
                 break;
             }
-            
+
             $response .= $buffer;
             $lastData = $buffer;
 
@@ -781,7 +827,7 @@ class ExtensionService
             }
 
             // Check for response end patterns
-            if (strpos($response, "\r\n\r\n") !== false && 
+            if (strpos($response, "\r\n\r\n") !== false &&
                 (strpos($lastData, "\r\n") !== false && trim($lastData) === '')) {
                 Log::debug("Found response end pattern");
                 break;
@@ -802,5 +848,85 @@ class ExtensionService
         ]);
 
         return $response;
+    }
+
+    /**
+     * Parse a single peer entry from SIPshowpeer response
+     */
+    private function parseSinglePeerStatus(string $response, string $extension): ?string
+    {
+        $lines = explode("\r\n", $response);
+        $currentPeer = null;
+        $foundExtension = false;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            if (strpos($line, 'Event: PeerEntry') !== false) {
+                if ($currentPeer && $foundExtension) {
+                    // We found our extension, return its status
+                    return $currentPeer['status'];
+                }
+                $currentPeer = ['status' => 'unknown'];
+                $foundExtension = false;
+            } elseif (strpos($line, 'ObjectName: ') !== false) {
+                $peerExtension = trim(substr($line, 12));
+                $currentPeer['extension'] = $peerExtension;
+                if ($peerExtension === $extension) {
+                    $foundExtension = true;
+                }
+            } elseif (strpos($line, 'Status: ') !== false && $foundExtension) {
+                $status = trim(substr($line, 8));
+                $currentPeer['status'] = $this->mapSIPStatus($status);
+            }
+        }
+
+        // Check if the last peer was our target extension
+        if ($currentPeer && $foundExtension) {
+            return $currentPeer['status'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse a single extension status from SIPshowstatus response
+     */
+    private function parseSingleExtensionStatus(string $response, string $extension): ?string
+    {
+        $lines = explode("\r\n", $response);
+        $currentExt = null;
+        $foundExtension = false;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            if (strpos($line, 'Event: Status') !== false) {
+                if ($currentExt && $foundExtension) {
+                    // We found our extension, return its status
+                    return $currentExt['status'];
+                }
+                $currentExt = ['status' => 'unknown'];
+                $foundExtension = false;
+            } elseif (strpos($line, 'Username: ') !== false) {
+                $extUsername = trim(substr($line, 10));
+                $currentExt['extension'] = $extUsername;
+                if ($extUsername === $extension) {
+                    $foundExtension = true;
+                }
+            } elseif (strpos($line, 'State: ') !== false && $foundExtension) {
+                $state = trim(substr($line, 7));
+                $currentExt['status'] = $state === 'Up' ? 'online' : 'offline';
+            }
+        }
+
+        // Check if the last extension was our target extension
+        if ($currentExt && $foundExtension) {
+            return $currentExt['status'];
+        }
+
+        return null;
     }
 }
