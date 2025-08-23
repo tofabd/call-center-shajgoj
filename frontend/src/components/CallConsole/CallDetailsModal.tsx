@@ -376,46 +376,46 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                               </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-600 dark:text-gray-300 font-medium">Channel:</span>
-                                <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{step.channel || '-'}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-600 dark:text-gray-300 font-medium">Extension:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.exten || '-'}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-600 dark:text-gray-300 font-medium">Context:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.context || '-'}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-600 dark:text-gray-300 font-medium">State:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.channel_state_desc || step.channel_state || '-'}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-600 dark:text-gray-300 font-medium">Start Time:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.start_time)}</span>
-                              </div>
-                              {step.answer_at && (
-                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Answered:</span>
-                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.answer_at)}</span>
-                                </div>
-                              )}
-                              {step.hangup_at && (
-                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup:</span>
-                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.hangup_at)}</span>
-                                </div>
-                              )}
-                              {step.hangup_cause && (
-                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup Cause:</span>
-                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.hangup_cause}</span>
-                                </div>
-                              )}
-                            </div>
+                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                               <div>
+                                 <span className="text-gray-600 dark:text-gray-300 font-medium">Channel:</span>
+                                 <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{step.channel || '-'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-600 dark:text-gray-300 font-medium">Extension:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.exten || '-'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-600 dark:text-gray-300 font-medium">Context:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.context || '-'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-600 dark:text-gray-300 font-medium">State:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.channel_state_desc || step.channel_state || '-'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-600 dark:text-gray-300 font-medium">Start Time:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.start_time)}</span>
+                               </div>
+                               {step.answer_at && (
+                                 <div>
+                                   <span className="text-gray-600 dark:text-gray-300 font-medium">Answered:</span>
+                                   <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.answer_at)}</span>
+                                 </div>
+                               )}
+                               {step.hangup_at && (
+                                 <div>
+                                   <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup:</span>
+                                   <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.hangup_at)}</span>
+                                 </div>
+                               )}
+                               {step.hangup_cause && (
+                                 <div>
+                                   <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup Cause:</span>
+                                   <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.hangup_cause}</span>
+                                 </div>
+                               )}
+                             </div>
                             
                             {step.callerid_num && (
                               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -453,32 +453,32 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">⏰ Time:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(change.time)}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">📤 From:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.from_extension || 'Initial'}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">📥 To:</span>
-                                <span className="ml-2 font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">{change.to_extension}</span>
-                              </div>
-                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">🌐 Context:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.context || '-'}</span>
-                              </div>
-                              <div className="md:col-span-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">💡 Reason:</span>
-                                <span className="ml-2 text-xs text-gray-800 dark:text-gray-100">{change.reason}</span>
-                              </div>
-                              <div className="md:col-span-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                                <span className="text-gray-700 dark:text-gray-200 font-medium">📞 Channel:</span>
-                                <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{change.channel || '-'}</span>
-                              </div>
-                            </div>
+                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                               <div>
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">⏰ Time:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(change.time)}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">📤 From:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.from_extension || 'Initial'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">📥 To:</span>
+                                 <span className="ml-2 font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">{change.to_extension}</span>
+                               </div>
+                               <div>
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">🌐 Context:</span>
+                                 <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.context || '-'}</span>
+                               </div>
+                               <div className="md:col-span-2">
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">💡 Reason:</span>
+                                 <span className="ml-2 text-xs text-gray-800 dark:text-gray-100">{change.reason}</span>
+                               </div>
+                               <div className="md:col-span-2">
+                                 <span className="text-gray-700 dark:text-gray-200 font-medium">📞 Channel:</span>
+                                 <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{change.channel || '-'}</span>
+                               </div>
+                             </div>
                           </div>
                         ))}
                       </div>
@@ -495,40 +495,40 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                         </div>
                         
                         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 p-5 shadow-md">
-                          <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🆔 Call ID</dt>
-                              <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.id}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔑 Unique ID</dt>
-                              <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.uniqueid || '-'}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔗 Linked ID</dt>
-                              <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.linkedid || '-'}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📡 Direction</dt>
-                              <dd className="capitalize text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.direction || '-'}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📊 Status</dt>
-                              <dd className="text-sm text-slate-800 dark:text-slate-100">{details.status || '-'}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">⏱️ Duration</dt>
-                              <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📅 Created</dt>
-                              <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.createdAt)}</dd>
-                            </div>
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔄 Updated</dt>
-                              <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.updatedAt)}</dd>
-                            </div>
-                          </dl>
+                                                     <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🆔 Call ID</dt>
+                               <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.id}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔑 Unique ID</dt>
+                               <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.uniqueid || '-'}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔗 Linked ID</dt>
+                               <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.linkedid || '-'}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📡 Direction</dt>
+                               <dd className="capitalize text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.direction || '-'}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📊 Status</dt>
+                               <dd className="text-sm text-slate-800 dark:text-slate-100">{details.status || '-'}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-gray-600 dark:text-gray-300 font-medium mb-1">⏱️ Duration</dt>
+                               <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📅 Created</dt>
+                               <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.createdAt)}</dd>
+                             </div>
+                             <div>
+                               <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔄 Updated</dt>
+                               <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.updatedAt)}</dd>
+                             </div>
+                           </dl>
                         </div>
                       </div>
                     )}
