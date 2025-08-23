@@ -266,6 +266,12 @@ class CallController extends Controller
 		if (!$call) {
 			return response()->json(['error' => 'Call not found'], 404);
 		}
+
+		// Get all call legs for this call to show the complete flow
+		$callLegs = CallLeg::where('linkedid', $call->linkedid)
+			->orderBy('start_time', 'asc')
+			->get();
+
 		// Try to find master leg for identifiers/channel context
 		$masterLeg = CallLeg::where('linkedid', $call->linkedid)
 			->where('uniqueid', $call->linkedid)
@@ -274,6 +280,39 @@ class CallController extends Controller
 			$masterLeg = CallLeg::where('linkedid', $call->linkedid)
 				->orderBy('start_time', 'asc')
 				->first();
+		}
+
+		// Build detailed call flow steps
+		$callFlow = [];
+		foreach ($callLegs as $leg) {
+			$step = [
+				'uniqueid' => $leg->uniqueid,
+				'channel' => $leg->channel,
+				'exten' => $leg->exten,
+				'context' => $leg->context,
+				'channel_state' => $leg->channel_state,
+				'channel_state_desc' => $leg->channel_state_desc,
+				'state' => $leg->state,
+				'callerid_num' => $leg->callerid_num,
+				'callerid_name' => $leg->callerid_name,
+				'connected_line_num' => $leg->connected_line_num,
+				'connected_line_name' => $leg->connected_line_name,
+				'start_time' => $leg->start_time,
+				'answer_at' => $leg->answer_at,
+				'hangup_at' => $leg->hangup_at,
+				'hangup_cause' => $leg->hangup_cause,
+				'agent_exten_if_leg' => $leg->agent_exten_if_leg,
+				'other_party_if_leg' => $leg->other_party_if_leg,
+				'step_type' => $this->determineStepType($leg, $call),
+				'step_description' => $this->getStepDescription($leg, $call),
+			];
+			$callFlow[] = $step;
+		}
+
+		// For incoming calls, show extension changes and routing
+		$extensionChanges = [];
+		if ($call->direction === 'incoming') {
+			$extensionChanges = $this->getExtensionChanges($callLegs, $call);
 		}
 
 		return response()->json([
@@ -300,7 +339,93 @@ class CallController extends Controller
 			'otherParty' => $call->other_party,
 			'createdAt' => $call->created_at,
 			'updatedAt' => $call->updated_at,
+			'callFlow' => $callFlow,
+			'extensionChanges' => $extensionChanges,
 		]);
+	}
+
+	private function determineStepType(CallLeg $leg, Call $call): string
+	{
+		if ($leg->uniqueid === $call->linkedid) {
+			return 'master_channel';
+		}
+
+		if (str_contains($leg->context ?? '', 'queue')) {
+			return 'queue_handling';
+		}
+
+		if (str_contains($leg->context ?? '', 'internal')) {
+			return 'agent_connection';
+		}
+
+		if (str_contains($leg->context ?? '', 'trunk')) {
+			return 'trunk_connection';
+		}
+
+		return 'intermediate_step';
+	}
+
+	private function getStepDescription(CallLeg $leg, Call $call): string
+	{
+		$stepType = $this->determineStepType($leg, $call);
+
+		switch ($stepType) {
+			case 'master_channel':
+				return 'Initial call channel creation';
+			case 'queue_handling':
+				return 'Call queued for agent assignment';
+			case 'agent_connection':
+				return 'Connecting to agent extension';
+			case 'trunk_connection':
+				return 'External trunk connection';
+			case 'intermediate_step':
+				return 'Call routing step';
+			default:
+				return 'Unknown step';
+		}
+	}
+
+	private function getExtensionChanges($callLegs, Call $call): array
+	{
+		$changes = [];
+		$previousExten = null;
+
+		foreach ($callLegs as $leg) {
+			if ($leg->exten && $leg->exten !== $previousExten) {
+				$changes[] = [
+					'time' => $leg->start_time,
+					'from_extension' => $previousExten,
+					'to_extension' => $leg->exten,
+					'context' => $leg->context,
+					'reason' => $this->getExtensionChangeReason($leg, $previousExten),
+					'channel' => $leg->channel,
+				];
+				$previousExten = $leg->exten;
+			}
+		}
+
+		return $changes;
+	}
+
+	private function getExtensionChangeReason(CallLeg $leg, ?string $previousExten): string
+	{
+		if (!$previousExten) {
+			return 'Initial routing';
+		}
+
+		if (str_contains($leg->context ?? '', 'queue')) {
+			return 'Queued for agent assignment';
+		}
+
+		if (str_contains($leg->context ?? '', 'internal')) {
+			return 'Connected to agent';
+		}
+
+		if ($leg->hangup_cause && $leg->hangup_cause !== '16') {
+			return 'Extension change due to: ' . $leg->hangup_cause;
+		}
+
+		return 'Routing change';
 	}
 }
 

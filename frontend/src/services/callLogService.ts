@@ -15,6 +15,37 @@ export interface CallLog {
   otherParty?: string | null;
 }
 
+export interface CallFlowStep {
+  uniqueid: string;
+  channel: string | null;
+  exten: string | null;
+  context: string | null;
+  channel_state: string | null;
+  channel_state_desc: string | null;
+  state: string | null;
+  callerid_num: string | null;
+  callerid_name: string | null;
+  connected_line_num: string | null;
+  connected_line_name: string | null;
+  start_time: string | null;
+  answer_at: string | null;
+  hangup_at: string | null;
+  hangup_cause: string | null;
+  agent_exten_if_leg: string | null;
+  other_party_if_leg: string | null;
+  step_type: string;
+  step_description: string;
+}
+
+export interface ExtensionChange {
+  time: string | null;
+  from_extension: string | null;
+  to_extension: string;
+  context: string | null;
+  reason: string;
+  channel: string | null;
+}
+
 export interface CallDetails {
   id: number;
   uniqueid: string;
@@ -39,6 +70,8 @@ export interface CallDetails {
   direction?: 'incoming' | 'outgoing';
   agentExten?: string | null;
   otherParty?: string | null;
+  callFlow?: CallFlowStep[];
+  extensionChanges?: ExtensionChange[];
 }
 
 export interface CallStats {

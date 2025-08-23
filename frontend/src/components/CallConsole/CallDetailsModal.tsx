@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShoppingBag, Phone, Clock, User, Hash, X } from 'lucide-react';
+import { ShoppingBag, Clock, User, Hash, X, PhoneOutgoing, PhoneIncoming } from 'lucide-react';
 import { callLogService, type CallDetails as ApiCallDetails } from '@services/callLogService';
 
 interface CallDetailsProps {
@@ -226,59 +226,30 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                     </div>
                   </div>
 
-                  {/* Sectioned details skeleton */}
-                  <div className="space-y-3">
-                    {/* Participants skeleton */}
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                      <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                        {[...Array(6)].map((_, i) => (
-                          <div key={i} className="space-y-1">
-                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                  {/* Call Flow Steps skeleton */}
+                  <div className="space-y-4">
+                    <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+                    
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 shadow-sm">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                            <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
                           </div>
-                        ))}
+                          <div className="h-5 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {[...Array(6)].map((_, j) => (
+                            <div key={j} className="space-y-1">
+                              <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                              <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Channel skeleton */}
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                      <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {[...Array(3)].map((_, i) => (
-                          <div key={i} className="space-y-1">
-                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                            <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Timing skeleton */}
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                      <div className="h-4 w-14 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {[...Array(3)].map((_, i) => (
-                          <div key={i} className="space-y-1">
-                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Identifiers skeleton */}
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                      <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-3 animate-pulse"></div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {[...Array(4)].map((_, i) => (
-                          <div key={i} className="space-y-1">
-                            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                            <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -291,158 +262,276 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
             ) : (
               <div className="p-6">
                 <div className="w-full space-y-6">
-                  {/* Summary banner */}
-                  {details && (
-                    <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 p-4 shadow-lg shadow-blue-100/50 dark:shadow-blue-900/20 mb-6">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-3 py-1 text-xs rounded-full font-semibold shadow-sm ${
-                              details.direction === 'outgoing' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-indigo-200 dark:shadow-indigo-900/50' :
-                              details.direction === 'incoming' ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-200 dark:shadow-emerald-900/50' :
-                              'bg-gradient-to-r from-gray-400 to-gray-600 text-white shadow-gray-200 dark:shadow-gray-900/50'
-                            }`}>
-                              {details.direction ? details.direction.charAt(0).toUpperCase() + details.direction.slice(1) : 'Unknown'}
-                            </span>
-                            <span className="text-lg font-bold text-gray-900 dark:text-gray-100 font-mono">{details.callerNumber || 'Unknown number'}</span>
-                            {details.agentExten || details.extension ? (
-                              <span className="text-sm text-gray-600 dark:text-gray-400">→ Ext <span className="font-mono font-semibold">{details.agentExten || details.extension}</span></span>
-                            ) : null}
-                            {details.otherParty || details.connectedLineNum ? (
-                              <span className="text-sm text-gray-600 dark:text-gray-400">with <span className="font-mono font-semibold">{details.otherParty || details.connectedLineNum}</span></span>
-                            ) : null}
+                                                        {/* Summary banner */}
+                    {details && (
+                      <div className="relative rounded-2xl border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 p-6 shadow-lg shadow-blue-100/50 dark:shadow-blue-900/20 mb-8 overflow-hidden">
+                        {/* Background Pattern */}
+                        <div className="absolute inset-0 opacity-5">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200 rounded-full translate-x-16 -translate-y-16"></div>
+                          <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-200 rounded-full -translate-x-12 translate-y-12"></div>
+                          <div className="absolute top-1/2 right-1/3 w-16 h-16 bg-purple-200 rounded-full opacity-30"></div>
+                        </div>
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                          <div className="space-y-3">
+                                                         <div className="flex items-center gap-3 flex-wrap">
+                               <span className={`px-4 py-2 text-sm rounded-full font-bold text-white shadow-sm flex items-center gap-2 ${
+                                 details.direction === 'outgoing' ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                                 details.direction === 'incoming' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' :
+                                 'bg-gradient-to-r from-gray-500 to-slate-600'
+                               }`}>
+                                 {details.direction === 'outgoing' ? (
+                                   <PhoneOutgoing className="w-4 h-4" />
+                                 ) : details.direction === 'incoming' ? (
+                                   <PhoneIncoming className="w-4 h-4" />
+                                 ) : (
+                                   <span>📞</span>
+                                 )}
+                                 {details.direction ? details.direction.charAt(0).toUpperCase() + details.direction.slice(1) : 'Unknown'}
+                               </span>
+                              <span className="text-2xl font-bold text-gray-800 dark:text-gray-100 font-mono">{details.callerNumber || 'Unknown number'}</span>
+                              {details.agentExten || details.extension ? (
+                                <span className="text-gray-700 dark:text-gray-300 text-lg">→ Ext <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{details.agentExten || details.extension}</span></span>
+                              ) : null}
+                              {details.otherParty || details.connectedLineNum ? (
+                                <span className="text-gray-700 dark:text-gray-300 text-lg">with <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{details.otherParty || details.connectedLineNum}</span></span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-4 text-gray-600 dark:text-gray-400 text-base flex-wrap">
+                              <span className="flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                Started: <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">{formatDateTime(details.startTime)}</span>
+                              </span>
+                              {typeof details.duration === 'number' && (
+                                <>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                    Duration: <span className="font-mono font-semibold text-green-600 dark:text-green-400">{formatDuration(details.duration)}</span>
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
-                            <span>Started: <span className="font-mono">{formatDateTime(details.startTime)}</span></span>
-                            {typeof details.duration === 'number' && (
-                              <>
-                                <span>•</span>
-                                <span>Duration: <span className="font-mono">{formatDuration(details.duration)}</span></span>
-                              </>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-4 py-2 text-base rounded-full font-bold text-white shadow-sm ${
+                              (details.status || '').toLowerCase() === 'answered' ? 'bg-gradient-to-r from-emerald-500 to-green-600' :
+                              (details.status || '').toLowerCase() === 'busy' ? 'bg-gradient-to-r from-rose-500 to-red-600' :
+                              (details.status || '').toLowerCase().includes('ring') ? 'bg-gradient-to-r from-blue-500 to-cyan-600 animate-pulse' :
+                              (details.status || '').toLowerCase() === 'started' ? 'bg-gradient-to-r from-violet-500 to-purple-600' :
+                              'bg-gradient-to-r from-gray-500 to-slate-600'
+                            }`}>
+                              {details.status || 'Unknown'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                                                                           {/* Call Flow Steps */}
+                    {details && details.callFlow && (
+                      <div className="space-y-5">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+                            <Hash className="w-4 h-4 text-white" />
+                          </div>
+                          <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Call Flow Journey</h4>
+                        </div>
+                        
+                        {details.callFlow.map((step, index) => (
+                          <div key={step.uniqueid || index} className={`relative rounded-xl p-5 shadow-md border-l-4 transition-all duration-300 hover:shadow-lg ${
+                            step.step_type === 'master_channel' ? 'bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/10 dark:to-violet-900/10 border-l-purple-400' :
+                            step.step_type === 'queue_handling' ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-l-amber-400' :
+                            step.step_type === 'agent_connection' ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 border-l-emerald-400' :
+                            step.step_type === 'trunk_connection' ? 'bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 border-l-cyan-400' :
+                            'bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 border-l-slate-400'
+                          }`}>
+                            {/* Step Number Badge */}
+                            <div className="absolute -top-2 -left-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md ${
+                                step.step_type === 'master_channel' ? 'bg-purple-500' :
+                                step.step_type === 'queue_handling' ? 'bg-amber-500' :
+                                step.step_type === 'agent_connection' ? 'bg-emerald-500' :
+                                step.step_type === 'trunk_connection' ? 'bg-cyan-500' :
+                                'bg-slate-500'
+                              }`}>
+                                {index + 1}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3 flex-1">
+                                <span className={`px-3 py-1 text-xs font-semibold rounded-full text-white ${
+                                  step.step_type === 'master_channel' ? 'bg-purple-500' :
+                                  step.step_type === 'queue_handling' ? 'bg-amber-500' :
+                                  step.step_type === 'agent_connection' ? 'bg-emerald-500' :
+                                  step.step_type === 'trunk_connection' ? 'bg-cyan-500' :
+                                  'bg-slate-500'
+                                }`}>
+                                    {step.step_type?.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                <span className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                                  {step.step_description}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-300 font-medium">Channel:</span>
+                                <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{step.channel || '-'}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-300 font-medium">Extension:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.exten || '-'}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-300 font-medium">Context:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.context || '-'}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-300 font-medium">State:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.channel_state_desc || step.channel_state || '-'}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-300 font-medium">Start Time:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.start_time)}</span>
+                              </div>
+                              {step.answer_at && (
+                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Answered:</span>
+                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.answer_at)}</span>
+                                </div>
+                              )}
+                              {step.hangup_at && (
+                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup:</span>
+                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(step.hangup_at)}</span>
+                                </div>
+                              )}
+                              {step.hangup_cause && (
+                                <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                  <span className="text-gray-600 dark:text-gray-300 font-medium">Hangup Cause:</span>
+                                  <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{step.hangup_cause}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {step.callerid_num && (
+                              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-medium">Caller ID:</div>
+                                <div className="font-mono text-sm bg-white/80 dark:bg-gray-800/80 rounded-lg p-2 text-gray-800 dark:text-gray-100">{step.callerid_num} {step.callerid_name ? `(${step.callerid_name})` : ''}</div>
+                              </div>
                             )}
                           </div>
+                        ))}
+                      </div>
+                    )}
+
+                                                                           {/* Extension Changes for Incoming Calls */}
+                    {details && details.direction === 'incoming' && details.extensionChanges && details.extensionChanges.length > 0 && (
+                      <div className="space-y-5 mt-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-white" />
+                          </div>
+                          <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Extension Routing Changes</h4>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1.5 text-sm rounded-full font-bold shadow-md ${
-                            (details.status || '').toLowerCase() === 'answered' ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-200 dark:shadow-emerald-900/50' :
-                            (details.status || '').toLowerCase() === 'busy' ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-200 dark:shadow-emerald-900/50' :
-                            (details.status || '').toLowerCase().includes('ring') ? 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-blue-200 dark:shadow-blue-900/50 animate-pulse' :
-                            (details.status || '').toLowerCase() === 'started' ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-violet-200 dark:shadow-violet-900/50' :
-                            'bg-gradient-to-r from-gray-500 to-slate-600 text-white shadow-gray-200 dark:shadow-gray-900/50'
-                          }`}>{details.status || 'Unknown'}</span>
+                        
+                        {details.extensionChanges.map((change, index) => (
+                          <div key={index} className="relative rounded-xl p-5 shadow-md border-l-4 border-l-amber-400 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/10 dark:via-orange-900/10 dark:to-yellow-900/10 transition-all duration-300 hover:shadow-lg">
+                            {/* Change Number Badge */}
+                            <div className="absolute -top-2 -left-2">
+                              <div className="w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md">
+                                {index + 1}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 mb-4">
+                              <span className="px-3 py-1 text-xs font-semibold rounded-full text-white bg-amber-500">
+                                🔄 Extension Change
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">⏰ Time:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{formatDateTime(change.time)}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">📤 From:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.from_extension || 'Initial'}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">📥 To:</span>
+                                <span className="ml-2 font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">{change.to_extension}</span>
+                              </div>
+                              <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">🌐 Context:</span>
+                                <span className="ml-2 font-mono text-xs text-gray-800 dark:text-gray-100">{change.context || '-'}</span>
+                              </div>
+                              <div className="md:col-span-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">💡 Reason:</span>
+                                <span className="ml-2 text-xs text-gray-800 dark:text-gray-100">{change.reason}</span>
+                              </div>
+                              <div className="md:col-span-2 bg-white/70 dark:bg-gray-800/70 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-700 dark:text-gray-200 font-medium">📞 Channel:</span>
+                                <span className="ml-2 font-mono text-xs break-all text-gray-800 dark:text-gray-100">{change.channel || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                                                                           {/* Basic Call Information */}
+                    {details && (
+                      <div className="space-y-4 mt-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-8 h-8 bg-gradient-to-br from-slate-400 to-gray-500 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-white" />
+                          </div>
+                          <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Call Information</h4>
+                        </div>
+                        
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 p-5 shadow-md">
+                          <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🆔 Call ID</dt>
+                              <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.id}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔑 Unique ID</dt>
+                              <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.uniqueid || '-'}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔗 Linked ID</dt>
+                              <dd className="font-mono text-xs break-all text-slate-800 dark:text-slate-100">{details.linkedid || '-'}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📡 Direction</dt>
+                              <dd className="capitalize text-sm text-slate-800 dark:text-slate-100 font-semibold">{details.direction || '-'}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📊 Status</dt>
+                              <dd className="text-sm text-slate-800 dark:text-slate-100">{details.status || '-'}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">⏱️ Duration</dt>
+                              <dd className="font-mono text-sm text-slate-800 dark:text-slate-100 font-semibold">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">📅 Created</dt>
+                              <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.createdAt)}</dd>
+                            </div>
+                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🔄 Updated</dt>
+                              <dd className="font-mono text-xs text-slate-800 dark:text-slate-100">{formatDateTime(details.updatedAt)}</dd>
+                            </div>
+                          </dl>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Sectioned details */}
-                  {details && (
-                    <div className="space-y-3">
-                      {/* Participants */}
-                      <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-3 shadow-sm">
-                        <h5 className="text-sm font-bold text-emerald-800 dark:text-emerald-200 mb-2 flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          Participants
-                        </h5>
-                        <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Name</dt>
-                            <dd className="font-mono text-xs">{details.callerName || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Caller Number</dt>
-                            <dd className="font-mono text-xs break-all">{details.callerNumber || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Other Party</dt>
-                            <dd className="font-mono text-xs break-all">{details.otherParty || details.connectedLineNum || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Agent Ext</dt>
-                            <dd className="font-mono text-xs">{details.agentExten || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Extension</dt>
-                            <dd className="font-mono text-xs">{details.extension || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Direction</dt>
-                            <dd className="capitalize text-xs">{details.direction || '-'}</dd>
-                          </div>
-                        </dl>
-                      </div>
-
-                      {/* Channel */}
-                      <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-3 shadow-sm">
-                        <h5 className="text-sm font-bold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
-                          <Phone className="w-4 h-4" />
-                          Channel
-                        </h5>
-                        <dl className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Channel</dt>
-                            <dd className="font-mono text-xs break-all">{details.channel || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Context</dt>
-                            <dd className="font-mono text-xs break-all">{details.context || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">State</dt>
-                            <dd className="font-mono text-xs">{details.channelStateDesc || details.channelState || '-'}</dd>
-                          </div>
-                        </dl>
-                      </div>
-
-                      {/* Timing */}
-                      <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-purple-900/20 p-3 shadow-sm">
-                        <h5 className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-2 flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          Timing
-                        </h5>
-                        <dl className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Start Time</dt>
-                            <dd className="font-mono text-xs">{formatDateTime(details.startTime)}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">End Time</dt>
-                            <dd className="font-mono text-xs">{formatDateTime(details.endTime)}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Duration</dt>
-                            <dd className="font-mono text-xs">{typeof details.duration === 'number' ? formatDuration(details.duration) : '-'}</dd>
-                          </div>
-                        </dl>
-                      </div>
-
-                      {/* Identifiers */}
-                      <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-3 shadow-sm">
-                        <h5 className="text-sm font-bold text-orange-800 dark:text-orange-200 mb-2 flex items-center gap-2">
-                          <Hash className="w-4 h-4" />
-                          Identifiers
-                        </h5>
-                        <dl className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Unique ID</dt>
-                            <dd className="font-mono text-xs break-all">{details.uniqueid || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Linked ID</dt>
-                            <dd className="font-mono text-xs break-all">{details.linkedid || '-'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Created</dt>
-                            <dd className="font-mono text-xs">{formatDateTime(details.createdAt)}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-gray-500 dark:text-gray-400">Updated</dt>
-                            <dd className="font-mono text-xs">{formatDateTime(details.updatedAt)}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
             )}
