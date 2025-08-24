@@ -748,46 +748,123 @@ use App\Services\ExtensionService;
 
     /**
      * Handle ExtensionStatus events from Asterisk AMI
+     * Now handles both numeric status values (like Status: 1) and text values
      */
     private function handleExtensionStatus(array $fields): void
     {
         $extension = $fields['Exten'] ?? null;
         $status = $fields['Status'] ?? null;
+        $statusText = $fields['StatusText'] ?? null;
+        $context = $fields['Context'] ?? null;
+        $hint = $fields['Hint'] ?? null;
 
-        if (!$extension || !$status) {
+        Log::info("📱 ExtensionStatus event received", [
+            'extension' => $extension,
+            'status' => $status,
+            'status_text' => $statusText,
+            'context' => $context,
+            'hint' => $hint,
+            'all_fields' => $fields
+        ]);
+
+        if (!$extension || $status === null) {
             $this->warn("⚠️ ExtensionStatus event missing required fields: Exten or Status");
+            Log::warning("ExtensionStatus event missing fields", $fields);
             return;
         }
 
         try {
+            // Map the status value (handles both numeric and text values)
+            $mappedStatus = $this->mapExtensionStatus($status);
+
+            Log::info("📱 Mapping extension status", [
+                'extension' => $extension,
+                'raw_status' => $status,
+                'mapped_status' => $mappedStatus,
+                'status_text' => $statusText
+            ]);
+
             // Update extension status in database
-            $success = $this->extensionService->updateExtensionStatus($extension, $this->mapExtensionStatus($status));
+            $success = $this->extensionService->updateExtensionStatus($extension, $mappedStatus);
 
             if ($success) {
-                $this->info("📱 Extension status updated: {$extension} -> {$status}");
+                $this->info("📱 Extension status updated: {$extension} -> {$status} ({$statusText}) -> {$mappedStatus}");
+                Log::info("Extension status updated successfully", [
+                    'extension' => $extension,
+                    'raw_status' => $status,
+                    'mapped_status' => $mappedStatus,
+                    'status_text' => $statusText
+                ]);
             } else {
                 $this->warn("⚠️ Failed to update extension status: {$extension} -> {$status}");
+                Log::warning("Failed to update extension status", [
+                    'extension' => $extension,
+                    'status' => $status,
+                    'mapped_status' => $mappedStatus
+                ]);
             }
 
         } catch (\Exception $e) {
             $this->error("❌ Failed to update extension status: " . $e->getMessage());
-            $this->error("Stack trace: " . $e->getTraceAsString());
+            Log::error("ExtensionStatus handler error", [
+                'extension' => $extension,
+                'status' => $status,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 
     /**
      * Map Asterisk extension status to our status values
+     * Handles both numeric values (from ExtensionStatus events) and text values (from other sources)
+     * Based on Asterisk documentation and CLI test results
      */
     private function mapExtensionStatus(string $asteriskStatus): string
     {
-        $statusMap = [
+        // Handle numeric status values (from ExtensionStatus events like your CLI test)
+        $numericStatusMap = [
+            '0' => 'online',    // NotInUse - extension available
+            '1' => 'online',    // InUse - extension in use but still online
+            '2' => 'online',    // Busy - extension busy but still online
+            '4' => 'offline',   // Unavailable - extension not available
+            '8' => 'online',    // Ringing - extension ringing, still online
+            '16' => 'online',   // Ringinuse - ringing while in use
+            '-1' => 'unknown',  // Unknown status
+        ];
+
+        // Handle text status values (from SIP registration events)
+        $textStatusMap = [
             'Registered' => 'online',
             'Unregistered' => 'offline',
             'Rejected' => 'offline',
             'Timeout' => 'offline',
+            'NotInUse' => 'online',
+            'InUse' => 'online',
+            'Busy' => 'online',
+            'Unavailable' => 'offline',
+            'Ringing' => 'online',
+            'Ringinuse' => 'online',
+            'Unknown' => 'unknown',
         ];
 
-        return $statusMap[$asteriskStatus] ?? 'unknown';
+        // First try numeric mapping
+        if (isset($numericStatusMap[$asteriskStatus])) {
+            return $numericStatusMap[$asteriskStatus];
+        }
+
+        // Then try text mapping
+        if (isset($textStatusMap[$asteriskStatus])) {
+            return $textStatusMap[$asteriskStatus];
+        }
+
+        // Log unknown status for debugging
+        Log::warning("Unknown extension status value", [
+            'status' => $asteriskStatus,
+            'type' => gettype($asteriskStatus)
+        ]);
+
+        return 'unknown';
     }
 
      public function __destruct()

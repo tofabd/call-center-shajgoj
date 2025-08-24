@@ -394,7 +394,8 @@ class ExtensionService
     }
 
     /**
-     * Get status of a specific extension via Asterisk AMI
+     * Get status of a specific extension via Asterisk AMI using ExtensionState action
+     * This uses the same approach as the successful CLI test
      */
     public function getExtensionStatus(string $extension): ?string
     {
@@ -413,23 +414,45 @@ class ExtensionService
                 return null;
             }
 
-            // Try to get status using SIPshowpeer command
-            $command = "Action: SIPshowpeer\r\nPeer: {$extension}\r\n\r\n";
+            // Use ExtensionState action exactly like the successful CLI test
+            $actionId = 'ext_status_' . $extension . '_' . time();
+            $command = "Action: ExtensionState\r\n"
+                     . "Exten: {$extension}\r\n"
+                     . "Context: ext-local\r\n"
+                     . "ActionID: {$actionId}\r\n\r\n";
+
+            Log::info("Sending ExtensionState command", [
+                'extension' => $extension,
+                'command' => $command,
+                'action_id' => $actionId
+            ]);
+
             fwrite($socket, $command);
-            $response = $this->readResponse($socket);
+            $response = $this->readResponseForActionId($socket, $actionId);
 
-            // Parse the response to get status
-            $status = $this->parseSinglePeerStatus($response, $extension);
+            Log::info("ExtensionState response received", [
+                'extension' => $extension,
+                'response' => $response
+            ]);
 
-            // If that didn't work, try SIPshowstatus
+            // Parse the ExtensionStatus event response
+            $status = $this->parseExtensionStateResponse($response, $extension, $actionId);
+
+            // If ExtensionState didn't work, fallback to SIPshowpeer method
             if ($status === null) {
-                $command = "Action: SIPshowstatus\r\n\r\n";
+                Log::info("ExtensionState failed, trying SIPshowpeer fallback", ['extension' => $extension]);
+                $command = "Action: SIPshowpeer\r\nPeer: {$extension}\r\n\r\n";
                 fwrite($socket, $command);
                 $response = $this->readResponse($socket);
-                $status = $this->parseSingleExtensionStatus($response, $extension);
+                $status = $this->parseSinglePeerStatus($response, $extension);
             }
 
             fclose($socket);
+
+            Log::info("Final extension status result", [
+                'extension' => $extension,
+                'status' => $status
+            ]);
 
             return $status;
 
@@ -459,6 +482,7 @@ class ExtensionService
         $response = '';
         $timeout = time() + 10; // Increased timeout for longer responses
         $lastData = '';
+        $eventBuffer = '';
 
         while (!feof($socket) && time() < $timeout) {
             $buffer = fgets($socket);
@@ -466,10 +490,24 @@ class ExtensionService
                 break;
             }
             $response .= $buffer;
+            $eventBuffer .= $buffer;
             $lastData = $buffer;
 
-            // Check if we've received the complete response
-            // AMI responses end with a blank line after the last event
+            // Check if we have a complete event/response
+            if (strpos($eventBuffer, "\r\n\r\n") !== false) {
+                // We got a complete event, check if it's what we want
+                if (strpos($eventBuffer, 'Response: Success') !== false ||
+                    strpos($eventBuffer, 'Event: ExtensionStatus') !== false) {
+                    // This is the response we want
+                    break;
+                } else {
+                    // This is some other event, continue reading
+                    $eventBuffer = '';
+                    continue;
+                }
+            }
+
+            // Legacy check for end of response
             if (strpos($response, "\r\n\r\n") !== false &&
                 (strpos($lastData, "\r\n") !== false && trim($lastData) === '')) {
                 // Wait a bit more to ensure we get all data
@@ -479,6 +517,64 @@ class ExtensionService
         }
 
         return $response;
+    }
+
+    /**
+     * Read AMI response looking specifically for a matching ActionID
+     */
+    private function readResponseForActionId($socket, string $actionId): string
+    {
+        $allData = '';
+        $timeout = time() + 15; // Longer timeout for ActionID responses
+        $foundResponse = false;
+
+        while (!feof($socket) && time() < $timeout && !$foundResponse) {
+            $buffer = fgets($socket);
+            if ($buffer === false) {
+                usleep(50000); // 50ms wait
+                continue;
+            }
+
+            $allData .= $buffer;
+
+            // Check if we have our ActionID in the response
+            if (strpos($allData, "ActionID: {$actionId}") !== false) {
+                $foundResponse = true;
+                // Continue reading until we get the complete response for this ActionID
+                $additionalTimeout = time() + 5;
+                while (!feof($socket) && time() < $additionalTimeout) {
+                    $additionalBuffer = fgets($socket);
+                    if ($additionalBuffer === false) {
+                        break;
+                    }
+                    $allData .= $additionalBuffer;
+
+                    // Check if we reached the end of this response
+                    if (strpos($additionalBuffer, "\r\n") !== false && trim($additionalBuffer) === '') {
+                        break;
+                    }
+                }
+                break;
+            }
+
+            // If we have too much data without finding our ActionID, something's wrong
+            if (strlen($allData) > 50000) { // 50KB limit
+                Log::warning("Large response without ActionID, truncating", [
+                    'action_id' => $actionId,
+                    'data_length' => strlen($allData)
+                ]);
+                break;
+            }
+        }
+
+        if (!$foundResponse) {
+            Log::warning("ActionID not found in response", [
+                'action_id' => $actionId,
+                'response_length' => strlen($allData)
+            ]);
+        }
+
+        return $allData;
     }
 
     private function parseSIPRegistryResponse(string $response): array
@@ -928,5 +1024,144 @@ class ExtensionService
         }
 
         return null;
+    }
+
+    /**
+     * Parse ExtensionStatus event response from ExtensionState action
+     * This method handles both Response: Success and Event: ExtensionStatus formats
+     */
+    private function parseExtensionStateResponse(string $response, string $extension, string $actionId): ?string
+    {
+        Log::info("Parsing ExtensionState response", [
+            'extension' => $extension,
+            'action_id' => $actionId,
+            'response_length' => strlen($response)
+        ]);
+
+        $lines = explode("\r\n", $response);
+        $foundResponse = false;
+        $foundExtension = false;
+        $foundActionId = false;
+        $status = null;
+        $statusText = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            Log::debug("Processing line", ['line' => $line]);
+
+            // Look for either Response: Success or Event: ExtensionStatus
+            if (strpos($line, 'Response: Success') !== false ||
+                strpos($line, 'Event: ExtensionStatus') !== false) {
+                $foundResponse = true;
+                Log::info("Found ExtensionState response or event");
+                continue;
+            }
+
+            if (!$foundResponse) continue;
+
+            // Parse extension number
+            if (strpos($line, 'Exten: ') !== false) {
+                $eventExtension = trim(substr($line, 7));
+                if ($eventExtension === $extension) {
+                    $foundExtension = true;
+                    Log::info("Found matching extension", ['extension' => $eventExtension]);
+                }
+                continue;
+            }
+
+            // Parse ActionID to make sure we get the right response
+            if (strpos($line, 'ActionID: ') !== false) {
+                $eventActionId = trim(substr($line, 10));
+                if ($eventActionId === $actionId) {
+                    $foundActionId = true;
+                    Log::info("Found matching ActionID", ['action_id' => $eventActionId]);
+                }
+                continue;
+            }
+
+            // Parse Status (numeric value)
+            if (strpos($line, 'Status: ') !== false) {
+                $statusValue = trim(substr($line, 8));
+                $status = $this->mapExtensionStatusValue($statusValue);
+                Log::info("Found status value", ['raw_status' => $statusValue, 'mapped_status' => $status]);
+                continue;
+            }
+
+            // Parse StatusText (descriptive text)
+            if (strpos($line, 'StatusText: ') !== false) {
+                $statusText = trim(substr($line, 12));
+                Log::info("Found status text", ['status_text' => $statusText]);
+                continue;
+            }
+        }
+
+        // Return the status if we found all required fields
+        if ($foundResponse && $foundExtension && $status !== null) {
+            Log::info("Successfully parsed ExtensionState response", [
+                'extension' => $extension,
+                'status' => $status,
+                'status_text' => $statusText,
+                'action_id_matched' => $foundActionId
+            ]);
+            return $status;
+        }
+
+        // If we didn't find extension match but got a valid response, it might be for a different extension
+        if ($foundResponse && $status !== null && !$foundExtension) {
+            Log::info("Found valid response but for different extension", [
+                'requested_extension' => $extension,
+                'status' => $status
+            ]);
+        }
+
+        Log::warning("Failed to parse ExtensionState response", [
+            'extension' => $extension,
+            'found_response' => $foundResponse,
+            'found_extension' => $foundExtension,
+            'found_action_id' => $foundActionId,
+            'status' => $status
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Map Asterisk extension status numeric values to our status strings
+     * Based on Asterisk documentation and your CLI test results
+     */
+    private function mapExtensionStatusValue(string $statusValue): string
+    {
+        switch ($statusValue) {
+            case '0':
+            case 'NotInUse':
+                return 'online';  // Extension is registered and available
+
+            case '1':
+            case 'InUse':
+                return 'online';  // Extension is registered and in use (still online)
+
+            case '2':
+            case 'Busy':
+                return 'online';  // Extension is registered but busy (still online)
+
+            case '4':
+            case 'Unavailable':
+                return 'offline'; // Extension is not available
+
+            case '8':
+            case 'Ringing':
+                return 'online';  // Extension is ringing (still online)
+
+            case '16':
+            case 'Ringinuse':
+                return 'online';  // Extension is ringing while in use
+
+            case '-1':
+            case 'Unknown':
+            default:
+                return 'unknown'; // Unknown status
+        }
     }
 }
