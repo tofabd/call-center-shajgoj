@@ -15,10 +15,12 @@ class Extension extends Model
         'agent_name',
         'status',
         'last_seen',
+        'is_active',
     ];
 
     protected $casts = [
         'last_seen' => 'datetime',
+        'is_active' => 'boolean',
     ];
 
     /**
