@@ -170,7 +170,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 {sortedActiveCalls.map((call) => (
                   <div
                     key={`${call.id}-${call.status}`}
-                    className={`group p-3 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer ${
+                    className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
                       selectedCallId === call.id
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                         : (() => {
@@ -179,13 +179,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                             
                             if (['answered', 'in_progress'].includes(status)) {
                               return direction === 'outgoing'
-                                ? 'border-blue-300 dark:border-blue-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20'
-                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20';
+                                ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
+                                : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20';
                             }
                             if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
                               return direction === 'outgoing'
-                                ? 'border-blue-300 dark:border-blue-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-l-4 border-l-blue-500'
-                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-l-green-500';
+                                ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
+                                : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-l-4 border-l-emerald-500';
                             }
                             return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
                           })()
@@ -197,9 +197,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       {/* Direction Icon */}
                       <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
                         {call.direction === 'outgoing' ? (
-                          <PhoneOutgoing className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                         ) : call.direction === 'incoming' ? (
-                          <PhoneIncoming className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          <PhoneIncoming className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                         ) : (
                           <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                         )}
@@ -228,8 +228,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         {call.direction ? (
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                             call.direction === 'outgoing'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                              : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
                           }`}>
                             {call.direction === 'outgoing' ? '📤 Out' : '📥 In'}
                           </span>
@@ -245,8 +245,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status, call.direction)} ${
                           ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
                             ? (call.direction === 'outgoing'
-                                ? 'animate-pulse ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg shadow-blue-200 dark:shadow-blue-900 bg-blue-600 text-white dark:bg-blue-500 dark:text-white font-bold'
-                                : 'animate-pulse ring-2 ring-green-400 dark:ring-green-500 shadow-lg shadow-green-200 dark:shadow-green-900 bg-green-600 text-white dark:bg-green-500 dark:text-white font-bold')
+                                ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold'
+                                : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
                             : ''
                         }`}>
                           {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
@@ -257,7 +257,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                     </div>
 
                     {/* Second line: time and duration on same row */}
-                    <div className="mt-1 ml-7 flex items-center space-x-3">
+                    <div className="mt-2 ml-7 flex items-center space-x-3">
                       <div className="flex items-center space-x-1">
                         <Clock className="h-3 w-3 text-gray-400" />
                         <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
@@ -268,8 +268,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         <Timer className="h-3 w-3 text-gray-400" />
                         <span className={`text-xs font-medium ${
                           call.direction === 'outgoing' 
-                            ? 'text-blue-600 dark:text-blue-400' 
-                            : 'text-green-600 dark:text-green-400'
+                            ? 'text-indigo-600 dark:text-indigo-400' 
+                            : 'text-emerald-600 dark:text-emerald-400'
                         }`}>
                           {getRealTimeDuration(call.startTime)}
                         </span>

@@ -103,7 +103,7 @@ const ExtensionsStatus: React.FC = () => {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Real-time extension status and agent information
+                Real-time extension status
               </p>
             </div>
           </div>
@@ -178,7 +178,7 @@ const ExtensionsStatus: React.FC = () => {
               {extensions.map((extension) => (
                 <div 
                   key={extension.id} 
-                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 ${
+                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 min-h-[80px] ${
                     extension.status === 'online' ? 'ring-2 ring-green-200 dark:ring-green-800/30' : ''
                   }`}
                 >

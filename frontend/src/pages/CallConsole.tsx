@@ -254,7 +254,7 @@ const CallConsole: React.FC = () => {
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
         {/* Left Column - Call Monitor (Completed/Inactive Calls) */}
-        <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
+        <div className="flex-1 min-w-0">
           <CallHistory
             callLogs={callLogs}
             selectedCallId={selectedCallId}
@@ -268,7 +268,7 @@ const CallConsole: React.FC = () => {
         </div>
 
         {/* Center Column - Live Calls */}
-        <div className="w-80 lg:w-[30rem] xl:w-[34rem] flex-shrink-0">
+        <div className="flex-1 min-w-0">
           <LiveCalls
             callLogs={callLogs}
             selectedCallId={selectedCallId}

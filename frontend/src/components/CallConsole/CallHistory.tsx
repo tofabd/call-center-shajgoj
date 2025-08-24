@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer } from 'lucide-react';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -223,7 +223,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                     <div key={`${call.callerNumber}-${call.id}-${call.status}`} className="space-y-2">
                       {/* Main Call Item */}
                       <div
-                        className={`group p-3 border rounded-xl transition-all duration-200 hover:shadow-md ${
+                        className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] flex flex-col justify-center ${
                           selectedCallId === call.id
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                             : (() => {
@@ -347,20 +347,30 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                           </div>
 
                           {/* Second line: time and duration */}
-                          <div className="mt-1 ml-7 flex items-center space-x-1">
-                            <Clock className="h-3 w-3 text-gray-400" />
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
+                          <div className="mt-2 ml-7 flex items-center space-x-3">
+                            <div className="flex items-center space-x-1">
+                              <Clock className="h-3 w-3 text-gray-400" />
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
+                            </div>
+                            
+                            {/* Duration - Right side of start time */}
                             {call.duration && (
-                              <>
-                                <span className="text-gray-400">•</span>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(call.duration)}</p>
-                              </>
+                              <div className="flex items-center space-x-1">
+                                <Timer className="h-3 w-3 text-gray-400" />
+                                <span className={`text-xs font-medium ${
+                                  call.direction === 'outgoing' 
+                                    ? 'text-indigo-600 dark:text-indigo-400' 
+                                    : 'text-emerald-600 dark:text-emerald-400'
+                                }`}>
+                                  {formatDuration(call.duration)}
+                                </span>
+                              </div>
                             )}
                             {!call.duration && (
-                              <>
-                                <span className="text-gray-400">•</span>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Latest call</p>
-                              </>
+                              <div className="flex items-center space-x-1">
+                                <Timer className="h-3 w-3 text-gray-400" />
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Latest call</span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -371,7 +381,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                               {call.allCalls.slice(1).map((subCall, index) => (
                                 <div
                                   key={subCall.id}
-                                  className="group p-3 bg-gray-50 dark:bg-gray-800 border rounded-lg transition-all duration-200 border-gray-200 dark:border-gray-700"
+                                  className="group p-4 bg-gray-50 dark:bg-gray-800 border rounded-lg transition-all duration-200 border-gray-200 dark:border-gray-700 min-h-[60px] flex flex-col justify-center"
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex-1 min-w-0">
@@ -386,7 +396,10 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                                         {subCall.duration && (
                                           <>
                                             <span className="text-gray-400">•</span>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(subCall.duration)}</p>
+                                            <div className="flex items-center space-x-1">
+                                              <Timer className="h-3 w-3 text-gray-400" />
+                                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(subCall.duration)}</p>
+                                            </div>
                                           </>
                                         )}
                                       </div>
