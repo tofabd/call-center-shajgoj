@@ -5,6 +5,7 @@ export interface Extension {
   extension: string;
   agent_name?: string;
   status: 'online' | 'offline' | 'unknown';
+  is_active: boolean;
   last_seen?: string;
   created_at: string;
   updated_at: string;
@@ -51,7 +52,7 @@ export const extensionService = {
   },
 
   // Update extension
-  async updateExtension(id: number, data: { extension?: string; agent_name?: string; status?: string }): Promise<Extension> {
+  async updateExtension(id: number, data: { extension?: string; agent_name?: string; status?: string; is_active?: boolean }): Promise<Extension> {
     const response = await api.put(`/extensions/${id}`, data);
     return response.data.data;
   },
@@ -70,5 +71,11 @@ export const extensionService = {
   // Update extension status
   async updateStatus(extension: string, status: string): Promise<void> {
     await api.post('/extensions/status', { extension, status });
+  },
+
+  // Update extension active status
+  async updateActiveStatus(id: number, is_active: boolean): Promise<Extension> {
+    const response = await api.put(`/extensions/${id}`, { is_active });
+    return response.data.data;
   }
 };

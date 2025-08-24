@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { extensionService } from '../../services/extensionService';
 import { extensionRealtimeService } from '../../services/extensionRealtimeService';
 import type { Extension } from '../../services/extensionService';
@@ -9,7 +9,6 @@ const ExtensionsStatus: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'unavailable'>('unavailable');
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
     loadExtensions();
@@ -19,11 +18,10 @@ const ExtensionsStatus: React.FC = () => {
       setExtensions(prevExtensions => 
         prevExtensions.map(ext => 
           ext.id === update.id 
-            ? { ...ext, ...update }
+            ? { ...ext, ...update } as Extension
             : ext
         )
       );
-      setLastUpdate(new Date());
     });
     
     // Fallback polling every 60 seconds (reduced frequency since we have real-time)
@@ -89,6 +87,29 @@ const ExtensionsStatus: React.FC = () => {
         return 'text-gray-600 dark:text-gray-400';
     }
   };
+
+  // Sort extensions to show online first, and filter out inactive extensions
+  const sortedExtensions = [...extensions]
+    .filter(extension => extension.is_active !== false) // Show active extensions (including undefined for backward compatibility)
+    .sort((a, b) => {
+      // Define priority order: online > unknown > offline
+      const statusPriority = {
+        'online': 0,
+        'unknown': 1,
+        'offline': 2
+      };
+      
+      const aPriority = statusPriority[a.status as keyof typeof statusPriority] ?? 3;
+      const bPriority = statusPriority[b.status as keyof typeof statusPriority] ?? 3;
+      
+      // Primary sort by status priority
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // Secondary sort by extension number (ascending)
+      return a.extension.localeCompare(b.extension, undefined, { numeric: true });
+    });
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
@@ -175,7 +196,7 @@ const ExtensionsStatus: React.FC = () => {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
             <div className="p-4 space-y-3">
-              {extensions.map((extension) => (
+              {sortedExtensions.map((extension) => (
                 <div 
                   key={extension.id} 
                   className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 min-h-[80px] ${

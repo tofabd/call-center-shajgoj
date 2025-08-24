@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Phone, 
+  Settings,
   X
 } from 'lucide-react';
 
@@ -23,7 +24,11 @@ const menuItems = [
     icon: Phone,
     path: '/call-console'
   },
-  
+  {
+    name: 'Settings',
+    icon: Settings,
+    path: '/settings'
+  },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -36,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onMobileMenuClose}
         />
       )}
