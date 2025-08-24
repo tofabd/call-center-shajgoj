@@ -1,14 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '@components/Sidebar';
 import Header from '@components/Header';
 
 const DashboardLayout: React.FC = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Initialize sidebar state from localStorage or default based on screen size
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    if (saved !== null) {
+      return JSON.parse(saved);
+    }
+    // Default to collapsed on smaller screens for better UX
+    return window.innerWidth < 1024;
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Save sidebar state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed));
+  }, [isCollapsed]);
+
+  // Handle window resize to auto-collapse on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024 && !isCollapsed) {
+        setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isCollapsed]);
+
   const handleToggleCollapse = () => {
-    setIsCollapsed(prev => !prev);
+    setIsCollapsed((prev: boolean) => !prev);
   };
 
   const handleMobileMenuToggle = () => {
