@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { callLogService } from '@services/callLogService';
 import type { CallLog } from '@services/callLogService';
 // Removed WordPress/WooCommerce API imports
-import '@services/echo'; // Import Echo setup
+// MongoDB API doesn't support real-time features, so Echo is disabled
+// import '@services/echo'; // Import Echo setup (Laravel only)
 // Removed WooCommerce order modals
 import CallHistory from '@/components/CallConsole/CallHistory';
 import LiveCalls from '@/components/CallConsole/LiveCalls';
@@ -11,21 +12,21 @@ import CallDetails from '@/components/CallConsole/CallDetailsModal';
 import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 // Removed OrderNotesPanel
 
-// Interface for call status update data from backend
-interface CallStatusUpdateData {
-  id: number;
-  callerNumber: string;
-  callerName: string | null;
-  startTime: string;
-  endTime?: string;
-  status: string;
-  duration?: number;
-  exten?: string;
-  timestamp: string;
-  direction?: 'incoming' | 'outgoing';
-  agentExten?: string | null;
-  otherParty?: string | null;
-}
+// Real-time interface disabled for MongoDB API
+// interface CallStatusUpdateData {
+//   id: number;
+//   callerNumber: string;
+//   callerName: string | null;
+//   startTime: string;
+//   endTime?: string;
+//   status: string;
+//   duration?: number;
+//   exten?: string;
+//   timestamp: string;
+//   direction?: 'incoming' | 'outgoing';
+//   agentExten?: string | null;
+//   otherParty?: string | null;
+// }
 
 // Removed WordPress/WooCommerce-specific interfaces
 
@@ -62,7 +63,8 @@ const CallConsole: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
-  const [echoConnected, setEchoConnected] = useState(false);
+  // Real-time Echo connection state disabled for MongoDB API
+  // const [echoConnected, setEchoConnected] = useState(false);
   // Removed WooCommerce modal states
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
   // Removed WooCommerce notes states
@@ -121,85 +123,86 @@ const CallConsole: React.FC = () => {
     }
   }, [selectedCallId, isManualSelection]);
 
+  // Real-time Echo listener disabled for MongoDB API
   // Set up real-time Echo listener for call updates (no auto-selection)
-  useEffect(() => {
-    if (window.Echo) {
-      console.log('🚀 Setting up Echo listener for call-console channel');
-      setEchoConnected(true);
+  // useEffect(() => {
+  //   if (window.Echo) {
+  //     console.log('🚀 Setting up Echo listener for call-console channel');
+  //     setEchoConnected(true);
       
-      // Listen to the public call-console channel for call status updates
-      const channel = window.Echo.channel('call-console');
+  //     // Listen to the public call-console channel for call status updates
+  //     const channel = window.Echo.channel('call-console');
       
-      // Clean call-level updates from the clean calls pipeline
-      channel.listen('.call-updated', (data: CallStatusUpdateData) => {
-        console.log('🔔 Received call-updated (clean) event:', data);
-        setCallLogs(prevLogs => {
-          const idx = prevLogs.findIndex(c => c.id === data.id);
-          if (idx >= 0) {
-            const updated = [...prevLogs];
-            const existing = updated[idx];
-            existing.status = data.status;
-            existing.duration = data.duration;
-            existing.startTime = data.startTime;
-            existing.callerNumber = data.callerNumber;
-            existing.callerName = data.callerName ?? null;
-            if (data.direction !== undefined) existing.direction = data.direction;
-            if (data.agentExten !== undefined) existing.agentExten = data.agentExten ?? null;
-            if (data.otherParty !== undefined) existing.otherParty = data.otherParty ?? null;
-            existing.allCalls[0] = {
-              id: data.id,
-              callerNumber: data.callerNumber,
-              callerName: data.callerName,
-              startTime: data.startTime,
-              endTime: data.endTime,
-              status: data.status,
-              duration: data.duration,
-              created_at: data.timestamp,
-            };
-            return updated;
-          } else {
-            const newItem: UniqueCall = {
-              id: data.id,
-              callerNumber: data.callerNumber,
-              callerName: data.callerName,
-              startTime: data.startTime,
-              status: data.status,
-              duration: data.duration,
-              frequency: 1,
-              allCalls: [{
-                id: data.id,
-                callerNumber: data.callerNumber,
-                callerName: data.callerName,
-                startTime: data.startTime,
-                endTime: data.endTime,
-                status: data.status,
-                duration: data.duration,
-                created_at: data.timestamp,
-              }],
-              direction: data.direction,
-              agentExten: data.agentExten ?? null,
-              otherParty: data.otherParty ?? null,
-            };
-            return [newItem, ...prevLogs];
-          }
-        });
-        // Removed auto-selection - calls are only selected manually now
-      });
+  //     // Clean call-level updates from the clean calls pipeline
+  //     channel.listen('.call-updated', (data: CallStatusUpdateData) => {
+  //       console.log('🔔 Received call-updated (clean) event:', data);
+  //       setCallLogs(prevLogs => {
+  //         const idx = prevLogs.findIndex(c => c.id === data.id);
+  //         if (idx >= 0) {
+  //           const updated = [...prevLogs];
+  //           const existing = updated[idx];
+  //           existing.status = data.status;
+  //           existing.duration = data.duration;
+  //           existing.startTime = data.startTime;
+  //           existing.callerNumber = data.callerNumber;
+  //           existing.callerName = data.callerName ?? null;
+  //           if (data.direction !== undefined) existing.direction = data.direction;
+  //           if (data.agentExten !== undefined) existing.agentExten = data.agentExten ?? null;
+  //           if (data.otherParty !== undefined) existing.otherParty = data.otherParty ?? null;
+  //           existing.allCalls[0] = {
+  //             id: data.id,
+  //             callerNumber: data.callerNumber,
+  //             callerName: data.callerName,
+  //             startTime: data.startTime,
+  //             endTime: data.endTime,
+  //             status: data.status,
+  //             duration: data.duration,
+  //             created_at: data.timestamp,
+  //           };
+  //           return updated;
+  //         } else {
+  //           const newItem: UniqueCall = {
+  //             id: data.id,
+  //             callerNumber: data.callerNumber,
+  //             callerName: data.callerName,
+  //             startTime: data.startTime,
+  //             status: data.status,
+  //             duration: data.duration,
+  //             frequency: 1,
+  //             allCalls: [{
+  //               id: data.id,
+  //               callerNumber: data.callerNumber,
+  //               callerName: data.callerName,
+  //               startTime: data.startTime,
+  //               endTime: data.endTime,
+  //               status: data.status,
+  //               duration: data.duration,
+  //               created_at: data.timestamp,
+  //             }],
+  //             direction: data.direction,
+  //             agentExten: data.agentExten ?? null,
+  //             otherParty: data.otherParty ?? null,
+  //           };
+  //           return [newItem, ...prevLogs];
+  //         }
+  //       });
+  //       // Removed auto-selection - calls are only selected manually now
+  //     });
 
-      // Test the connection
-      console.log('📡 Echo channel setup complete, testing connection...');
+  //     // Test the connection
+  //     console.log('📡 Echo channel setup complete, testing connection...');
 
-      // Cleanup function
-      return () => {
-        console.log('🧹 Cleaning up Echo listener');
-        window.Echo.leaveChannel('call-console');
-        setEchoConnected(false);
-      };
-    } else {
-      console.warn('⚠️ Window.Echo is not available');
-      setEchoConnected(false);
-    }
-  }, []);
+  //     // Cleanup function
+  //     return () => {
+  //       console.log('🧹 Cleaning up Echo listener');
+  //       window.Echo.leaveChannel('call-console');
+  //       setEchoConnected(false);
+  //     };
+  //   } else {
+  //     console.warn('⚠️ Window.Echo is not available');
+  //     setEchoConnected(false);
+  //   }
+  // }, []);
 
   // Customer profile integration removed
 
@@ -260,7 +263,7 @@ const CallConsole: React.FC = () => {
             selectedCallId={selectedCallId}
             loading={loading}
             error={error}
-            echoConnected={echoConnected}
+            echoConnected={false} // Real-time disabled for MongoDB API
             expandedCalls={expandedCalls}
             onCallSelect={handleCallSelect}
             onToggleExpansion={toggleCallExpansion}
@@ -273,7 +276,7 @@ const CallConsole: React.FC = () => {
             callLogs={callLogs}
             selectedCallId={selectedCallId}
             onCallSelect={handleCallSelect}
-            echoConnected={echoConnected}
+            echoConnected={false} // Real-time disabled for MongoDB API
           />
         </div>
 

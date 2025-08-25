@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { extensionService } from '../../services/extensionService';
-import { extensionRealtimeService } from '../../services/extensionRealtimeService';
+// Real-time features disabled for MongoDB API
+// import { extensionRealtimeService } from '../../services/extensionRealtimeService';
 import type { Extension } from '../../services/extensionService';
-import type { ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
+// import type { ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
 
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
@@ -13,39 +14,45 @@ const ExtensionsStatus: React.FC = () => {
   useEffect(() => {
     loadExtensions();
     
+    // Real-time features disabled for MongoDB API
     // Subscribe to real-time extension status updates
-    const unsubscribe = extensionRealtimeService.subscribeToAll((update: ExtensionStatusUpdate) => {
-      setExtensions(prevExtensions => 
-        prevExtensions.map(ext => 
-          ext.id === update.id 
-            ? { ...ext, ...update } as Extension
-            : ext
-        )
-      );
-    });
+    // const unsubscribe = extensionRealtimeService.subscribeToAll((update: ExtensionStatusUpdate) => {
+    //   setExtensions(prevExtensions => 
+    //     prevExtensions.map(ext => 
+    //       ext.id === update.id 
+    //         ? { ...ext, ...update } as Extension
+    //         : ext
+    //     )
+    //   );
+    // });
     
-    // Fallback polling every 60 seconds (reduced frequency since we have real-time)
-    const interval = setInterval(loadExtensions, 60000);
+    // Increased polling frequency since real-time is disabled
+    const interval = setInterval(loadExtensions, 30000); // Poll every 30 seconds
     
     return () => {
-      unsubscribe();
+      // unsubscribe();
       clearInterval(interval);
     };
   }, []);
 
-  // Monitor real-time connection status
+  // Real-time connection status monitoring disabled for MongoDB API
+  // useEffect(() => {
+  //   const updateRealtimeStatus = () => {
+  //     setRealtimeStatus(extensionRealtimeService.getConnectionStatus());
+  //   };
+
+  //   // Update immediately
+  //   updateRealtimeStatus();
+
+  //   // Update every 5 seconds
+  //   const statusInterval = setInterval(updateRealtimeStatus, 5000);
+
+  //   return () => clearInterval(statusInterval);
+  // }, []);
+  
+  // Set real-time status to unavailable since MongoDB API doesn't support it
   useEffect(() => {
-    const updateRealtimeStatus = () => {
-      setRealtimeStatus(extensionRealtimeService.getConnectionStatus());
-    };
-
-    // Update immediately
-    updateRealtimeStatus();
-
-    // Update every 5 seconds
-    const statusInterval = setInterval(updateRealtimeStatus, 5000);
-
-    return () => clearInterval(statusInterval);
+    setRealtimeStatus('unavailable');
   }, []);
 
   const loadExtensions = async () => {
@@ -124,7 +131,7 @@ const ExtensionsStatus: React.FC = () => {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Real-time extension status
+                Extension status (polling mode)
               </p>
             </div>
           </div>
