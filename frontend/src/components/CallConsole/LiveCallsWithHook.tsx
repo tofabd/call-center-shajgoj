@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw, Wifi, WifiOff } from 'lucide-react';
-import { useLiveCallsEnhanced } from '../../hooks/useLiveCallsEnhanced';
-import type { LiveCall } from '../../services/callService';
+import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer } from 'lucide-react';
+import { useLiveCalls } from '../../hooks/useLiveCalls';
 
 interface LiveCallsProps {
-  selectedCallId: string | null; // Changed to string since MongoDB IDs are strings
-  onCallSelect: (callId: string) => void; // Changed to string
+  selectedCallId: number | null;
+  onCallSelect: (callId: number) => void;
   echoConnected: boolean;
 }
 
@@ -39,31 +38,10 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   
-  // Remove unused variable
-  const _ = echoConnected; // Keep for future use
-  
-  // Use enhanced hook for better real-time data management
-  const {
-    liveCalls,
-    loading,
-    error,
-    lastUpdated,
-    activeCalls,
-    ringingCalls,
-    answeredCalls,
-    refetch,
-    startPolling,
-    stopPolling,
-    isPolling
-  } = useLiveCallsEnhanced({
-    pollInterval: 2000, // Poll every 2 seconds for better real-time feeling
-    autoRefresh: true,
-    onError: (errorMsg) => {
-      console.error('Live calls error:', errorMsg);
-    },
-    onDataUpdate: (calls) => {
-      console.log(`🔄 Live calls updated: ${calls.length} calls`);
-    }
+  // Use the custom hook for live calls data
+  const { activeCalls, loading, error, refresh, lastUpdate } = useLiveCalls({
+    pollInterval: 3000, // Poll every 3 seconds
+    autoStart: true
   });
 
   // Update current time every second for real-time duration
@@ -74,20 +52,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
     return () => clearInterval(interval);
   }, []);
-
-  // Manual refresh handler
-  const handleManualRefresh = async () => {
-    await refetch();
-  };
-
-  // Toggle polling
-  const handleTogglePolling = () => {
-    if (isPolling) {
-      stopPolling();
-    } else {
-      startPolling();
-    }
-  };
 
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
@@ -145,13 +109,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return statusPriority[status.toLowerCase()] || 999;
   };
 
-  // Sort activeCalls and remove unused variable
-  const sortedCalls = activeCalls.sort((a, b) => {
+  // Sort active calls by priority and time
+  const sortedActiveCalls = activeCalls.sort((a, b) => {
     const aPriority = getStatusPriority(a.status);
     const bPriority = getStatusPriority(b.status);
     
     if (aPriority === bPriority) {
-      return new Date(b.started_at).getTime() - new Date(a.started_at).getTime();
+      return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
     }
     return aPriority - bPriority;
   });
@@ -167,59 +131,29 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
-              <div className="flex items-center space-x-3">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
-                </p>
-                {lastUpdated && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Updated {lastUpdated.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Active calls in progress {lastUpdate && `(Updated: ${lastUpdate.toLocaleTimeString()})`}
+              </p>
             </div>
-            
-            {/* Control buttons */}
             <div className="flex items-center space-x-2">
-              {/* Manual refresh button */}
-              <button
-                onClick={handleManualRefresh}
+              <div className={`w-2 h-2 rounded-full ${echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {echoConnected ? 'Live' : 'Polling'}
+              </span>
+              <button 
+                onClick={refresh}
+                className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded"
                 disabled={loading}
-                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-                title="Manual refresh"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? '...' : '🔄'}
               </button>
-              
-              {/* Polling toggle button */}
-              <button
-                onClick={handleTogglePolling}
-                className={`p-1.5 transition-colors ${
-                  isPolling 
-                    ? 'text-green-600 hover:text-green-700 dark:text-green-400' 
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                }`}
-                title={isPolling ? 'Pause auto-refresh' : 'Resume auto-refresh'}
-              >
-                {isPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-              </button>
-              
-              {/* Connection status */}
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  isPolling && !error ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                }`}></div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {isPolling && !error ? 'Live' : 'Offline'}
-                </span>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {loading && liveCalls.length === 0 ? (
+          {loading && activeCalls.length === 0 ? (
             <div className="flex items-center justify-center flex-1 p-6">
               <div className="text-center">
                 <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -233,30 +167,22 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                   <Phone className="h-8 w-8 text-red-600 dark:text-red-400" />
                 </div>
                 <p className="text-red-600 dark:text-red-400 text-sm font-medium">{error}</p>
-                <div className="flex space-x-3 mt-3">
-                  <button 
-                    onClick={handleManualRefresh}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Retry
-                  </button>
-                  <button 
-                    onClick={handleTogglePolling}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {isPolling ? 'Stop' : 'Start'} Auto-refresh
-                  </button>
-                </div>
+                <button 
+                  onClick={refresh}
+                  className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             </div>
-          ) : activeCalls.length > 0 ? (
+          ) : sortedActiveCalls.length > 0 ? (
             <div className="flex-1 overflow-y-auto narrow-scrollbar">
               <div className="p-4 space-y-3">
-                {sortedCalls.map((call) => (
+                {sortedActiveCalls.map((call) => (
                   <div
-                    key={`${call.id || call._id}-${call.status}`}
+                    key={`${call.id}-${call.status}`}
                     className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
-                      selectedCallId === call.id
+                      selectedCallId === parseInt(call.id)
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                         : (() => {
                             const status = call.status.toLowerCase();
@@ -275,7 +201,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                             return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
                           })()
                     }`}
-                    onClick={() => onCallSelect(call.id)}
+                    onClick={() => onCallSelect(parseInt(call.id))}
                   >
                     {/* Main call info */}
                     <div className="flex items-center space-x-3">
@@ -294,8 +220,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       <div className="flex-1 min-w-0">
                         <span className="text-base font-bold text-gray-900 dark:text-gray-100 font-mono truncate">
                           {call.direction === 'outgoing' 
-                            ? (call.other_party || call.caller_number || 'Unknown') 
-                            : (call.caller_number || 'Unknown')
+                            ? (call.otherParty || call.callerNumber || 'Unknown') 
+                            : (call.callerNumber || 'Unknown')
                           }
                         </span>
                       </div>
@@ -304,7 +230,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 flex-shrink-0">
                         <span className="text-gray-500 dark:text-gray-400 text-xs">Ext</span>
                         <span className="font-mono font-bold">
-                          {call.agent_exten || '-'}
+                          {call.agentExten || '-'}
                         </span>
                       </div>
 
@@ -334,7 +260,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                                 : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
                             : ''
                         }`}>
-                          {(call.status === 'answered') && '✅'}
+                          {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
                           {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
                           <span className="ml-2">{call.status}</span>
                         </span>
@@ -345,9 +271,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                     <div className="mt-2 ml-7 flex items-center space-x-3">
                       <div className="flex items-center space-x-1">
                         <Clock className="h-3 w-3 text-gray-400" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatTime(call.started_at)}
-                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
                       </div>
                       
                       {/* Duration - Right side of start time */}
@@ -358,7 +282,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                             ? 'text-indigo-600 dark:text-indigo-400' 
                             : 'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {getRealTimeDuration(call.started_at)}
+                          {getRealTimeDuration(call.startTime)}
                         </span>
                       </div>
                     </div>
@@ -378,8 +302,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             </div>
           )}
         </div>
-
-
       </div>
     </div>
   );

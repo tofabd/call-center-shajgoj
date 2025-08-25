@@ -213,8 +213,10 @@ export const getCallStatistics = async (req, res) => {
 export const getLiveCalls = async (req, res) => {
   try {
     const liveCalls = await Call.find({
-      status: { $in: ['ringing', 'answered'] },
-      ended_at: null
+      $or: [
+        { status: { $in: ['ringing', 'answered'] } },
+        { ended_at: null } // Any call without an end time
+      ]
     }).sort({ started_at: -1 });
 
     res.json({
