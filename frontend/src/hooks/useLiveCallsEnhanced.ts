@@ -71,7 +71,7 @@ export const useLiveCallsEnhanced = (options: UseLiveCallsOptions = {}): UseLive
       
       console.error('Error fetching live calls:', err);
     }
-  }, [onError, onDataUpdate]);
+  }, []); // Remove dependencies to prevent recreation
 
   // Start polling
   const startPolling = useCallback(() => {
@@ -81,7 +81,7 @@ export const useLiveCallsEnhanced = (options: UseLiveCallsOptions = {}): UseLive
     
     setIsPolling(true);
     pollIntervalRef.current = setInterval(fetchLiveCalls, pollInterval);
-  }, [fetchLiveCalls, pollInterval]);
+  }, [fetchLiveCalls]); // Keep minimal dependencies
 
   // Stop polling
   const stopPolling = useCallback(() => {
@@ -107,36 +107,41 @@ export const useLiveCallsEnhanced = (options: UseLiveCallsOptions = {}): UseLive
     
     // Start polling if auto-refresh is enabled
     if (autoRefresh) {
-      startPolling();
+      const interval = setInterval(fetchLiveCalls, pollInterval);
+      pollIntervalRef.current = interval;
+      setIsPolling(true);
     }
 
     // Cleanup function
     return () => {
       isMountedRef.current = false;
-      stopPolling();
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      setIsPolling(false);
     };
-  }, [fetchLiveCalls, autoRefresh, startPolling, stopPolling]);
+  }, []); // Remove all dependencies to run only once
 
   // Handle visibility change to pause/resume polling when tab is not active
   useEffect(() => {
     const handleVisibilityChange = () => {
+      if (!pollIntervalRef.current) return;
+      
       if (document.hidden) {
         // Tab is not visible, reduce polling frequency
-        if (isPolling && pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = setInterval(fetchLiveCalls, pollInterval * 2); // Double the interval
-        }
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = setInterval(fetchLiveCalls, pollInterval * 2); // Double the interval
       } else {
         // Tab is visible, resume normal polling
-        if (isPolling) {
-          startPolling();
-        }
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = setInterval(fetchLiveCalls, pollInterval);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchLiveCalls, isPolling, pollInterval, startPolling]);
+  }, []); // Remove dependencies
 
   // Computed values
   const activeCalls = liveCalls.filter(call => {

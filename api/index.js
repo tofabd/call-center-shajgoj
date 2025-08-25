@@ -91,6 +91,7 @@ app.get('/api/docs', (req, res) => {
         'PUT /api/extensions/:id': 'Update extension',
         'DELETE /api/extensions/:id': 'Delete extension'
       },
+
       authentication: {
         'POST /api/auth/login': 'User login with email and password',
         'POST /api/auth/profile': 'Get user profile by email'
@@ -138,6 +139,7 @@ app.listen(PORT, () => {
   console.log(`👥 Users API at http://localhost:${PORT}/api/users`);
   console.log(`📞 Calls API at http://localhost:${PORT}/api/calls`);
   console.log(`📱 Extensions API at http://localhost:${PORT}/api/extensions`);
+
   
   // Start AMI listener after server is running
   if (process.env.ENABLE_AMI_LISTENER !== 'false') {

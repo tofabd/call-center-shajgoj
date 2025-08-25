@@ -273,9 +273,8 @@ const CallConsole: React.FC = () => {
         {/* Center Column - Live Calls */}
         <div className="flex-1 min-w-0">
           <LiveCalls
-            callLogs={callLogs}
-            selectedCallId={selectedCallId}
-            onCallSelect={handleCallSelect}
+            selectedCallId={selectedCallId ? selectedCallId.toString() : null}
+            onCallSelect={(callId: string) => handleCallSelect(parseInt(callId))}
             echoConnected={false} // Real-time disabled for MongoDB API
           />
         </div>
