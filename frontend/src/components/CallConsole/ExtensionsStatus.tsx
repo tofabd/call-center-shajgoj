@@ -62,8 +62,8 @@ const ExtensionsStatus: React.FC = () => {
       setExtensions(data);
       setError(null);
     } catch (err) {
-      setError('Failed to load extensions');
       console.error('Error loading extensions:', err);
+      setError('Failed to load extensions');
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,12 @@ const ExtensionsStatus: React.FC = () => {
 
   // Sort extensions to show online first, and filter out inactive extensions
   const sortedExtensions = [...extensions]
-    .filter(extension => extension.is_active !== false) // Show active extensions (including undefined for backward compatibility)
+    .filter(extension => {
+      // Filter for clean extension numbers (1001-1020, 2001-2020) and active extensions
+      const isCleanExtension = /^[12]\d{3}$/.test(extension.extension); // Matches 1001-1999 or 2001-2999
+      const isActive = extension.is_active !== false;
+      return isCleanExtension && isActive;
+    })
     .sort((a, b) => {
       // Define priority order: online > unknown > offline
       const statusPriority = {
