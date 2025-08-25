@@ -4,7 +4,10 @@ import dotenv from 'dotenv';
 import connectDB from './config/database.js';
 import userRoutes from './routes/userRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import callRoutes from './routes/callRoutes.js';
+import extensionRoutes from './routes/extensionRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import AmiListener from './services/AmiListener.js';
 
 // Load environment variables
 dotenv.config();
@@ -55,6 +58,8 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/calls', callRoutes);
+app.use('/api/extensions', extensionRoutes);
 
 // Documentation endpoint
 app.get('/api/docs', (req, res) => {
@@ -70,6 +75,21 @@ app.get('/api/docs', (req, res) => {
         'POST /api/users/bulk': 'Bulk create users',
         'PUT /api/users/:id': 'Update user',
         'DELETE /api/users/:id': 'Delete user'
+      },
+      calls: {
+        'GET /api/calls': 'Get all calls with pagination and filtering',
+        'GET /api/calls/statistics': 'Get call statistics',
+        'GET /api/calls/live': 'Get live/active calls',
+        'GET /api/calls/:id': 'Get call details by ID'
+      },
+      extensions: {
+        'GET /api/extensions': 'Get all extensions with pagination and filtering',
+        'GET /api/extensions/statistics': 'Get extension statistics',
+        'POST /api/extensions': 'Create new extension',
+        'PUT /api/extensions/status': 'Update extension status (AMI)',
+        'GET /api/extensions/:id': 'Get extension by ID',
+        'PUT /api/extensions/:id': 'Update extension',
+        'DELETE /api/extensions/:id': 'Delete extension'
       },
       authentication: {
         'POST /api/auth/login': 'User login with email and password',
@@ -116,6 +136,30 @@ app.listen(PORT, () => {
   console.log(`🔍 Health check at http://localhost:${PORT}/health`);
   console.log(`📚 API docs at http://localhost:${PORT}/api/docs`);
   console.log(`👥 Users API at http://localhost:${PORT}/api/users`);
+  console.log(`📞 Calls API at http://localhost:${PORT}/api/calls`);
+  console.log(`📱 Extensions API at http://localhost:${PORT}/api/extensions`);
+  
+  // Start AMI listener after server is running
+  if (process.env.ENABLE_AMI_LISTENER !== 'false') {
+    console.log('🎧 Starting AMI Listener...');
+    const amiListener = new AmiListener();
+    amiListener.start().catch(err => {
+      console.error('❌ Failed to start AMI Listener:', err.message);
+    });
+    
+    // Graceful shutdown for AMI listener
+    process.on('SIGTERM', () => {
+      console.log('🛑 SIGTERM received. Shutting down AMI listener...');
+      amiListener.stop();
+    });
+    
+    process.on('SIGINT', () => {
+      console.log('🛑 SIGINT received. Shutting down AMI listener...');
+      amiListener.stop();
+    });
+  } else {
+    console.log('⚠️ AMI Listener is disabled');
+  }
 });
 
 // Graceful shutdown

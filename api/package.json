@@ -7,6 +7,11 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "seed": "node scripts/seedUsers.js",
+    "seed-extensions": "node scripts/seedExtensions.js",
+    "check-extensions": "node scripts/checkExtensions.js",
+    "listen-ami": "node listen-to-ami.js",
+    "ami-process": "node ami-listener-process.js",
+    "ami-dev": "nodemon ami-listener-process.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
