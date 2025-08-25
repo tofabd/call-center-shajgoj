@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 import { callLogService } from '@services/callLogService';
 import type { CallLog } from '@services/callLogService';
+import socketService, { type CallUpdateEvent } from '@services/socketService';
 // Removed WordPress/WooCommerce API imports
-// MongoDB API doesn't support real-time features, so Echo is disabled
+// MongoDB API supports real-time features via Socket.IO
 // import '@services/echo'; // Import Echo setup (Laravel only)
 // Removed WooCommerce order modals
 import CallHistory from '@/components/CallConsole/CallHistory';
@@ -61,10 +62,9 @@ const CallConsole: React.FC = () => {
   const [isManualSelection, setIsManualSelection] = useState(false);
   
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState<string | null>(null);
-  // Real-time Echo connection state disabled for MongoDB API
-  // const [echoConnected, setEchoConnected] = useState(false);
+  // Real-time Socket.IO connection state
+  const [socketConnected, setSocketConnected] = useState(false);
   // Removed WooCommerce modal states
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
   // Removed WooCommerce notes states
@@ -124,31 +124,109 @@ const CallConsole: React.FC = () => {
     return transformed;
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+  // Refs for cleanup  
+  const isMountedRef = useRef(true);
+
+  const fetchData = useCallback(async (isInitial = false) => {
+    try {
+      if (isInitial) {
         setLoading(true);
-        setError(null);
-        console.log('🚀 Fetching call data from MongoDB API...');
-        
-        const logs = await callLogService.getCallLogs();
-        console.log('📊 Received call data:', logs);
-        
-        const transformed = transformToUniqueCalls(logs);
-        console.log('🔄 Setting call logs:', transformed.length, 'unique calls');
-        
-        setCallLogs(transformed);
-      } catch (err) {
-        console.error('❌ Error fetching call data:', err);
-        setError('Failed to fetch call data from MongoDB API');
-        setCallLogs([]);
-      } finally {
+      }
+      setError(null);
+      console.log('🚀 Fetching call data from MongoDB API...');
+      
+      const logs = await callLogService.getCallLogs();
+      console.log('📊 Received call data:', logs);
+      
+      const transformed = transformToUniqueCalls(logs);
+      console.log('🔄 Setting call logs:', transformed.length, 'unique calls');
+      
+      setCallLogs(transformed);
+    } catch (err) {
+      console.error('❌ Error fetching call data:', err);
+      setError('Failed to fetch call data from MongoDB API');
+      setCallLogs([]);
+    } finally {
+      if (isInitial) {
         setLoading(false);
       }
-    };
-
-    fetchData();
+    }
   }, []);
+
+  // Real-time Socket.IO setup for call updates
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    // Initial fetch
+    fetchData(true);
+    
+    // Set up Socket.IO connection status monitoring
+    const checkSocketConnection = () => {
+      setSocketConnected(socketService.isConnected());
+    };
+    
+    // Check connection status every 5 seconds
+    const connectionCheckInterval = setInterval(checkSocketConnection, 5000);
+    checkSocketConnection(); // Initial check
+    
+    // Set up real-time call updates via Socket.IO
+    socketService.onCallUpdated((callUpdate: CallUpdateEvent) => {
+      console.log('🔔 Received real-time call update:', callUpdate);
+      
+      if (!isMountedRef.current) return;
+      
+      // Update the specific call in the list
+      setCallLogs(prevLogs => {
+        const updatedLogs = [...prevLogs];
+        let found = false;
+        
+        // Find and update existing call
+        for (let i = 0; i < updatedLogs.length; i++) {
+          const uniqueCall = updatedLogs[i];
+          
+          // Check if any call in allCalls matches the updated call
+          const callIndex = uniqueCall.allCalls.findIndex(call => call.id === parseInt(callUpdate.id));
+          
+          if (callIndex >= 0) {
+            // Update the specific call in allCalls
+            uniqueCall.allCalls[callIndex] = {
+              ...uniqueCall.allCalls[callIndex],
+              status: callUpdate.status,
+              duration: callUpdate.duration,
+              endTime: callUpdate.ended_at
+            };
+            
+            // If this is the latest call (index 0), update the main UniqueCall data
+            if (callIndex === 0) {
+              uniqueCall.status = callUpdate.status;
+              uniqueCall.duration = callUpdate.duration;
+            }
+            
+            found = true;
+            break;
+          }
+        }
+        
+        // If call not found, refresh the entire list
+        if (!found) {
+          console.log('🔄 Call not found in list, refreshing data...');
+          fetchData(false);
+        }
+        
+        return updatedLogs;
+      });
+    });
+    
+    console.log('📡 CallHistory: Socket.IO real-time updates enabled');
+
+    // Cleanup function
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(connectionCheckInterval);
+      socketService.removeAllListeners();
+      console.log('🧹 CallHistory: Stopped real-time updates');
+    };
+  }, [fetchData]);
 
   // Debug useEffect to monitor selection
   useEffect(() => {
@@ -242,6 +320,12 @@ const CallConsole: React.FC = () => {
 
   // Orders and notes queries removed
 
+  // Manual refresh for CallHistory
+  const handleManualRefresh = useCallback(async () => {
+    console.log('🔄 Manual refresh triggered for CallHistory');
+    await fetchData(false);
+  }, [fetchData]);
+
   // Function to handle call selection
   const handleCallSelect = async (callId: number) => {
     if (selectedCallId === callId) {
@@ -297,10 +381,11 @@ const CallConsole: React.FC = () => {
             selectedCallId={selectedCallId}
             loading={loading}
             error={error}
-            echoConnected={false} // Real-time disabled for MongoDB API
+            echoConnected={socketConnected} // Real-time enabled via Socket.IO
             expandedCalls={expandedCalls}
             onCallSelect={handleCallSelect}
             onToggleExpansion={toggleCallExpansion}
+            onRefresh={handleManualRefresh}
           />
         </div>
 
@@ -309,7 +394,7 @@ const CallConsole: React.FC = () => {
           <LiveCalls
             selectedCallId={selectedCallId ? selectedCallId.toString() : null}
             onCallSelect={(callId: string) => handleCallSelect(parseInt(callId))}
-            echoConnected={false} // Real-time disabled for MongoDB API
+            echoConnected={socketConnected} // Real-time enabled via Socket.IO
           />
         </div>
 

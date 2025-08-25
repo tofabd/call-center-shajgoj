@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -34,6 +34,7 @@ interface CallHistoryProps {
   expandedCalls: Set<string>;
   onCallSelect: (callId: number) => void;
   onToggleExpansion: (callerNumber: string) => void;
+  onRefresh?: () => void;
 }
 
 // Animated ringing icon component that alternates between Phone and PhoneCall
@@ -67,7 +68,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   echoConnected,
   expandedCalls,
   onCallSelect,
-  onToggleExpansion
+  onToggleExpansion,
+  onRefresh
 }) => {
   // Filter only non-active calls (completed, busy, canceled, failed, etc.)
   const nonActiveCalls = callLogs.filter(call => {
@@ -163,6 +165,15 @@ const CallHistory: React.FC<CallHistoryProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and inactive calls</p>
             </div>
             <div className="flex items-center space-x-2">
+              {onRefresh && (
+                <button
+                  onClick={onRefresh}
+                  className="p-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 transition-colors duration-200"
+                  title="Refresh call history"
+                >
+                  <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </button>
+              )}
               <div className={`w-2 h-2 rounded-full ${echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {echoConnected ? 'Live' : 'Offline'}

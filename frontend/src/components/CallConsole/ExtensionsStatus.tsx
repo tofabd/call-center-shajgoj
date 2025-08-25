@@ -1,58 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import { extensionService } from '../../services/extensionService';
-// Real-time features disabled for MongoDB API
-// import { extensionRealtimeService } from '../../services/extensionRealtimeService';
+import socketService from '../../services/socketService';
+import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension } from '../../services/extensionService';
-// import type { ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
 
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'unavailable'>('unavailable');
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
+  const [updateCount, setUpdateCount] = useState(0);
+  const [avgUpdateInterval, setAvgUpdateInterval] = useState<number | null>(null);
 
   useEffect(() => {
     loadExtensions();
     
-    // Real-time features disabled for MongoDB API
     // Subscribe to real-time extension status updates
-    // const unsubscribe = extensionRealtimeService.subscribeToAll((update: ExtensionStatusUpdate) => {
-    //   setExtensions(prevExtensions => 
-    //     prevExtensions.map(ext => 
-    //       ext.id === update.id 
-    //         ? { ...ext, ...update } as Extension
-    //         : ext
-    //     )
-    //   );
-    // });
+    const handleExtensionUpdate = (update: ExtensionStatusEvent) => {
+      console.log('📱 Real-time extension update received:', update);
+      
+      const now = new Date();
+      
+      // Calculate update frequency
+      if (lastUpdate) {
+        const interval = now.getTime() - lastUpdate.getTime();
+        setAvgUpdateInterval(prev => prev ? (prev + interval) / 2 : interval);
+      }
+      
+      setLastUpdate(now);
+      setUpdateCount(prev => prev + 1);
+      
+      setExtensions(prevExtensions => 
+        prevExtensions.map(ext => 
+          ext.extension === update.extension 
+            ? { 
+                ...ext, 
+                status: update.status,
+                agent_name: update.agent_name || ext.agent_name,
+                last_seen: update.last_seen || ext.last_seen
+              } as Extension
+            : ext
+        )
+      );
+    };
     
-    // Increased polling frequency since real-time is disabled
-    const interval = setInterval(loadExtensions, 30000); // Poll every 30 seconds
+    socketService.onExtensionStatusUpdated(handleExtensionUpdate);
     
+    // Cleanup on unmount
     return () => {
-      // unsubscribe();
-      clearInterval(interval);
+      socketService.removeAllListeners();
     };
   }, []);
 
-  // Real-time connection status monitoring disabled for MongoDB API
-  // useEffect(() => {
-  //   const updateRealtimeStatus = () => {
-  //     setRealtimeStatus(extensionRealtimeService.getConnectionStatus());
-  //   };
-
-  //   // Update immediately
-  //   updateRealtimeStatus();
-
-  //   // Update every 5 seconds
-  //   const statusInterval = setInterval(updateRealtimeStatus, 5000);
-
-  //   return () => clearInterval(statusInterval);
-  // }, []);
-  
-  // Set real-time status to unavailable since MongoDB API doesn't support it
+  // Enhanced real-time connection monitoring
   useEffect(() => {
-    setRealtimeStatus('unavailable');
+    const checkConnectionHealth = () => {
+      if (socketService.isConnected()) {
+        setRealtimeStatus('connected');
+        
+        const lastHeartbeat = socketService.getLastHeartbeat();
+        if (lastHeartbeat) {
+          const timeSinceHeartbeat = new Date().getTime() - lastHeartbeat.getTime();
+          
+          if (timeSinceHeartbeat < 15000) { // Less than 15 seconds
+            setConnectionHealth('good');
+          } else if (timeSinceHeartbeat < 30000) { // Less than 30 seconds
+            setConnectionHealth('poor');
+          } else {
+            setConnectionHealth('stale');
+          }
+        }
+      } else {
+        setRealtimeStatus('disconnected');
+        setConnectionHealth('poor');
+      }
+    };
+
+    // Initial check
+    checkConnectionHealth();
+    
+    // Check every 5 seconds
+    const healthInterval = setInterval(checkConnectionHealth, 5000);
+    
+    return () => clearInterval(healthInterval);
   }, []);
 
   const loadExtensions = async () => {
@@ -95,13 +127,12 @@ const ExtensionsStatus: React.FC = () => {
     }
   };
 
-  // Sort extensions to show online first, and filter out inactive extensions
+  // Sort extensions to show online first, and filter out only inactive extensions
   const sortedExtensions = [...extensions]
     .filter(extension => {
-      // Filter for clean extension numbers (1001-1020, 2001-2020) and active extensions
-      const isCleanExtension = /^[12]\d{3}$/.test(extension.extension); // Matches 1001-1999 or 2001-2999
+      // Only filter out inactive extensions, show all extension numbers
       const isActive = extension.is_active !== false;
-      return isCleanExtension && isActive;
+      return isActive;
     })
     .sort((a, b) => {
       // Define priority order: online > unknown > offline
@@ -136,30 +167,60 @@ const ExtensionsStatus: React.FC = () => {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Extension status (polling mode)
+                Real-time extension monitoring
               </p>
             </div>
           </div>
           
-          {/* Real-time Status Indicator */}
-          <div className="flex items-center space-x-2">
+          {/* Enhanced Real-time Status Indicator */}
+          <div className="flex items-center space-x-3">
+            {lastUpdate && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-3">
+                <span>Last: {lastUpdate.toLocaleTimeString()}</span>
+                {updateCount > 0 && (
+                  <span>Updates: {updateCount}</span>
+                )}
+                {avgUpdateInterval && (
+                  <span>Avg: {Math.round(avgUpdateInterval / 1000)}s</span>
+                )}
+              </div>
+            )}
+            
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
               realtimeStatus === 'connected' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-                : realtimeStatus === 'disconnected'
-                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                ? connectionHealth === 'good'
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                  : connectionHealth === 'poor'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                : realtimeStatus === 'reconnecting'
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
-                realtimeStatus === 'connected' 
-                  ? 'bg-green-500 animate-pulse' 
-                  : realtimeStatus === 'disconnected'
-                  ? 'bg-yellow-500'
-                  : 'bg-gray-500'
+                realtimeStatus === 'connected'
+                  ? connectionHealth === 'good'
+                    ? 'bg-green-500 animate-pulse'
+                    : connectionHealth === 'poor'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : 'bg-orange-500'
+                  : realtimeStatus === 'reconnecting'
+                  ? 'bg-blue-500 animate-spin'
+                  : 'bg-red-500'
               }`}></div>
               <span>
-                {realtimeStatus === 'connected' ? 'Live' : 
-                 realtimeStatus === 'disconnected' ? 'Reconnecting' : 'Offline'}
+                {realtimeStatus === 'connected' 
+                  ? connectionHealth === 'good'
+                    ? 'Live'
+                    : connectionHealth === 'poor'
+                    ? 'Slow'
+                    : 'Stale'
+                  : realtimeStatus === 'reconnecting'
+                  ? 'Reconnecting'
+                  : realtimeStatus === 'checking'
+                  ? 'Checking'
+                  : 'Disconnected'
+                }
               </span>
             </div>
           </div>

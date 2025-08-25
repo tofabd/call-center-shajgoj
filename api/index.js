@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/database.js';
@@ -8,11 +10,19 @@ import callRoutes from './routes/callRoutes.js';
 import extensionRoutes from './routes/extensionRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import AmiListener from './services/AmiListener.js';
+import broadcast from './services/BroadcastService.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173'],
+    credentials: true
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 // Connect to MongoDB
@@ -130,15 +140,68 @@ app.get('/api/docs', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📱 API available at http://localhost:${PORT}`);
-  console.log(`🔍 Health check at http://localhost:${PORT}/health`);
-  console.log(`📚 API docs at http://localhost:${PORT}/api/docs`);
-  console.log(`👥 Users API at http://localhost:${PORT}/api/users`);
-  console.log(`📞 Calls API at http://localhost:${PORT}/api/calls`);
-  console.log(`📱 Extensions API at http://localhost:${PORT}/api/extensions`);
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('🔌 Client connected:', socket.id);
+  
+  // Send initial connection confirmation
+  socket.emit('connected', { 
+    message: 'Connected to Call Center API',
+    timestamp: new Date().toISOString() 
+  });
+  
+  // Handle heartbeat ping from client
+  socket.on('ping', () => {
+    socket.emit('pong', {
+      timestamp: new Date().toISOString(),
+      server_time: Date.now()
+    });
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 Client disconnected:', socket.id);
+  });
+});
+
+// Bridge BroadcastService events to Socket.IO
+broadcast.onCallUpdated((call) => {
+  console.log('📡 Broadcasting call update to all clients:', call.linkedid);
+  io.emit('call-updated', {
+    id: call._id,
+    linkedid: call.linkedid,
+    status: call.status,
+    direction: call.direction,
+    other_party: call.other_party,
+    agent_exten: call.agent_exten,
+    started_at: call.started_at,
+    answered_at: call.answered_at,
+    ended_at: call.ended_at,
+    duration: call.talk_seconds,
+    timestamp: new Date().toISOString()
+  });
+});
+
+broadcast.onExtensionStatusUpdated((extension) => {
+  console.log('📱 Broadcasting extension status to all clients:', extension.extension);
+  io.emit('extension-status-updated', {
+    extension: extension.extension,
+    status: extension.status,
+    agent_name: extension.agent_name,
+    last_seen: extension.last_seen,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Start server with Socket.IO support
+httpServer.listen(PORT, () => {
+  console.log('🚀 Server is running on port', PORT);
+  console.log('📱 API available at http://localhost:' + PORT);
+  console.log('🔍 Health check at http://localhost:' + PORT + '/health');
+  console.log('📚 API docs at http://localhost:' + PORT + '/api/docs');
+  console.log('👥 Users API at http://localhost:' + PORT + '/api/users');
+  console.log('📞 Calls API at http://localhost:' + PORT + '/api/calls');
+  console.log('📱 Extensions API at http://localhost:' + PORT + '/api/extensions');
+  console.log('🔌 Socket.IO server running for real-time updates');
 
   
   // Start AMI listener after server is running

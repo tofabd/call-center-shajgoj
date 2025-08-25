@@ -74,8 +74,26 @@ const seedExtensions = async () => {
     const salesExtensions = generateExtensions(2001, 2020);
     console.log(`📞 Generated ${salesExtensions.length} sales extensions (2001-2020)`);
 
+    // Generate extension 5000 (Special/Admin extension)
+    const specialExtension = {
+      extension: '5000',
+      agent_name: 'System Administrator',
+      status: 'offline',
+      last_seen: null,
+      is_active: true,
+      context: 'ext-local',
+      hint: 'SIP/5000',
+      metadata: {
+        department: 'Administration',
+        team: 'System Team',
+        shift: '24/7',
+        is_special: true
+      }
+    };
+    console.log(`📞 Generated special extension 5000 (Administration)`);
+
     // Combine all extensions
-    const allExtensions = [...supportExtensions, ...salesExtensions];
+    const allExtensions = [...supportExtensions, ...salesExtensions, specialExtension];
 
     // Insert extensions into database
     const createdExtensions = await Extension.insertMany(allExtensions);
@@ -87,6 +105,7 @@ const seedExtensions = async () => {
     console.log(`Total Extensions Created: ${createdExtensions.length}`);
     console.log(`Support Extensions (1001-1020): ${supportExtensions.length}`);
     console.log(`Sales Extensions (2001-2020): ${salesExtensions.length}`);
+    console.log(`Special Extension (5000): 1`);
     console.log(`Default Status: offline`);
     console.log(`Default Context: ext-local`);
 
@@ -155,11 +174,11 @@ if (helpFlag) {
   console.log('  --help, -h     Show this help message');
   console.log('');
   console.log('Description:');
-  console.log('  Seeds extensions from 1001-1020 and 2001-2020 with:');
-  console.log('  - Random agent names');
+  console.log('  Seeds extensions from 1001-1020, 2001-2020, and 5000 with:');
+  console.log('  - Random agent names (except 5000 which is System Administrator)');
   console.log('  - Default offline status');
-  console.log('  - Department assignment (Support: 1001-1020, Sales: 2001-2020)');
-  console.log('  - Random shift assignments');
+  console.log('  - Department assignment (Support: 1001-1020, Sales: 2001-2020, Administration: 5000)');
+  console.log('  - Random shift assignments (except 5000 which is 24/7)');
   console.log('');
   console.log('Environment Variables:');
   console.log('  MONGODB_URI    MongoDB connection string');
@@ -168,8 +187,8 @@ if (helpFlag) {
 }
 
 console.log('🌱 Starting Extension Seeding Process...');
-console.log('📋 Will create extensions: 1001-1020 (Support) and 2001-2020 (Sales)');
-console.log('👤 Each extension will have a random agent name and offline status');
+console.log('📋 Will create extensions: 1001-1020 (Support), 2001-2020 (Sales), and 5000 (Administration)');
+console.log('👤 Each extension will have a random agent name and offline status (except 5000 which is System Administrator)');
 console.log('');
 
 seedExtensions();

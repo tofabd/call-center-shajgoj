@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw, Wifi, WifiOff } from 'lucide-react';
-import { useLiveCallsEnhanced } from '../../hooks/useLiveCallsEnhanced';
+import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw } from 'lucide-react';
+import socketService from '../../services/socketService';
+import type { CallUpdateEvent } from '../../services/socketService';
 import type { LiveCall } from '../../services/callService';
 
 interface LiveCallsProps {
   selectedCallId: string | null; // Changed to string since MongoDB IDs are strings
   onCallSelect: (callId: string) => void; // Changed to string
-  echoConnected: boolean;
 }
 
 // Animated ringing icon component
@@ -22,11 +22,11 @@ const RingingIcon: React.FC = () => {
   }, []);
 
   return (
-    <span className="inline-flex items-center ml-1">
+    <span className="inline-flex items-center justify-center ml-1 mr-1 ringing-icon">
       {isPhoneCall ? (
-        <PhoneCall className="h-4 w-4 animate-pulse text-white" />
+        <PhoneCall className="h-4 w-4 text-white drop-shadow-sm filter" />
       ) : (
-        <Phone className="h-4 w-4 animate-pulse text-white" />
+        <Phone className="h-4 w-4 text-white drop-shadow-sm filter" />
       )}
     </span>
   );
@@ -34,37 +34,115 @@ const RingingIcon: React.FC = () => {
 
 const LiveCalls: React.FC<LiveCallsProps> = ({
   selectedCallId,
-  onCallSelect,
-  echoConnected
+  onCallSelect
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   
-  // Remove unused variable
-  const _ = echoConnected; // Keep for future use
-  
-  // Use enhanced hook for better real-time data management
-  const {
-    liveCalls,
-    loading,
-    error,
-    lastUpdated,
-    activeCalls,
-    ringingCalls,
-    answeredCalls,
-    refetch,
-    startPolling,
-    stopPolling,
-    isPolling
-  } = useLiveCallsEnhanced({
-    pollInterval: 2000, // Poll every 2 seconds for better real-time feeling
-    autoRefresh: true,
-    onError: (errorMsg) => {
-      console.error('Live calls error:', errorMsg);
-    },
-    onDataUpdate: (calls) => {
-      console.log(`🔄 Live calls updated: ${calls.length} calls`);
-    }
-  });
+  // Real-time state management (replacing useLiveCallsEnhanced)
+  const [liveCalls, setLiveCalls] = useState<LiveCall[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Real-time connection and data management
+  useEffect(() => {
+    // Initial data fetch
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        // Import callService dynamically to avoid circular dependencies
+        const { callService } = await import('../../services/callService');
+        const calls = await callService.getLiveCalls();
+        setLiveCalls(calls);
+        setLastUpdated(new Date());
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching initial live calls:', err);
+        setError('Failed to load live calls');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+
+    // Subscribe to real-time call updates
+    const handleCallUpdate = (update: CallUpdateEvent) => {
+      console.log('📞 Real-time call update received:', update);
+      setLastUpdated(new Date());
+      
+      setLiveCalls(prevCalls => {
+        // Find existing call or add new one
+        const existingIndex = prevCalls.findIndex(call => 
+          call.id === update.id || call.linkedid === update.linkedid
+        );
+        
+        if (existingIndex >= 0) {
+          // Update existing call
+          const updatedCalls = [...prevCalls];
+          const existingCall = updatedCalls[existingIndex];
+          updatedCalls[existingIndex] = {
+            ...existingCall,
+            // Update only the fields from the update event
+            status: (update.status as LiveCall['status']) || existingCall.status,
+            direction: update.direction || existingCall.direction,
+            other_party: update.other_party || existingCall.other_party,
+            agent_exten: update.agent_exten || existingCall.agent_exten,
+            started_at: update.started_at || existingCall.started_at,
+            answered_at: update.answered_at || existingCall.answered_at,
+            ended_at: update.ended_at || existingCall.ended_at,
+            duration: update.duration || existingCall.duration,
+            updatedAt: update.timestamp || new Date().toISOString()
+          };
+          return updatedCalls;
+        } else {
+          // Add new call if it's active
+          const activeStatuses = ['ringing', 'answered', 'ring', 'calling', 'incoming', 'started', 'start', 'in_progress'];
+          if (activeStatuses.includes(update.status?.toLowerCase() || '')) {
+            const newCall: LiveCall = {
+              _id: update.id,
+              id: update.id,
+              linkedid: update.linkedid,
+              direction: update.direction,
+              other_party: update.other_party,
+              agent_exten: update.agent_exten,
+              started_at: update.started_at || new Date().toISOString(),
+              answered_at: update.answered_at,
+              ended_at: update.ended_at,
+              status: 'ringing', // Default to ringing for new calls
+              caller_number: update.other_party || 'Unknown',
+              duration: update.duration,
+              createdAt: update.timestamp || new Date().toISOString(),
+              updatedAt: update.timestamp || new Date().toISOString()
+            };
+            return [...prevCalls, newCall];
+          }
+          return prevCalls;
+        }
+      });
+    };
+
+    // Monitor connection status
+    const checkConnection = () => {
+      setIsConnected(socketService.isConnected() || false);
+    };
+
+    // Initial connection check
+    checkConnection();
+    
+    // Subscribe to call updates
+    socketService.onCallUpdated(handleCallUpdate);
+    
+    // Monitor connection status every 5 seconds
+    const connectionInterval = setInterval(checkConnection, 5000);
+    
+    // Cleanup
+    return () => {
+      socketService.removeAllListeners();
+      clearInterval(connectionInterval);
+    };
+  }, []);
 
   // Update current time every second for real-time duration
   useEffect(() => {
@@ -75,17 +153,37 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Manual refresh handler
-  const handleManualRefresh = async () => {
-    await refetch();
-  };
+  // Computed values (replacing hook return values)
+  const activeCalls = liveCalls.filter(call => {
+    const status = call.status?.toLowerCase() || '';
+    return ['ringing', 'answered', 'ring', 'calling', 'incoming', 'started', 'start', 'in_progress'].includes(status);
+  });
 
-  // Toggle polling
-  const handleTogglePolling = () => {
-    if (isPolling) {
-      stopPolling();
-    } else {
-      startPolling();
+  const ringingCalls = liveCalls.filter(call => {
+    const status = call.status?.toLowerCase() || '';
+    return ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status);
+  });
+
+  const answeredCalls = liveCalls.filter(call => {
+    const status = call.status?.toLowerCase() || '';
+    return ['answered', 'in_progress'].includes(status);
+  });
+
+  // Manual refresh handler (now fetches fresh data directly)
+  const handleManualRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { callService } = await import('../../services/callService');
+      const calls = await callService.getLiveCalls();
+      setLiveCalls(calls);
+      setLastUpdated(new Date());
+      console.log('🔄 Manual refresh completed:', calls.length, 'calls');
+    } catch (err) {
+      console.error('Manual refresh error:', err);
+      setError('Failed to refresh live calls');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -117,13 +215,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     
     if (['answered', 'in_progress'].includes(baseStatus)) {
       return direction === 'outgoing' 
-        ? 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300'
+        ? 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300'
         : 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
     }
     
     if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(baseStatus)) {
       return direction === 'outgoing'
-        ? 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300'
+        ? 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300'
         : 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
     }
     
@@ -191,26 +289,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
               
-              {/* Polling toggle button */}
-              <button
-                onClick={handleTogglePolling}
-                className={`p-1.5 transition-colors ${
-                  isPolling 
-                    ? 'text-green-600 hover:text-green-700 dark:text-green-400' 
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                }`}
-                title={isPolling ? 'Pause auto-refresh' : 'Resume auto-refresh'}
-              >
-                {isPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-              </button>
-              
-              {/* Connection status */}
+              {/* Real-time status indicator */}
               <div className="flex items-center space-x-2">
                 <div className={`w-2 h-2 rounded-full ${
-                  isPolling && !error ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
                 }`}></div>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {isPolling && !error ? 'Live' : 'Offline'}
+                  {isConnected ? 'Live' : 'Disconnected'}
                 </span>
               </div>
             </div>
@@ -240,12 +325,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                   >
                     Retry
                   </button>
-                  <button 
-                    onClick={handleTogglePolling}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {isPolling ? 'Stop' : 'Start'} Auto-refresh
-                  </button>
                 </div>
               </div>
             </div>
@@ -265,12 +344,12 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                             if (['answered', 'in_progress'].includes(status)) {
                               return direction === 'outgoing'
                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
-                                : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20';
+                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
                             }
                             if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
                               return direction === 'outgoing'
                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
-                                : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-l-4 border-l-emerald-500';
+                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
                             }
                             return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
                           })()
@@ -284,7 +363,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         {call.direction === 'outgoing' ? (
                           <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                         ) : call.direction === 'incoming' ? (
-                          <PhoneIncoming className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                          <PhoneIncoming className="h-5 w-5 text-green-600 dark:text-green-400" />
                         ) : (
                           <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                         )}
@@ -314,7 +393,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                             call.direction === 'outgoing'
                               ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
-                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                           }`}>
                             {call.direction === 'outgoing' ? '📤 Out' : '📥 In'}
                           </span>
@@ -327,16 +406,26 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
                       {/* Status Badge */}
                       <div className="flex-shrink-0">
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status, call.direction)} ${
+                        <span className={`inline-flex items-center px-3 py-2 text-xs font-medium rounded-full min-w-[80px] justify-center ${getStatusColor(call.status, call.direction)} ${
                           ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
                             ? (call.direction === 'outgoing'
-                                ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold'
-                                : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
+                                ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold ringing-badge'
+                                : 'animate-pulse ring-2 ring-green-400 dark:ring-green-500 shadow-lg shadow-green-200 dark:shadow-green-900 bg-green-600 text-white dark:bg-green-500 dark:text-white font-bold ringing-badge')
                             : ''
                         }`}>
-                          {(call.status === 'answered') && '✅'}
+                          {(call.status === 'answered') && <span className="mr-1">✅</span>}
                           {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
-                          <span className="ml-2">{call.status}</span>
+                          <span className={(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) ? "ml-1 font-bold" : "ml-2"}>
+                            {call.status.toLowerCase() === 'ringing' ? 'Ringing' : 
+                             call.status.toLowerCase() === 'ring' ? 'Ringing' :
+                             call.status.toLowerCase() === 'calling' ? 'Calling' :
+                             call.status.toLowerCase() === 'incoming' ? 'Incoming' :
+                             call.status.toLowerCase() === 'started' ? 'Started' :
+                             call.status.toLowerCase() === 'start' ? 'Started' :
+                             call.status.toLowerCase() === 'answered' ? 'Answered' :
+                             call.status.toLowerCase() === 'in_progress' ? 'In Progress' :
+                             call.status}
+                          </span>
                         </span>
                       </div>
                     </div>
@@ -356,7 +445,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         <span className={`text-xs font-medium ${
                           call.direction === 'outgoing' 
                             ? 'text-indigo-600 dark:text-indigo-400' 
-                            : 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-green-600 dark:text-green-400'
                         }`}>
                           {getRealTimeDuration(call.started_at)}
                         </span>
