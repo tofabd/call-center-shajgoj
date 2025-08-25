@@ -46,12 +46,29 @@ export const getCalls = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
+    // Transform MongoDB data to frontend format
+    const transformedCalls = calls.map(call => ({
+      id: parseInt(call._id.toString().slice(-6), 16), // Convert ObjectId to number
+      callerNumber: call.caller_number || call.other_party || call.linkedid,
+      callerName: call.caller_name,
+      startTime: call.started_at,
+      endTime: call.ended_at,
+      status: call.status,
+      duration: call.talk_seconds || 
+                (call.ended_at && call.started_at ? 
+                  Math.floor((new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000) : 
+                  undefined),
+      direction: call.direction,
+      agentExten: call.agent_exten,
+      otherParty: call.other_party
+    }));
+
     const total = await Call.countDocuments(filter);
     const totalPages = Math.ceil(total / parseInt(limit));
 
     res.json({
       success: true,
-      data: calls,
+      data: transformedCalls,
       pagination: {
         currentPage: parseInt(page),
         totalPages,

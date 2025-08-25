@@ -8,6 +8,7 @@
     "dev": "node --watch index.js",
     "seed": "node scripts/seedUsers.js",
     "seed-extensions": "node scripts/seedExtensions.js",
+    "seed-calls": "node scripts/seedCalls.js",
     "check-extensions": "node scripts/checkExtensions.js",
     "listen-ami": "node listen-to-ami.js",
     "ami-process": "node ami-listener-process.js",

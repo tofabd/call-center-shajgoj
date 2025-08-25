@@ -121,8 +121,22 @@ export interface CallStats {
 
 class CallLogService {
   async getCallLogs(): Promise<CallLog[]> {
-    const response = await api.get<CallLog[]>('/calls');
-    return response.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: CallLog[];
+        pagination: any;
+      }>('/calls');
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('API returned error');
+      }
+    } catch (error) {
+      console.error('Error fetching calls:', error);
+      throw error;
+    }
   }
 
   async getTodayStats(): Promise<CallStats> {

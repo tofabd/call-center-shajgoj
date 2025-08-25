@@ -71,43 +71,77 @@ const CallConsole: React.FC = () => {
 
   // Transform flat call logs into grouped unique calls for UI
   const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
-    // Backend already returns only master calls; map 1:1
-    const mapped: UniqueCall[] = logs
-      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-      .map((c) => ({
-        id: c.id,
-        callerNumber: c.callerNumber,
-        callerName: c.callerName ?? null,
-        startTime: c.startTime,
-        status: c.status,
-        duration: c.duration,
-        frequency: 1,
-        allCalls: [{
-          id: c.id,
-          callerNumber: c.callerNumber,
-          callerName: c.callerName ?? null,
-          startTime: c.startTime,
-          endTime: c.endTime,
-          status: c.status,
-          duration: c.duration,
-          created_at: c.startTime,
-        }],
-        direction: c.direction,
-        agentExten: c.agentExten ?? null,
-        otherParty: c.otherParty ?? null,
-      }));
-    return mapped;
+    if (!logs || logs.length === 0) {
+      console.log('📭 No call logs received');
+      return [];
+    }
+
+    console.log('🔄 Transforming call logs:', logs.length, 'calls');
+    
+    // Group calls by caller number for frequency calculation
+    const callsByNumber = logs.reduce((acc, call) => {
+      const key = call.callerNumber || 'unknown';
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(call);
+      return acc;
+    }, {} as Record<string, CallLog[]>);
+
+    // Transform to UniqueCall format
+    const transformed = Object.entries(callsByNumber).map(([callerNumber, calls]) => {
+      const sortedCalls = calls.sort((a, b) => 
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
+      
+      const latestCall = sortedCalls[0];
+      
+      return {
+        id: latestCall.id,
+        callerNumber: callerNumber,
+        callerName: latestCall.callerName,
+        startTime: latestCall.startTime,
+        status: latestCall.status,
+        duration: latestCall.duration,
+        frequency: calls.length,
+        allCalls: sortedCalls.map(call => ({
+          id: call.id,
+          callerNumber: call.callerNumber,
+          callerName: call.callerName,
+          startTime: call.startTime,
+          endTime: call.endTime,
+          status: call.status,
+          duration: call.duration,
+          created_at: call.startTime,
+        })),
+        direction: latestCall.direction,
+        agentExten: latestCall.agentExten,
+        otherParty: latestCall.otherParty
+      };
+    });
+
+    console.log('✅ Transformed to unique calls:', transformed.length);
+    return transformed;
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setError(null);
+        console.log('🚀 Fetching call data from MongoDB API...');
+        
         const logs = await callLogService.getCallLogs();
-        setCallLogs(transformToUniqueCalls(logs));
+        console.log('📊 Received call data:', logs);
+        
+        const transformed = transformToUniqueCalls(logs);
+        console.log('🔄 Setting call logs:', transformed.length, 'unique calls');
+        
+        setCallLogs(transformed);
       } catch (err) {
-        setError('Failed to fetch call data');
-        console.error('Error fetching call data:', err);
+        console.error('❌ Error fetching call data:', err);
+        setError('Failed to fetch call data from MongoDB API');
+        setCallLogs([]);
       } finally {
         setLoading(false);
       }
