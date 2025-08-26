@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 
 import { callLogService } from '@services/callLogService';
 import type { CallLog } from '@services/callLogService';
@@ -63,12 +64,9 @@ const CallConsole: React.FC = () => {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Real-time Socket.IO connection state
-  const [socketConnected, setSocketConnected] = useState(false);
   // Removed WooCommerce modal states
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
   // Removed WooCommerce notes states
-  const [isPageVisible, setIsPageVisible] = useState(true);
 
   // Transform flat call logs into grouped unique calls for UI
   const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
@@ -163,7 +161,8 @@ const CallConsole: React.FC = () => {
     
     // Set up Socket.IO connection status monitoring
     const checkSocketConnection = () => {
-      setSocketConnected(socketService.isConnected());
+      // Connection status check - removed unused variable
+      socketService.isConnected();
     };
     
     // Check connection status every 5 seconds
@@ -223,7 +222,6 @@ const CallConsole: React.FC = () => {
     // Handle page visibility changes
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
-      setIsPageVisible(isVisible);
       
       if (isVisible) {
         console.log('📱 CallConsole page became visible, checking connections...');
@@ -303,14 +301,14 @@ const CallConsole: React.FC = () => {
   //             frequency: 1,
   //             allCalls: [{
   //               id: data.id,
-  //               callerNumber: data.callerNumber,
-  //               callerName: data.callerName,
-  //               startTime: data.startTime,
-  //               endTime: data.endTime,
-  //               status: data.status,
-  //               duration: data.duration,
-  //               created_at: data.timestamp,
-  //             }],
+  //             callerNumber: data.callerNumber,
+  //             callerName: data.callerName,
+  //             startTime: data.startTime,
+  //             endTime: data.endTime,
+  //             status: data.status,
+  //             duration: data.duration,
+  //             created_at: data.timestamp,
+  //           }],
   //             direction: data.direction,
   //             agentExten: data.agentExten ?? null,
   //             otherParty: data.otherParty ?? null,
@@ -390,7 +388,8 @@ const CallConsole: React.FC = () => {
   // Removed unused formatting helpers
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900 h-[calc(100vh-4rem)]">
+    <Tooltip.Provider>
+      <div className="bg-gray-50 dark:bg-gray-900 h-[calc(100vh-4rem)]">
       {/* WooCommerce modals removed */}
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
@@ -401,7 +400,6 @@ const CallConsole: React.FC = () => {
             selectedCallId={selectedCallId}
             loading={loading}
             error={error}
-            echoConnected={socketConnected} // Real-time enabled via Socket.IO
             expandedCalls={expandedCalls}
             onCallSelect={handleCallSelect}
             onToggleExpansion={toggleCallExpansion}
@@ -414,7 +412,6 @@ const CallConsole: React.FC = () => {
           <LiveCalls
             selectedCallId={selectedCallId ? selectedCallId.toString() : null}
             onCallSelect={(callId: string) => handleCallSelect(parseInt(callId))}
-            echoConnected={socketConnected} // Real-time enabled via Socket.IO
           />
         </div>
 
@@ -431,7 +428,8 @@ const CallConsole: React.FC = () => {
         onClose={handleCloseCallDetailsModal}
         isManualSelection={isManualSelection}
       />
-    </div>
+      </div>
+    </Tooltip.Provider>
   );
 };
 

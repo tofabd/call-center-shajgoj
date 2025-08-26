@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
 import socketService from '../../services/socketService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
+import { StatusTooltip } from '../common/StatusTooltip';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -67,7 +68,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   selectedCallId,
   loading,
   error,
-
   expandedCalls,
   onCallSelect,
   onToggleExpansion,
@@ -150,6 +150,9 @@ const CallHistory: React.FC<CallHistoryProps> = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [onRefresh, isPageVisible, isRefreshing]);
+
+
+
   // Filter only non-active calls (completed, busy, canceled, failed, etc.)
   const nonActiveCalls = callLogs.filter(call => {
     const status = call.status.toLowerCase();
@@ -171,6 +174,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
       console.log('🎯 CallHistory: Selected call ID changed to:', selectedCallId);
     }
   }, [selectedCallId]);
+
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -262,32 +266,29 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   }`} />
                 </button>
               )}
-              {/* Real-time status indicator - Icon Only */}
-              <div className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
-                <div className={`w-3 h-3 rounded-full ${
-                  realtimeStatus === 'connected'
-                    ? connectionHealth === 'good'
-                      ? 'bg-green-500 animate-ping'
-                      : connectionHealth === 'poor'
-                      ? 'bg-yellow-500 animate-pulse'
-                      : 'bg-orange-500'
-                    : realtimeStatus === 'reconnecting'
-                    ? 'bg-blue-500 animate-spin'
-                    : realtimeStatus === 'checking'
-                    ? 'bg-gray-500'
-                    : 'bg-red-500'
-                }`}></div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {realtimeStatus === 'connected'
-                    ? 'Connected'
-                    : realtimeStatus === 'reconnecting'
-                    ? 'Connecting'
-                    : realtimeStatus === 'checking'
-                    ? 'Connecting'
-                    : 'Disconnected'
-                  }
-                </span>
-              </div>
+                             {/* Real-time status indicator with reusable StatusTooltip */}
+               <div className="flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
+                 <StatusTooltip status={realtimeStatus} health={connectionHealth}>
+                   <span className="relative flex size-3 cursor-help group">
+                     {realtimeStatus === 'connected' && connectionHealth === 'good' && (
+                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                     )}
+                     <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
+                       realtimeStatus === 'connected'
+                         ? connectionHealth === 'good'
+                           ? 'bg-green-500 group-hover:bg-green-600'
+                           : connectionHealth === 'poor'
+                           ? 'bg-yellow-500 group-hover:bg-yellow-600'
+                           : 'bg-orange-500 group-hover:bg-orange-600'
+                         : realtimeStatus === 'reconnecting'
+                           ? 'bg-blue-500 group-hover:bg-blue-600'
+                           : realtimeStatus === 'checking'
+                           ? 'bg-gray-500 group-hover:bg-gray-600'
+                           : 'bg-red-500 group-hover:bg-red-600'
+                     }`}></span>
+                   </span>
+                 </StatusTooltip>
+               </div>
             </div>
           </div>
         </div>
