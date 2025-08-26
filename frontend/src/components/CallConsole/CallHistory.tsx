@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
 import socketService from '../../services/socketService';
+import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -31,7 +32,6 @@ interface CallHistoryProps {
   selectedCallId: number | null;
   loading: boolean;
   error: string | null;
-  echoConnected: boolean;
   expandedCalls: Set<string>;
   onCallSelect: (callId: number) => void;
   onToggleExpansion: (callerNumber: string) => void;
@@ -78,6 +78,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   const [isPageVisible, setIsPageVisible] = React.useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
+  const [connectionHealth, setConnectionHealth] = React.useState<'good' | 'poor' | 'stale'>('good');
+  const [realtimeStatus, setRealtimeStatus] = React.useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   
   // Use prop isRefreshing if provided, otherwise use local state
   const refreshing = propIsRefreshing ?? isRefreshing;
@@ -114,28 +116,15 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     }
   }, [onRefresh, autoRefreshInterval, isPageVisible, isRefreshing]);
 
-  // Handle page visibility changes and set up periodic refresh
+  // Subscribe to unified connection health service
   React.useEffect(() => {
-    // Set up 30-second automatic refresh
-    const startAutoRefresh = () => {
-      if (onRefresh) {
-        const interval = setInterval(() => {
-          if (isPageVisible && !isRefreshing) {
-            console.log('🔄 Auto refresh: Loading call history (30s interval)');
-            setIsAutoRefreshing(true);
-            onRefresh();
-            setTimeout(() => {
-              setIsAutoRefreshing(false);
-            }, 1000);
-          }
-        }, 30000); // 30 seconds
-        
-        setAutoRefreshInterval(interval);
-        console.log('⏰ Started automatic call history refresh every 30 seconds');
-      }
-    };
-
-    startAutoRefresh();
+    console.log('📡 CallHistory: Subscribing to unified connection health service');
+    
+    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
+      console.log('📡 CallHistory: Received connection health update:', health);
+      setConnectionHealth(health.health);
+      setRealtimeStatus(health.status);
+    });
     
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
@@ -157,9 +146,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-      }
+      unsubscribeHealth();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [onRefresh, isPageVisible, isRefreshing]);
@@ -275,18 +262,43 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   }`} />
                 </button>
               )}
-              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                echoConnected 
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                }`}></div>
-                <span>
-                  {echoConnected ? 'Live' : 'Disconnected'}
-                </span>
-              </div>
+                                                           <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                 realtimeStatus === 'connected' 
+                   ? connectionHealth === 'good'
+                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                     : connectionHealth === 'poor'
+                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                     : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                   : realtimeStatus === 'reconnecting'
+                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                   : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+               }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    realtimeStatus === 'connected'
+                      ? connectionHealth === 'good'
+                        ? 'bg-green-500 animate-ping'
+                        : connectionHealth === 'poor'
+                        ? 'bg-yellow-500 animate-pulse'
+                        : 'bg-orange-500'
+                      : realtimeStatus === 'reconnecting'
+                      ? 'bg-blue-500 animate-spin'
+                      : 'bg-red-500'
+                  }`}></div>
+                  <span>
+                    {realtimeStatus === 'connected' 
+                      ? connectionHealth === 'good'
+                        ? 'Live'
+                        : connectionHealth === 'poor'
+                        ? 'Slow'
+                        : 'Stale'
+                      : realtimeStatus === 'reconnecting'
+                      ? 'Reconnecting'
+                      : realtimeStatus === 'checking'
+                      ? 'Checking'
+                      : 'Disconnected'
+                    }
+                  </span>
+                </div>
             </div>
           </div>
         </div>

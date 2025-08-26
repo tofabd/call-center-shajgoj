@@ -4,6 +4,7 @@ import { extensionService } from '../../services/extensionService';
 import socketService from '../../services/socketService';
 import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension } from '../../services/extensionService';
+import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
@@ -104,47 +105,22 @@ const ExtensionsStatus: React.FC = () => {
     };
   }, [isPageVisible, isRefreshing]);
 
-  // Enhanced real-time connection monitoring
+  // Subscribe to unified connection health service
   useEffect(() => {
-    const checkConnectionHealth = () => {
-      // Skip health checks when page is not visible
-      if (!isPageVisible) return;
+    console.log('📡 ExtensionsStatus: Subscribing to unified connection health service');
+    
+    const unsubscribe = connectionHealthService.subscribe((health: ConnectionHealth) => {
+      console.log('📡 ExtensionsStatus: Received connection health update:', health);
       
-      if (socketService.isConnected()) {
-        setRealtimeStatus('connected');
-        
-        const lastHeartbeat = socketService.getLastHeartbeat();
-        if (lastHeartbeat) {
-          const timeSinceHeartbeat = new Date().getTime() - lastHeartbeat.getTime();
-          
-          if (timeSinceHeartbeat < 15000) { // Less than 15 seconds
-            setConnectionHealth('good');
-          } else if (timeSinceHeartbeat < 30000) { // Less than 30 seconds
-            setConnectionHealth('poor');
-          } else {
-            setConnectionHealth('stale');
-            // Attempt reconnection when stale
-            console.log('🔄 Connection stale, attempting reconnection...');
-            socketService.reconnect();
-          }
-        }
-      } else {
-        setRealtimeStatus('disconnected');
-        setConnectionHealth('poor');
-        // Attempt reconnection when disconnected
-        console.log('🔄 Connection lost, attempting reconnection...');
-        socketService.reconnect();
-      }
+      setRealtimeStatus(health.status);
+      setConnectionHealth(health.health);
+    });
+    
+    return () => {
+      console.log('📡 ExtensionsStatus: Unsubscribing from connection health service');
+      unsubscribe();
     };
-
-    // Initial check
-    checkConnectionHealth();
-    
-    // Check every 5 seconds only when page is visible
-    const healthInterval = setInterval(checkConnectionHealth, 5000);
-    
-    return () => clearInterval(healthInterval);
-  }, [isPageVisible]); // Add isPageVisible dependency
+  }, []);
 
   const loadExtensions = async (isRefresh = false) => {
     try {
@@ -340,17 +316,17 @@ const ExtensionsStatus: React.FC = () => {
                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                 : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
             }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                realtimeStatus === 'connected'
-                  ? connectionHealth === 'good'
-                    ? 'bg-green-500 animate-pulse'
-                    : connectionHealth === 'poor'
-                    ? 'bg-yellow-500 animate-pulse'
-                    : 'bg-orange-500'
-                  : realtimeStatus === 'reconnecting'
-                  ? 'bg-blue-500 animate-spin'
-                  : 'bg-red-500'
-              }`}></div>
+                             <div className={`w-2 h-2 rounded-full ${
+                 realtimeStatus === 'connected'
+                   ? connectionHealth === 'good'
+                     ? 'bg-green-500 animate-ping'
+                     : connectionHealth === 'poor'
+                     ? 'bg-yellow-500 animate-pulse'
+                     : 'bg-orange-500'
+                   : realtimeStatus === 'reconnecting'
+                   ? 'bg-blue-500 animate-spin'
+                   : 'bg-red-500'
+               }`}></div>
               <span>
                 {realtimeStatus === 'connected' 
                   ? connectionHealth === 'good'

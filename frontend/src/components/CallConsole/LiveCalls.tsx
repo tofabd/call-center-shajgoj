@@ -3,6 +3,7 @@ import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw
 import socketService from '../../services/socketService';
 import type { CallUpdateEvent } from '../../services/socketService';
 import type { LiveCall } from '../../services/callService';
+import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 interface LiveCallsProps {
   selectedCallId: string | null; // Changed to string since MongoDB IDs are strings
@@ -42,8 +43,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [liveCalls, setLiveCalls] = useState<LiveCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+
+  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -59,7 +61,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
         const { callService } = await import('../../services/callService');
         const calls = await callService.getLiveCalls();
         setLiveCalls(calls);
-        setLastUpdated(new Date());
         setError(null);
       } catch (err) {
         console.error('Error fetching initial live calls:', err);
@@ -81,7 +82,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             const { callService } = await import('../../services/callService');
             const calls = await callService.getLiveCalls();
             setLiveCalls(calls);
-            setLastUpdated(new Date());
             setError(null);
           } catch (err) {
             console.error('Auto refresh error:', err);
@@ -102,7 +102,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // Subscribe to real-time call updates
     const handleCallUpdate = (update: CallUpdateEvent) => {
       console.log('📞 Real-time call update received:', update);
-      setLastUpdated(new Date());
       
       setLiveCalls(prevCalls => {
         // Find existing call or add new one
@@ -155,19 +154,17 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
       });
     };
 
-    // Monitor connection status
-    const checkConnection = () => {
-      setIsConnected(socketService.isConnected() || false);
-    };
-
-    // Initial connection check
-    checkConnection();
-    
     // Subscribe to call updates
     socketService.onCallUpdated(handleCallUpdate);
     
-    // Monitor connection status every 5 seconds
-    const connectionInterval = setInterval(checkConnection, 5000);
+    // Subscribe to unified connection health service
+    console.log('📡 LiveCalls: Subscribing to unified connection health service');
+    
+    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
+      console.log('📡 LiveCalls: Received connection health update:', health);
+      setConnectionHealth(health.health);
+      setRealtimeStatus(health.status);
+    });
     
     // Handle page visibility changes
     const handleVisibilityChange = () => {
@@ -190,7 +187,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // Cleanup
     return () => {
       socketService.removeAllListeners();
-      clearInterval(connectionInterval);
+      unsubscribeHealth();
       if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
       }
@@ -237,10 +234,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     try {
       setError(null);
       const { callService } = await import('../../services/callService');
-      const calls = await callService.getLiveCalls();
-      setLiveCalls(calls);
-      setLastUpdated(new Date());
-      console.log('🔄 Manual refresh completed:', calls.length, 'calls');
+              const calls = await callService.getLiveCalls();
+        setLiveCalls(calls);
+        console.log('🔄 Manual refresh completed:', calls.length, 'calls');
     } catch (err) {
       console.error('Manual refresh error:', err);
       setError('Failed to refresh live calls');
@@ -255,10 +251,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             setIsAutoRefreshing(true);
             try {
               const { callService } = await import('../../services/callService');
-              const calls = await callService.getLiveCalls();
-              setLiveCalls(calls);
-              setLastUpdated(new Date());
-              setError(null);
+                          const calls = await callService.getLiveCalls();
+            setLiveCalls(calls);
+            setError(null);
             } catch (err) {
               console.error('Auto refresh error:', err);
             } finally {
@@ -379,19 +374,44 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 }`} />
               </button>
               
-              {/* Real-time status indicator */}
-              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                isConnected 
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                }`}></div>
-                <span>
-                  {isConnected ? 'Live' : 'Disconnected'}
-                </span>
-              </div>
+                             {/* Real-time status indicator */}
+               <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                 realtimeStatus === 'connected' 
+                   ? connectionHealth === 'good'
+                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                     : connectionHealth === 'poor'
+                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                     : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                   : realtimeStatus === 'reconnecting'
+                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                   : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+               }`}>
+                 <div className={`w-2 h-2 rounded-full ${
+                   realtimeStatus === 'connected'
+                     ? connectionHealth === 'good'
+                       ? 'bg-green-500 animate-ping'
+                       : connectionHealth === 'poor'
+                       ? 'bg-yellow-500 animate-pulse'
+                       : 'bg-orange-500'
+                     : realtimeStatus === 'reconnecting'
+                     ? 'bg-blue-500 animate-spin'
+                     : 'bg-red-500'
+                 }`}></div>
+                 <span>
+                   {realtimeStatus === 'connected' 
+                     ? connectionHealth === 'good'
+                       ? 'Live'
+                       : connectionHealth === 'poor'
+                       ? 'Slow'
+                       : 'Stale'
+                     : realtimeStatus === 'reconnecting'
+                     ? 'Reconnecting'
+                     : realtimeStatus === 'checking'
+                     ? 'Checking'
+                     : 'Disconnected'
+                   }
+                 </span>
+               </div>
             </div>
           </div>
         </div>
