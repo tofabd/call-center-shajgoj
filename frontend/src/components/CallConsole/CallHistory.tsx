@@ -67,7 +67,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   selectedCallId,
   loading,
   error,
-  echoConnected,
+
   expandedCalls,
   onCallSelect,
   onToggleExpansion,
@@ -262,43 +262,32 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   }`} />
                 </button>
               )}
-                                                           <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                 realtimeStatus === 'connected' 
-                   ? connectionHealth === 'good'
-                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                     : connectionHealth === 'poor'
-                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                     : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
-                   : realtimeStatus === 'reconnecting'
-                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                   : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-               }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    realtimeStatus === 'connected'
-                      ? connectionHealth === 'good'
-                        ? 'bg-green-500 animate-ping'
-                        : connectionHealth === 'poor'
-                        ? 'bg-yellow-500 animate-pulse'
-                        : 'bg-orange-500'
-                      : realtimeStatus === 'reconnecting'
-                      ? 'bg-blue-500 animate-spin'
-                      : 'bg-red-500'
-                  }`}></div>
-                  <span>
-                    {realtimeStatus === 'connected' 
-                      ? connectionHealth === 'good'
-                        ? 'Live'
-                        : connectionHealth === 'poor'
-                        ? 'Slow'
-                        : 'Stale'
-                      : realtimeStatus === 'reconnecting'
-                      ? 'Reconnecting'
-                      : realtimeStatus === 'checking'
-                      ? 'Checking'
-                      : 'Disconnected'
-                    }
-                  </span>
-                </div>
+              {/* Real-time status indicator - Icon Only */}
+              <div className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
+                <div className={`w-3 h-3 rounded-full ${
+                  realtimeStatus === 'connected'
+                    ? connectionHealth === 'good'
+                      ? 'bg-green-500 animate-ping'
+                      : connectionHealth === 'poor'
+                      ? 'bg-yellow-500 animate-pulse'
+                      : 'bg-orange-500'
+                    : realtimeStatus === 'reconnecting'
+                    ? 'bg-blue-500 animate-spin'
+                    : realtimeStatus === 'checking'
+                    ? 'bg-gray-500'
+                    : 'bg-red-500'
+                }`}></div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {realtimeStatus === 'connected'
+                    ? 'Connected'
+                    : realtimeStatus === 'reconnecting'
+                    ? 'Connecting'
+                    : realtimeStatus === 'checking'
+                    ? 'Connecting'
+                    : 'Disconnected'
+                  }
+                </span>
+              </div>
             </div>
           </div>
         </div>
