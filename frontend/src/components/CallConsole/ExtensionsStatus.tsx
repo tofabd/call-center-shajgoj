@@ -123,6 +123,7 @@ const ExtensionsStatus: React.FC = () => {
   }, []);
 
   const loadExtensions = async (isRefresh = false) => {
+    const dbStartTime = Date.now();
     try {
       if (!isRefresh) {
         setLoading(true);
@@ -130,15 +131,18 @@ const ExtensionsStatus: React.FC = () => {
       
       console.log(`💾 ${isRefresh ? 'Refreshing' : 'Loading'} extensions from database...`);
       const data = await extensionService.getExtensions();
+      const dbTime = Date.now() - dbStartTime;
+      
       setExtensions(data);
       setError(null);
       
       // Update last update time
       setLastUpdate(new Date());
       
-      console.log(`✅ Extensions loaded from database: ${data.length} extensions`);
+      console.log(`✅ Extensions loaded from database: ${data.length} extensions in ${dbTime}ms`);
     } catch (err) {
-      console.error('Error loading extensions from database:', err);
+      const dbTime = Date.now() - dbStartTime;
+      console.error(`❌ Error loading extensions from database after ${dbTime}ms:`, err);
       setError('Failed to load extensions from database');
     } finally {
       if (!isRefresh) {

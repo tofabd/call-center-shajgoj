@@ -153,7 +153,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
         }
       });
     };
-
+    
     // Subscribe to call updates
     socketService.onCallUpdated(handleCallUpdate);
     
@@ -234,9 +234,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     try {
       setError(null);
       const { callService } = await import('../../services/callService');
-              const calls = await callService.getLiveCalls();
-        setLiveCalls(calls);
-        console.log('🔄 Manual refresh completed:', calls.length, 'calls');
+      const calls = await callService.getLiveCalls();
+      setLiveCalls(calls);
+      console.log('🔄 Manual refresh completed:', calls.length, 'calls');
     } catch (err) {
       console.error('Manual refresh error:', err);
       setError('Failed to refresh live calls');
@@ -347,11 +347,11 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
-                             <div className="flex items-center space-x-3">
-                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                   {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
-                 </p>
-               </div>
+              <div className="flex items-center space-x-3">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
+                </p>
+              </div>
             </div>
             
             {/* Control buttons */}
