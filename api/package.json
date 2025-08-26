@@ -13,6 +13,9 @@
     "listen-ami": "node listen-to-ami.js",
     "ami-process": "node ami-listener-process.js",
     "ami-dev": "nodemon ami-listener-process.js",
+    "start-with-query": "set ENABLE_AMI_QUERY_SERVICE=true && node index.js",
+    "dev-with-query": "set ENABLE_AMI_QUERY_SERVICE=true && node --watch index.js",
+    "test-database-driven": "node test-database-driven.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

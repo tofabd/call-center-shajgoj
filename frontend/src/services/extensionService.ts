@@ -38,6 +38,29 @@ export interface ExtensionStatsResponse {
   top_agents: TopAgent[];
 }
 
+export interface QueryServiceStatus {
+  connected: boolean;
+  queryInterval: number;
+  lastQueryTime?: string;
+  extensionsMonitored: number;
+  statistics: {
+    successfulQueries: number;
+    failedQueries: number;
+  };
+  isQuerying: boolean;
+}
+
+export interface RefreshResult {
+  success: boolean;
+  message: string;
+  lastQueryTime: string;
+  extensionsChecked: number;
+  statistics: {
+    successfulQueries: number;
+    failedQueries: number;
+  };
+}
+
 export const extensionService = {
   // Get all extensions
   async getExtensions(): Promise<Extension[]> {
@@ -113,5 +136,17 @@ export const extensionService = {
       created_at: ext.createdAt,
       updated_at: ext.updatedAt
     };
+  },
+
+  // Manual refresh extension status from AMI
+  async refreshStatus(): Promise<RefreshResult> {
+    const response = await api.post('/extensions/refresh');
+    return response.data.data;
+  },
+
+  // Get AMI Query Service status
+  async getQueryServiceStatus(): Promise<QueryServiceStatus> {
+    const response = await api.get('/extensions/query-service/status');
+    return response.data.data;
   }
 };

@@ -1,4 +1,5 @@
 import Extension from '../models/Extension.js';
+import { getAmiQueryService } from '../services/AmiQueryServiceInstance.js';
 
 // Get all extensions with filtering
 export const getExtensions = async (req, res) => {
@@ -226,6 +227,65 @@ export const updateExtensionStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating extension status',
+      error: error.message
+    });
+  }
+};
+
+// Manual refresh extension status
+export const refreshExtensionStatus = async (req, res) => {
+  try {
+    const amiQueryService = getAmiQueryService();
+    
+    if (!amiQueryService) {
+      return res.status(503).json({
+        success: false,
+        message: 'AMI Query Service not available'
+      });
+    }
+
+    const result = await amiQueryService.manualRefresh();
+    
+    res.json({
+      success: true,
+      message: 'Extension status refresh completed successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Manual refresh failed:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh extension status',
+      error: error.message
+    });
+  }
+};
+
+// Get AMI Query Service status
+export const getQueryServiceStatus = async (req, res) => {
+  try {
+    const amiQueryService = getAmiQueryService();
+    
+    if (!amiQueryService) {
+      return res.json({
+        success: true,
+        data: {
+          connected: false,
+          message: 'AMI Query Service not initialized'
+        }
+      });
+    }
+
+    const status = await amiQueryService.getStatus();
+    
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching query service status',
       error: error.message
     });
   }

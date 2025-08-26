@@ -10,6 +10,7 @@ import callRoutes from './routes/callRoutes.js';
 import extensionRoutes from './routes/extensionRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import AmiListener from './services/AmiListener.js';
+import { initializeAmiQueryService, stopAmiQueryService } from './services/AmiQueryServiceInstance.js';
 import broadcast from './services/BroadcastService.js';
 
 // Load environment variables
@@ -222,7 +223,7 @@ httpServer.listen(PORT, () => {
   console.log('🔌 Socket.IO server running for real-time updates');
 
   
-  // Start AMI listener after server is running
+  // Start AMI services after server is running
   if (process.env.ENABLE_AMI_LISTENER !== 'false') {
     console.log('🎧 Starting AMI Listener...');
     const amiListener = new AmiListener();
@@ -242,6 +243,27 @@ httpServer.listen(PORT, () => {
     });
   } else {
     console.log('⚠️ AMI Listener is disabled');
+  }
+
+  // Start AMI Query Service for periodic status checks
+  if (process.env.ENABLE_AMI_QUERY_SERVICE !== 'false') {
+    console.log('🔍 Starting AMI Query Service for periodic extension status checks...');
+    initializeAmiQueryService().catch(err => {
+      console.error('❌ Failed to start AMI Query Service:', err.message);
+    });
+    
+    // Graceful shutdown for AMI Query Service
+    process.on('SIGTERM', () => {
+      console.log('🛑 SIGTERM received. Shutting down AMI Query Service...');
+      stopAmiQueryService();
+    });
+    
+    process.on('SIGINT', () => {
+      console.log('🛑 SIGINT received. Shutting down AMI Query Service...');
+      stopAmiQueryService();
+    });
+  } else {
+    console.log('⚠️ AMI Query Service is disabled');
   }
 });
 
