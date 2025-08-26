@@ -7,6 +7,7 @@ import type { Extension } from '../../services/extensionService';
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -87,9 +88,13 @@ const ExtensionsStatus: React.FC = () => {
     return () => clearInterval(healthInterval);
   }, []);
 
-  const loadExtensions = async () => {
+  const loadExtensions = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       const data = await extensionService.getExtensions();
       setExtensions(data);
       setError(null);
@@ -97,8 +102,17 @@ const ExtensionsStatus: React.FC = () => {
       console.error('Error loading extensions:', err);
       setError('Failed to load extensions');
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleManualRefresh = () => {
+    console.log('🔄 Manual refresh triggered');
+    loadExtensions(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -127,12 +141,18 @@ const ExtensionsStatus: React.FC = () => {
     }
   };
 
-  // Sort extensions to show online first, and filter out only inactive extensions
+  // Sort extensions and filter out AMI-generated codes
   const sortedExtensions = [...extensions]
     .filter(extension => {
-      // Only filter out inactive extensions, show all extension numbers
+      // Filter out inactive extensions
       const isActive = extension.is_active !== false;
-      return isActive;
+      
+      // Filter out AMI-generated extension codes using regex pattern
+      // Only show clean 4-digit extension numbers (pattern: /^\d{4}$/)
+      // This allows 1000-9999 but excludes codes like *47*1001, *47*1001*600
+      const isValidExtension = /^\d{4}$/.test(extension.extension);
+      
+      return isActive && isValidExtension;
     })
     .sort((a, b) => {
       // Define priority order: online > unknown > offline
@@ -172,7 +192,7 @@ const ExtensionsStatus: React.FC = () => {
             </div>
           </div>
           
-          {/* Enhanced Real-time Status Indicator */}
+          {/* Enhanced Real-time Status Indicator and Manual Refresh */}
           <div className="flex items-center space-x-3">
             {lastUpdate && (
               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-3">
@@ -185,6 +205,45 @@ const ExtensionsStatus: React.FC = () => {
                 )}
               </div>
             )}
+            
+            {/* Manual Refresh Button */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing || loading}
+              className={`p-2 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden ${
+                refreshing ? 'animate-pulse shadow-lg ring-2 ring-indigo-300 dark:ring-indigo-500' : 'hover:shadow-md'
+              }`}
+              title={refreshing ? "Refreshing extensions..." : "Refresh extensions status"}
+            >
+              {/* Animated background circle when refreshing */}
+              {refreshing && (
+                <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-indigo-400 to-purple-400 opacity-20 animate-pulse"></div>
+              )}
+              
+              {/* Custom SVG refresh icon with Tailwind animate-spin */}
+              <div className="relative flex items-center justify-center">
+                <svg 
+                  className={`h-4 w-4 transition-transform duration-300 group-hover:scale-110 ${
+                    refreshing ? 'animate-spin' : ''
+                  }`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                  />
+                </svg>
+              </div>
+              
+              {/* Ripple effect using Tailwind's animate-ping */}
+              {refreshing && (
+                <div className="absolute inset-0 rounded-lg animate-ping bg-indigo-400 opacity-25"></div>
+              )}
+            </button>
             
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${
               realtimeStatus === 'connected' 
@@ -247,7 +306,7 @@ const ExtensionsStatus: React.FC = () => {
               </div>
               <p className="text-red-600 dark:text-red-400 text-sm font-medium">{error}</p>
               <button 
-                onClick={loadExtensions}
+                onClick={() => loadExtensions()}
                 className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 Retry
