@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { extensionService } from '../../services/extensionService';
 import socketService from '../../services/socketService';
 import type { ExtensionStatusEvent } from '../../services/socketService';
@@ -7,7 +8,7 @@ import type { Extension } from '../../services/extensionService';
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -90,9 +91,7 @@ const ExtensionsStatus: React.FC = () => {
 
   const loadExtensions = async (isRefresh = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
+      if (!isRefresh) {
         setLoading(true);
       }
       const data = await extensionService.getExtensions();
@@ -102,18 +101,21 @@ const ExtensionsStatus: React.FC = () => {
       console.error('Error loading extensions:', err);
       setError('Failed to load extensions');
     } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
+      if (!isRefresh) {
         setLoading(false);
       }
     }
   };
 
-  const handleManualRefresh = () => {
+  const handleRefresh = useCallback(() => {
     console.log('🔄 Manual refresh triggered');
-    loadExtensions(true);
-  };
+    setIsRefreshing(true);
+    loadExtensions(true).finally(() => {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1000); // Keep spinning for visual feedback
+    });
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -206,43 +208,22 @@ const ExtensionsStatus: React.FC = () => {
               </div>
             )}
             
-            {/* Manual Refresh Button */}
+            {/* Refresh Button with TodayStatistics Design */}
             <button
-              onClick={handleManualRefresh}
-              disabled={refreshing || loading}
-              className={`p-2 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden ${
-                refreshing ? 'animate-pulse shadow-lg ring-2 ring-indigo-300 dark:ring-indigo-500' : 'hover:shadow-md'
+              onClick={handleRefresh}
+              className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                isRefreshing
+                  ? 'bg-blue-100 dark:bg-blue-900/30' 
+                  : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
               }`}
-              title={refreshing ? "Refreshing extensions..." : "Refresh extensions status"}
+              title={isRefreshing ? 'Refreshing...' : 'Click to refresh extensions'}
+              disabled={isRefreshing}
             >
-              {/* Animated background circle when refreshing */}
-              {refreshing && (
-                <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-indigo-400 to-purple-400 opacity-20 animate-pulse"></div>
-              )}
-              
-              {/* Custom SVG refresh icon with Tailwind animate-spin */}
-              <div className="relative flex items-center justify-center">
-                <svg 
-                  className={`h-4 w-4 transition-transform duration-300 group-hover:scale-110 ${
-                    refreshing ? 'animate-spin' : ''
-                  }`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-                  />
-                </svg>
-              </div>
-              
-              {/* Ripple effect using Tailwind's animate-ping */}
-              {refreshing && (
-                <div className="absolute inset-0 rounded-lg animate-ping bg-indigo-400 opacity-25"></div>
-              )}
+              <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
+                isRefreshing
+                  ? 'text-blue-600 dark:text-blue-400 animate-spin'
+                  : 'text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110'
+              }`} />
             </button>
             
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium ${

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
 
 // Interface for unique call with frequency
@@ -35,6 +35,7 @@ interface CallHistoryProps {
   onCallSelect: (callId: number) => void;
   onToggleExpansion: (callerNumber: string) => void;
   onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 // Animated ringing icon component that alternates between Phone and PhoneCall
@@ -69,8 +70,24 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   expandedCalls,
   onCallSelect,
   onToggleExpansion,
-  onRefresh
+  onRefresh,
+  isRefreshing: propIsRefreshing
 }) => {
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  
+  // Use prop isRefreshing if provided, otherwise use local state
+  const refreshing = propIsRefreshing ?? isRefreshing;
+  
+  const handleRefresh = useCallback(() => {
+    if (onRefresh) {
+      console.log('🔄 Manual refresh triggered');
+      setIsRefreshing(true);
+      onRefresh();
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1000); // Keep spinning for visual feedback
+    }
+  }, [onRefresh]);
   // Filter only non-active calls (completed, busy, canceled, failed, etc.)
   const nonActiveCalls = callLogs.filter(call => {
     const status = call.status.toLowerCase();
@@ -167,11 +184,20 @@ const CallHistory: React.FC<CallHistoryProps> = ({
             <div className="flex items-center space-x-2">
               {onRefresh && (
                 <button
-                  onClick={onRefresh}
-                  className="p-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 transition-colors duration-200"
-                  title="Refresh call history"
+                  onClick={handleRefresh}
+                  className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                    refreshing
+                      ? 'bg-blue-100 dark:bg-blue-900/30' 
+                      : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
+                  }`}
+                  title={refreshing ? 'Refreshing...' : 'Click to refresh call history'}
+                  disabled={refreshing}
                 >
-                  <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
+                    refreshing
+                      ? 'text-blue-600 dark:text-blue-400 animate-spin'
+                      : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:scale-110'
+                  }`} />
                 </button>
               )}
               <div className={`w-2 h-2 rounded-full ${echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw } from 'lucide-react';
 import socketService from '../../services/socketService';
 import type { CallUpdateEvent } from '../../services/socketService';
@@ -44,6 +44,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Real-time connection and data management
   useEffect(() => {
@@ -169,10 +170,11 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return ['answered', 'in_progress'].includes(status);
   });
 
-  // Manual refresh handler (now fetches fresh data directly)
-  const handleManualRefresh = async () => {
+  // Manual refresh handler with new design pattern
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Manual refresh triggered');
+    setIsRefreshing(true);
     try {
-      setLoading(true);
       setError(null);
       const { callService } = await import('../../services/callService');
       const calls = await callService.getLiveCalls();
@@ -183,9 +185,11 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
       console.error('Manual refresh error:', err);
       setError('Failed to refresh live calls');
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1000); // Keep spinning for visual feedback
     }
-  };
+  }, []);
 
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
@@ -279,14 +283,22 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             
             {/* Control buttons */}
             <div className="flex items-center space-x-2">
-              {/* Manual refresh button */}
+              {/* Refresh Button with TodayStatistics Design */}
               <button
-                onClick={handleManualRefresh}
-                disabled={loading}
-                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-                title="Manual refresh"
+                onClick={handleRefresh}
+                className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                  isRefreshing
+                    ? 'bg-blue-100 dark:bg-blue-900/30' 
+                    : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
+                }`}
+                title={isRefreshing ? 'Refreshing...' : 'Click to refresh live calls'}
+                disabled={isRefreshing}
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
+                  isRefreshing
+                    ? 'text-blue-600 dark:text-blue-400 animate-spin'
+                    : 'text-gray-600 dark:text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 group-hover:scale-110'
+                }`} />
               </button>
               
               {/* Real-time status indicator */}
@@ -320,7 +332,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 <p className="text-red-600 dark:text-red-400 text-sm font-medium">{error}</p>
                 <div className="flex space-x-3 mt-3">
                   <button 
-                    onClick={handleManualRefresh}
+                    onClick={handleRefresh}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                   >
                     Retry
