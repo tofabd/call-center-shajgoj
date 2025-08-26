@@ -76,6 +76,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isPageVisible, setIsPageVisible] = React.useState(true);
+  const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<NodeJS.Timeout | null>(null);
+  const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
   
   // Use prop isRefreshing if provided, otherwise use local state
   const refreshing = propIsRefreshing ?? isRefreshing;
@@ -84,15 +86,57 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     if (onRefresh) {
       console.log('🔄 Manual refresh triggered');
       setIsRefreshing(true);
+      
+      // Reset the periodic timer
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        console.log('⏰ Periodic timer reset due to manual refresh');
+      }
+      
       onRefresh();
       setTimeout(() => {
         setIsRefreshing(false);
+        
+        // Restart the periodic timer after manual refresh
+        const newInterval = setInterval(() => {
+          if (isPageVisible && !isRefreshing && onRefresh) {
+            console.log('🔄 Auto refresh: Loading call history (30s interval)');
+            setIsAutoRefreshing(true);
+            onRefresh();
+            setTimeout(() => {
+              setIsAutoRefreshing(false);
+            }, 1000);
+          }
+        }, 30000);
+        setAutoRefreshInterval(newInterval);
+        console.log('⏰ Restarted automatic call history refresh timer');
       }, 1000); // Keep spinning for visual feedback
     }
-  }, [onRefresh]);
+  }, [onRefresh, autoRefreshInterval, isPageVisible, isRefreshing]);
 
-  // Handle page visibility changes
+  // Handle page visibility changes and set up periodic refresh
   React.useEffect(() => {
+    // Set up 30-second automatic refresh
+    const startAutoRefresh = () => {
+      if (onRefresh) {
+        const interval = setInterval(() => {
+          if (isPageVisible && !isRefreshing) {
+            console.log('🔄 Auto refresh: Loading call history (30s interval)');
+            setIsAutoRefreshing(true);
+            onRefresh();
+            setTimeout(() => {
+              setIsAutoRefreshing(false);
+            }, 1000);
+          }
+        }, 30000); // 30 seconds
+        
+        setAutoRefreshInterval(interval);
+        console.log('⏰ Started automatic call history refresh every 30 seconds');
+      }
+    };
+
+    startAutoRefresh();
+    
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
       setIsPageVisible(isVisible);
@@ -113,9 +157,12 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [onRefresh]);
+  }, [onRefresh, isPageVisible, isRefreshing]);
   // Filter only non-active calls (completed, busy, canceled, failed, etc.)
   const nonActiveCalls = callLogs.filter(call => {
     const status = call.status.toLowerCase();
@@ -214,15 +261,15 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                 <button
                   onClick={handleRefresh}
                   className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                    refreshing
+                    refreshing || isAutoRefreshing
                       ? 'bg-blue-100 dark:bg-blue-900/30' 
                       : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                   }`}
-                  title={refreshing ? 'Refreshing...' : 'Click to refresh call history'}
-                  disabled={refreshing}
+                  title={(refreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh call history'}
+                  disabled={refreshing || isAutoRefreshing}
                 >
                   <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                    refreshing
+                    refreshing || isAutoRefreshing
                       ? 'text-blue-600 dark:text-blue-400 animate-spin'
                       : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:scale-110'
                   }`} />
@@ -237,7 +284,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   echoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
                 }`}></div>
                 <span>
-                  {echoConnected ? 'Live' : 'Offline'}
+                  {echoConnected ? 'Live' : 'Disconnected'}
                 </span>
               </div>
             </div>

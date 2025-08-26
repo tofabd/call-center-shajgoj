@@ -17,6 +17,7 @@ const ExtensionsStatus: React.FC = () => {
   const [avgUpdateInterval, setAvgUpdateInterval] = useState<number | null>(null);
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
 
   useEffect(() => {
     // Initial load from database
@@ -27,7 +28,12 @@ const ExtensionsStatus: React.FC = () => {
       const interval = setInterval(() => {
         if (isPageVisible && !isRefreshing) {
           console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
-          loadExtensions(true);
+          setIsAutoRefreshing(true);
+          loadExtensions(true).finally(() => {
+            setTimeout(() => {
+              setIsAutoRefreshing(false);
+            }, 1000);
+          });
         }
       }, 30000); // 30 seconds
       
@@ -169,6 +175,12 @@ const ExtensionsStatus: React.FC = () => {
     console.log('🔄 Manual refresh triggered - triggering AMI query and database update');
     setIsRefreshing(true);
     
+    // Reset the periodic timer
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      console.log('⏰ Periodic timer reset due to manual refresh');
+    }
+    
     // Trigger AMI refresh first, then load from database
     extensionService.refreshStatus()
       .then((result) => {
@@ -184,9 +196,24 @@ const ExtensionsStatus: React.FC = () => {
       .finally(() => {
         setTimeout(() => {
           setIsRefreshing(false);
+          
+          // Restart the periodic timer after manual refresh
+          const newInterval = setInterval(() => {
+            if (isPageVisible && !isRefreshing) {
+              console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
+              setIsAutoRefreshing(true);
+              loadExtensions(true).finally(() => {
+                setTimeout(() => {
+                  setIsAutoRefreshing(false);
+                }, 1000);
+              });
+            }
+          }, 30000);
+          setAutoRefreshInterval(newInterval);
+          console.log('⏰ Restarted automatic database refresh timer');
         }, 1000); // Keep spinning for visual feedback
       });
-  }, []);
+  }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -287,15 +314,15 @@ const ExtensionsStatus: React.FC = () => {
             <button
               onClick={handleRefresh}
               className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                isRefreshing
+                isRefreshing || isAutoRefreshing
                   ? 'bg-blue-100 dark:bg-blue-900/30' 
                   : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
               }`}
-              title={isRefreshing ? 'Refreshing...' : 'Click to refresh extensions'}
-              disabled={isRefreshing}
+              title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh extensions'}
+              disabled={isRefreshing || isAutoRefreshing}
             >
               <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                isRefreshing
+                isRefreshing || isAutoRefreshing
                   ? 'text-blue-600 dark:text-blue-400 animate-spin'
                   : 'text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110'
               }`} />

@@ -46,6 +46,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(true);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
 
   // Real-time connection and data management
   useEffect(() => {
@@ -68,6 +70,34 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     };
 
     fetchInitialData();
+
+    // Set up 30-second automatic refresh
+    const startAutoRefresh = () => {
+      const interval = setInterval(async () => {
+        if (isPageVisible && !isRefreshing) {
+          console.log('🔄 Auto refresh: Loading live calls (30s interval)');
+          setIsAutoRefreshing(true);
+          try {
+            const { callService } = await import('../../services/callService');
+            const calls = await callService.getLiveCalls();
+            setLiveCalls(calls);
+            setLastUpdated(new Date());
+            setError(null);
+          } catch (err) {
+            console.error('Auto refresh error:', err);
+          } finally {
+            setTimeout(() => {
+              setIsAutoRefreshing(false);
+            }, 1000);
+          }
+        }
+      }, 30000); // 30 seconds
+      
+      setAutoRefreshInterval(interval);
+      console.log('⏰ Started automatic live calls refresh every 30 seconds');
+    };
+
+    startAutoRefresh();
 
     // Subscribe to real-time call updates
     const handleCallUpdate = (update: CallUpdateEvent) => {
@@ -161,6 +191,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return () => {
       socketService.removeAllListeners();
       clearInterval(connectionInterval);
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
@@ -194,6 +227,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const handleRefresh = useCallback(async () => {
     console.log('🔄 Manual refresh triggered');
     setIsRefreshing(true);
+    
+    // Reset the periodic timer
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      console.log('⏰ Periodic timer reset due to manual refresh');
+    }
+    
     try {
       setError(null);
       const { callService } = await import('../../services/callService');
@@ -207,9 +247,32 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
+        
+        // Restart the periodic timer after manual refresh
+        const newInterval = setInterval(async () => {
+          if (isPageVisible && !isRefreshing) {
+            console.log('🔄 Auto refresh: Loading live calls (30s interval)');
+            setIsAutoRefreshing(true);
+            try {
+              const { callService } = await import('../../services/callService');
+              const calls = await callService.getLiveCalls();
+              setLiveCalls(calls);
+              setLastUpdated(new Date());
+              setError(null);
+            } catch (err) {
+              console.error('Auto refresh error:', err);
+            } finally {
+              setTimeout(() => {
+                setIsAutoRefreshing(false);
+              }, 1000);
+            }
+          }
+        }, 30000);
+        setAutoRefreshInterval(newInterval);
+        console.log('⏰ Restarted automatic live calls refresh timer');
       }, 1000); // Keep spinning for visual feedback
     }
-  }, []);
+  }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
@@ -289,16 +352,11 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
-              <div className="flex items-center space-x-3">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
-                </p>
-                {lastUpdated && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Updated {lastUpdated.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
+                             <div className="flex items-center space-x-3">
+                 <p className="text-sm text-gray-600 dark:text-gray-400">
+                   {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
+                 </p>
+               </div>
             </div>
             
             {/* Control buttons */}
@@ -307,15 +365,15 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               <button
                 onClick={handleRefresh}
                 className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                  isRefreshing
+                  isRefreshing || isAutoRefreshing
                     ? 'bg-blue-100 dark:bg-blue-900/30' 
                     : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                 }`}
-                title={isRefreshing ? 'Refreshing...' : 'Click to refresh live calls'}
-                disabled={isRefreshing}
+                title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh live calls'}
+                disabled={isRefreshing || isAutoRefreshing}
               >
                 <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                  isRefreshing
+                  isRefreshing || isAutoRefreshing
                     ? 'text-blue-600 dark:text-blue-400 animate-spin'
                     : 'text-gray-600 dark:text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 group-hover:scale-110'
                 }`} />
