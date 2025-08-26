@@ -31,9 +31,58 @@ class SocketService {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private lastHeartbeat: Date | null = null;
   private heartbeatTimeout = 30000; // 30 seconds
+  private isPageVisible = true; // Add page visibility tracking
 
   constructor() {
+    this.setupPageVisibilityListener(); // Add page visibility listener
     this.connect();
+  }
+
+  private setupPageVisibilityListener() {
+    const handleVisibilityChange = () => {
+      const wasVisible = this.isPageVisible;
+      this.isPageVisible = !document.hidden;
+      
+      if (!wasVisible && this.isPageVisible) {
+        console.log('📱 Page became visible, checking connection...');
+        this.handlePageVisible();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also handle window focus/blur for better coverage
+    const handleFocus = () => {
+      if (!this.isPageVisible) {
+        this.isPageVisible = true;
+        this.handlePageVisible();
+      }
+    };
+    
+    const handleBlur = () => {
+      this.isPageVisible = false;
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+  }
+
+  private handlePageVisible() {
+    // Force reconnection if disconnected
+    if (!this.isConnected()) {
+      console.log('🔄 Page visible but socket disconnected, reconnecting...');
+      this.connect();
+    } else {
+      // Force a heartbeat to check connection health
+      this.forceHeartbeat();
+    }
+  }
+
+  private forceHeartbeat() {
+    if (this.socket?.connected) {
+      this.socket.emit('ping');
+      this.lastHeartbeat = new Date();
+    }
   }
 
   private connect() {
@@ -134,6 +183,11 @@ class SocketService {
   private startHeartbeat() {
     this.lastHeartbeat = new Date();
     this.heartbeatInterval = setInterval(() => {
+      // Skip heartbeat when page is not visible to avoid throttling issues
+      if (!this.isPageVisible) {
+        return;
+      }
+
       if (this.socket?.connected) {
         this.socket.emit('ping');
         
@@ -163,6 +217,15 @@ class SocketService {
   // Get last heartbeat time
   getLastHeartbeat(): Date | null {
     return this.lastHeartbeat;
+  }
+
+  // Add method for manual reconnection
+  public reconnect() {
+    if (this.socket?.connected) {
+      console.log('🔌 Socket already connected');
+      return;
+    }
+    this.connect();
   }
 
   // Disconnect

@@ -45,6 +45,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(true);
 
   // Real-time connection and data management
   useEffect(() => {
@@ -138,10 +139,29 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // Monitor connection status every 5 seconds
     const connectionInterval = setInterval(checkConnection, 5000);
     
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsPageVisible(isVisible);
+      
+      if (isVisible) {
+        console.log('📱 Page became visible, checking live calls connection...');
+        // Reconnect socket if needed
+        if (!socketService.isConnected()) {
+          socketService.reconnect();
+        }
+        // Force refresh data
+        handleRefresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     // Cleanup
     return () => {
       socketService.removeAllListeners();
       clearInterval(connectionInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

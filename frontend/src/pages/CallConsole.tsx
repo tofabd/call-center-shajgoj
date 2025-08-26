@@ -68,6 +68,7 @@ const CallConsole: React.FC = () => {
   // Removed WooCommerce modal states
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
   // Removed WooCommerce notes states
+  const [isPageVisible, setIsPageVisible] = useState(true);
 
   // Transform flat call logs into grouped unique calls for UI
   const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
@@ -219,11 +220,30 @@ const CallConsole: React.FC = () => {
     
     console.log('📡 CallHistory: Socket.IO real-time updates enabled');
 
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsPageVisible(isVisible);
+      
+      if (isVisible) {
+        console.log('📱 CallConsole page became visible, checking connections...');
+        // Reconnect socket if needed
+        if (!socketService.isConnected()) {
+          socketService.reconnect();
+        }
+        // Refresh data
+        fetchData(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     // Cleanup function
     return () => {
       isMountedRef.current = false;
       clearInterval(connectionCheckInterval);
       socketService.removeAllListeners();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       console.log('🧹 CallHistory: Stopped real-time updates');
     };
   }, [fetchData]);

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
+import socketService from '../../services/socketService';
 
 // Interface for unique call with frequency
 interface UniqueCall {
@@ -74,6 +75,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   isRefreshing: propIsRefreshing
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isPageVisible, setIsPageVisible] = React.useState(true);
   
   // Use prop isRefreshing if provided, otherwise use local state
   const refreshing = propIsRefreshing ?? isRefreshing;
@@ -87,6 +89,32 @@ const CallHistory: React.FC<CallHistoryProps> = ({
         setIsRefreshing(false);
       }, 1000); // Keep spinning for visual feedback
     }
+  }, [onRefresh]);
+
+  // Handle page visibility changes
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsPageVisible(isVisible);
+      
+      if (isVisible) {
+        console.log('📱 Page became visible, checking call history connection...');
+        // Reconnect socket if needed
+        if (!socketService.isConnected()) {
+          socketService.reconnect();
+        }
+        // Force refresh if refresh function is available
+        if (onRefresh) {
+          onRefresh();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [onRefresh]);
   // Filter only non-active calls (completed, busy, canceled, failed, etc.)
   const nonActiveCalls = callLogs.filter(call => {

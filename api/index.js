@@ -157,9 +157,27 @@ io.on('connection', (socket) => {
       server_time: Date.now()
     });
   });
+
+  // Add connection health monitoring
+  let lastPing = Date.now();
   
-  socket.on('disconnect', () => {
-    console.log('🔌 Client disconnected:', socket.id);
+  socket.on('ping', () => {
+    lastPing = Date.now();
+  });
+
+  // Check client health every 30 seconds
+  const healthCheck = setInterval(() => {
+    const timeSinceLastPing = Date.now() - lastPing;
+    if (timeSinceLastPing > 60000) { // 1 minute
+      console.log(`⚠️ Client ${socket.id} seems unresponsive, disconnecting...`);
+      socket.disconnect();
+      clearInterval(healthCheck);
+    }
+  }, 30000);
+  
+  socket.on('disconnect', (reason) => {
+    console.log('🔌 Client disconnected:', socket.id, 'Reason:', reason);
+    clearInterval(healthCheck);
   });
 });
 

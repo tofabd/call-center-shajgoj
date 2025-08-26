@@ -15,6 +15,7 @@ const ExtensionsStatus: React.FC = () => {
   const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
   const [updateCount, setUpdateCount] = useState(0);
   const [avgUpdateInterval, setAvgUpdateInterval] = useState<number | null>(null);
+  const [isPageVisible, setIsPageVisible] = useState(true);
 
   useEffect(() => {
     loadExtensions();
@@ -50,15 +51,37 @@ const ExtensionsStatus: React.FC = () => {
     
     socketService.onExtensionStatusUpdated(handleExtensionUpdate);
     
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsPageVisible(isVisible);
+      
+      if (isVisible) {
+        console.log('📱 Page became visible, refreshing extensions...');
+        // Force refresh when page becomes visible
+        loadExtensions(true);
+        // Reconnect socket if needed
+        if (!socketService.isConnected()) {
+          socketService.reconnect();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     // Cleanup on unmount
     return () => {
       socketService.removeAllListeners();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
   // Enhanced real-time connection monitoring
   useEffect(() => {
     const checkConnectionHealth = () => {
+      // Skip health checks when page is not visible
+      if (!isPageVisible) return;
+      
       if (socketService.isConnected()) {
         setRealtimeStatus('connected');
         
@@ -72,22 +95,28 @@ const ExtensionsStatus: React.FC = () => {
             setConnectionHealth('poor');
           } else {
             setConnectionHealth('stale');
+            // Attempt reconnection when stale
+            console.log('🔄 Connection stale, attempting reconnection...');
+            socketService.reconnect();
           }
         }
       } else {
         setRealtimeStatus('disconnected');
         setConnectionHealth('poor');
+        // Attempt reconnection when disconnected
+        console.log('🔄 Connection lost, attempting reconnection...');
+        socketService.reconnect();
       }
     };
 
     // Initial check
     checkConnectionHealth();
     
-    // Check every 5 seconds
+    // Check every 5 seconds only when page is visible
     const healthInterval = setInterval(checkConnectionHealth, 5000);
     
     return () => clearInterval(healthInterval);
-  }, []);
+  }, [isPageVisible]); // Add isPageVisible dependency
 
   const loadExtensions = async (isRefresh = false) => {
     try {
