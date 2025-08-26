@@ -214,7 +214,7 @@ const ExtensionsStatus: React.FC = () => {
     }
   };
 
-  // Sort extensions and filter out AMI-generated codes
+  // Sort extensions and filter out AMI-generated codes and unknown status
   const sortedExtensions = [...extensions]
     .filter(extension => {
       // Filter out inactive extensions
@@ -225,7 +225,10 @@ const ExtensionsStatus: React.FC = () => {
       // This allows 1000-9999 but excludes codes like *47*1001, *47*1001*600
       const isValidExtension = /^\d{4}$/.test(extension.extension);
       
-      return isActive && isValidExtension;
+      // Filter out extensions with unknown status
+      const hasKnownStatus = extension.status !== 'unknown';
+      
+      return isActive && isValidExtension && hasKnownStatus;
     })
     .sort((a, b) => {
       // Define priority order: online > unknown > offline
