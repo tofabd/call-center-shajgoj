@@ -111,19 +111,20 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
         );
         
         if (existingIndex >= 0) {
-                  // Update existing call
-        const updatedCalls = [...prevCalls];
-        const existingCall = updatedCalls[existingIndex];
-        updatedCalls[existingIndex] = {
-          ...existingCall,
-          // Update only the fields from the update event
-          direction: update.direction || existingCall.direction,
+          // Update existing call
+          const updatedCalls = [...prevCalls];
+          const existingCall = updatedCalls[existingIndex];
+          updatedCalls[existingIndex] = {
+            ...existingCall,
+            // Update fields from the update event
+            direction: update.direction || existingCall.direction,
             other_party: update.other_party || existingCall.other_party,
             agent_exten: update.agent_exten || existingCall.agent_exten,
             started_at: update.started_at || existingCall.started_at,
             answered_at: update.answered_at || existingCall.answered_at,
             ended_at: update.ended_at || existingCall.ended_at,
             duration: update.duration || existingCall.duration,
+            status: update.status || existingCall.status, // Use status from real-time update
             updatedAt: update.timestamp || new Date().toISOString()
           };
           return updatedCalls;
@@ -142,6 +143,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               ended_at: update.ended_at,
               caller_number: update.other_party || 'Unknown',
               duration: update.duration,
+              status: update.status, // Include status from real-time update
               createdAt: update.timestamp || new Date().toISOString(),
               updatedAt: update.timestamp || new Date().toISOString()
             };
@@ -292,7 +294,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return formatDuration(duration);
   };
 
-  const getStatusColor = (status: string, direction?: 'incoming' | 'outgoing') => {
+  const getStatusColor = (status: string | undefined, direction?: 'incoming' | 'outgoing') => {
+    if (!status) return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
+    
     const baseStatus = status.toLowerCase();
     
     if (['answered', 'in_progress'].includes(baseStatus)) {
@@ -310,7 +314,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
   };
 
-  const getStatusPriority = (status: string): number => {
+  const getStatusPriority = (status: string | undefined): number => {
+    if (!status) return 999;
+    
     const statusPriority = {
       'ringing': 1,
       'ring': 1,
@@ -440,12 +446,12 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                             const callStatus = call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing';
                             const direction = call.direction;
                             
-                            if (['answered', 'in_progress'].includes(status)) {
+                            if (['answered', 'in_progress'].includes(callStatus)) {
                               return direction === 'outgoing'
                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
                             }
-                            if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
+                            if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(callStatus)) {
                               return direction === 'outgoing'
                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
@@ -505,25 +511,25 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
                       {/* Status Badge */}
                       <div className="flex-shrink-0">
-                        <span className={`inline-flex items-center px-3 py-2 text-xs font-medium rounded-full min-w-[80px] justify-center ${getStatusColor(call.status, call.direction)} ${
-                          ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
+                        <span className={`inline-flex items-center px-3 py-2 text-xs font-medium rounded-full min-w-[80px] justify-center ${getStatusColor(call.status || 'unknown', call.direction)} ${
+                          call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
                             ? (call.direction === 'outgoing'
                                 ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold ringing-badge'
                                 : 'animate-pulse ring-2 ring-green-400 dark:ring-green-500 shadow-lg shadow-green-200 dark:shadow-green-900 bg-green-600 text-white dark:bg-green-500 dark:text-white font-bold ringing-badge')
                             : ''
                         }`}>
                           {(call.status === 'answered') && <span className="mr-1">✅</span>}
-                          {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
-                          <span className={(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) ? "ml-1 font-bold" : "ml-2"}>
-                            {call.status.toLowerCase() === 'ringing' ? 'Ringing' : 
-                             call.status.toLowerCase() === 'ring' ? 'Ringing' :
-                             call.status.toLowerCase() === 'calling' ? 'Calling' :
-                             call.status.toLowerCase() === 'incoming' ? 'Incoming' :
-                             call.status.toLowerCase() === 'started' ? 'Started' :
-                             call.status.toLowerCase() === 'start' ? 'Started' :
-                             call.status.toLowerCase() === 'answered' ? 'Answered' :
-                             call.status.toLowerCase() === 'in_progress' ? 'In Progress' :
-                             call.status}
+                          {(call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
+                          <span className={(call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) ? "ml-1 font-bold" : "ml-2"}>
+                            {call.status?.toLowerCase() === 'ringing' ? 'Ringing' : 
+                             call.status?.toLowerCase() === 'ring' ? 'Ringing' :
+                             call.status?.toLowerCase() === 'calling' ? 'Calling' :
+                             call.status?.toLowerCase() === 'incoming' ? 'Incoming' :
+                             call.status?.toLowerCase() === 'started' ? 'Started' :
+                             call.status?.toLowerCase() === 'start' ? 'Started' :
+                             call.status?.toLowerCase() === 'answered' ? 'Answered' :
+                             call.status?.toLowerCase() === 'in_progress' ? 'In Progress' :
+                             call.status || 'Unknown'}
                           </span>
                         </span>
                       </div>

@@ -47,34 +47,56 @@ export const getCalls = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
-    // Filter by status if provided (using virtual status field)
+    // Filter by status if provided (using derived status from disposition)
     if (status) {
       calls = calls.filter(call => {
-        const callStatus = call.ended_at 
-          ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
-          : (call.answered_at ? 'answered' : 'ringing');
+        // Derive status from call state using disposition
+        let callStatus;
+        if (call.ended_at) {
+          // Call has ended - use disposition or default to 'ended'
+          callStatus = call.disposition || 'ended';
+        } else if (call.answered_at) {
+          // Call is answered but not ended
+          callStatus = 'answered';
+        } else {
+          // Call is not answered and not ended
+          callStatus = 'ringing';
+        }
         return callStatus === status;
       });
     }
 
     // Transform MongoDB data to frontend format
-    const transformedCalls = calls.map(call => ({
-      id: parseInt(call._id.toString().slice(-6), 16), // Convert ObjectId to number
-      callerNumber: call.caller_number || call.other_party || call.linkedid,
-      callerName: call.caller_name,
-      startTime: call.started_at,
-      endTime: call.ended_at,
-      status: call.ended_at 
-        ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
-        : (call.answered_at ? 'answered' : 'ringing'),
-      duration: call.talk_seconds || 
-                (call.ended_at && call.started_at ? 
-                  Math.floor((new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000) : 
-                  undefined),
-      direction: call.direction,
-      agentExten: call.agent_exten,
-      otherParty: call.other_party
-    }));
+    const transformedCalls = calls.map(call => {
+      // Derive status from call state using disposition
+      let status;
+      if (call.ended_at) {
+        // Call has ended - use disposition or default to 'ended'
+        status = call.disposition || 'ended';
+      } else if (call.answered_at) {
+        // Call is answered but not ended
+        status = 'answered';
+      } else {
+        // Call is not answered and not ended
+        status = 'ringing';
+      }
+      
+      return {
+        id: parseInt(call._id.toString().slice(-6), 16), // Convert ObjectId to number
+        callerNumber: call.caller_number || call.other_party || call.linkedid,
+        callerName: call.caller_name,
+        startTime: call.started_at,
+        endTime: call.ended_at,
+        status: status,
+        duration: call.talk_seconds || 
+                  (call.ended_at && call.started_at ? 
+                    Math.floor((new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000) : 
+                    undefined),
+        direction: call.direction,
+        agentExten: call.agent_exten,
+        otherParty: call.other_party
+      };
+    });
 
     const total = await Call.countDocuments(filter);
     const totalPages = Math.ceil(total / parseInt(limit));
@@ -165,15 +187,24 @@ export const getCallStatistics = async (req, res) => {
     const statusCounts = {};
 
     calls.forEach(call => {
-      const status = call.ended_at 
-        ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
-        : (call.answered_at ? 'answered' : 'ringing');
+      // Derive status from call state using disposition instead of status field
+      let status;
+      if (call.ended_at) {
+        // Call has ended - use disposition or default to 'ended'
+        status = call.disposition || 'ended';
+      } else if (call.answered_at) {
+        // Call is answered but not ended
+        status = 'answered';
+      } else {
+        // Call is not answered and not ended
+        status = 'ringing';
+      }
       
       statusCounts[status] = (statusCounts[status] || 0) + 1;
       
       if (status === 'answered') {
         answeredCalls++;
-      } else if (['ended', 'busy', 'no_answer'].includes(status) && !call.answered_at) {
+      } else if (['ended', 'busy', 'no_answer', 'failed', 'congestion', 'chanunavail'].includes(status) && !call.answered_at) {
         missedCalls++;
       }
     });
@@ -257,9 +288,28 @@ export const getLiveCalls = async (req, res) => {
       ]
     }).sort({ started_at: -1 });
 
+    // Transform to include derived status from disposition for frontend consistency
+    const transformedCalls = liveCalls.map(call => {
+      const callData = call.toJSON();
+      
+      // Derive status from call state using disposition
+      if (call.ended_at) {
+        // Call has ended - use disposition or default to 'ended'
+        callData.status = call.disposition || 'ended';
+      } else if (call.answered_at) {
+        // Call is answered but not ended
+        callData.status = 'answered';
+      } else {
+        // Call is not answered and not ended
+        callData.status = 'ringing';
+      }
+      
+      return callData;
+    });
+
     res.json({
       success: true,
-      data: liveCalls
+      data: transformedCalls
     });
   } catch (error) {
     res.status(500).json({

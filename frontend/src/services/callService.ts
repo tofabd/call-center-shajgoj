@@ -18,6 +18,7 @@ export interface LiveCall {
   disposition?: string;
   hangup_cause?: string;
   duration?: number; // Virtual field from API
+  status?: string; // Derived status field
   createdAt: string;
   updatedAt: string;
 }

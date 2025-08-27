@@ -10,6 +10,8 @@ export interface CallUpdateEvent {
   answered_at?: string;
   ended_at?: string;
   duration?: number;
+  status?: string; // Derived status from disposition
+  disposition?: string; // Original Asterisk disposition
   timestamp: string;
 }
 

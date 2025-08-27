@@ -185,6 +185,20 @@ io.on('connection', (socket) => {
 // Bridge BroadcastService events to Socket.IO
 broadcast.onCallUpdated((call) => {
   console.log('📡 Broadcasting call update to all clients:', call.linkedid);
+  
+  // Derive status from call state using disposition for consistency
+  let status;
+  if (call.ended_at) {
+    // Call has ended - use disposition or default to 'ended'
+    status = call.disposition || 'ended';
+  } else if (call.answered_at) {
+    // Call is answered but not ended
+    status = 'answered';
+  } else {
+    // Call is not answered and not ended
+    status = 'ringing';
+  }
+  
   io.emit('call-updated', {
     id: call._id,
     linkedid: call.linkedid,
@@ -195,6 +209,8 @@ broadcast.onCallUpdated((call) => {
     answered_at: call.answered_at,
     ended_at: call.ended_at,
     duration: call.talk_seconds,
+    status: status, // Include derived status
+    disposition: call.disposition, // Also include original disposition
     timestamp: new Date().toISOString()
   });
 });
