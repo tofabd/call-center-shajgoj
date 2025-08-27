@@ -1,41 +1,30 @@
 import React, { useCallback } from 'react';
-import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, CirclePlus, CircleMinus, Timer, RefreshCw } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
 import socketService from '../../services/socketService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 
-// Interface for unique call with frequency
-interface UniqueCall {
+// Interface for individual call
+interface IndividualCall {
   id: number;
   callerNumber: string;
   callerName: string | null;
   startTime: string;
+  endTime?: string;
   status: string;
   duration?: number;
-  frequency: number;
-  allCalls: Array<{
-    id: number;
-    callerNumber: string;
-    callerName: string | null;
-    startTime: string;
-    endTime?: string;
-    status: string;
-    duration?: number;
-    created_at: string;
-  }>;
   direction?: 'incoming' | 'outgoing';
   agentExten?: string | null;
   otherParty?: string | null;
+  created_at?: string;
 }
 
 interface CallHistoryProps {
-  callLogs: UniqueCall[];
+  callLogs: IndividualCall[];
   selectedCallId: number | null;
   loading: boolean;
   error: string | null;
-  expandedCalls: Set<string>;
   onCallSelect: (callId: number) => void;
-  onToggleExpansion: (callerNumber: string) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
@@ -68,9 +57,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   selectedCallId,
   loading,
   error,
-  expandedCalls,
   onCallSelect,
-  onToggleExpansion,
   onRefresh,
   isRefreshing: propIsRefreshing
 }) => {
@@ -153,20 +140,26 @@ const CallHistory: React.FC<CallHistoryProps> = ({
 
 
 
-  // Filter only non-active calls (completed, busy, canceled, failed, etc.)
-  const nonActiveCalls = callLogs.filter(call => {
-    const status = call.status.toLowerCase();
-    return ![
-      'ringing', 'ring', 'calling', 'incoming', 
-      'started', 'start', 'answered', 'in_progress'
-    ].includes(status);
-  });
+  // Show only completed/ended calls (filter out active calls)
+  const sortedCalls = callLogs
+    .filter(call => {
+      const status = call.status.toLowerCase();
+      // Filter out ringing and answered calls (active calls)
+      return ![
+        'ringing', 'ring', 'calling', 'incoming', 
+        'started', 'start', 'answered', 'in_progress'
+      ].includes(status);
+    })
+    .sort((a, b) => {
+      // Sort by start time (most recent first)
+      return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+    });
 
   // Force re-render when call data changes to ensure real-time updates
   React.useEffect(() => {
     // This effect ensures the component re-renders when callLogs change
-    console.log('📊 CallHistory: Non-active calls updated, count:', nonActiveCalls.length);
-  }, [nonActiveCalls]);
+    console.log('📊 CallHistory: Completed calls updated, count:', sortedCalls.length);
+  }, [sortedCalls]);
 
   React.useEffect(() => {
     // Log when selectedCallId changes to track auto-selection
@@ -178,18 +171,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
-
-  const formatDateTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleString([], { 
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true
-    });
   };
 
   const formatDuration = (totalSeconds: number): string => {
@@ -245,7 +226,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Completed and inactive calls</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Completed and ended calls</p>
             </div>
             <div className="flex items-center space-x-2">
               {onRefresh && (
@@ -317,110 +298,68 @@ const CallHistory: React.FC<CallHistoryProps> = ({
           ) : callLogs.length > 0 ? (
             <div className="flex-1 overflow-y-auto narrow-scrollbar">
               <div className="p-4 space-y-3">
-                {nonActiveCalls
-                  .sort((a, b) => {
-                    // Sort primarily by start time (most recent first), then by status priority
-                    const timeComparison = new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-                    if (timeComparison !== 0) {
-                      return timeComparison;
-                    }
-                    
-                    // If times are equal, use status priority as secondary sort
-                    const statusPriority = {
-                      'completed': 1,
-                      'busy': 2,
-                      'no answer': 3,
-                      'no_answer': 3,
-                      'canceled': 4,
-                      'cancelled': 4,
-                      'congestion': 5,
-                      'missed': 6,
-                      'failed': 7
-                    } as Record<string, number>;
-                    const aPriority = statusPriority[a.status.toLowerCase()] || 8;
-                    const bPriority = statusPriority[b.status.toLowerCase()] || 8;
-                    return aPriority - bPriority;
-                  })
-                  .map((call) => (
-                    <div key={`${call.callerNumber}-${call.id}-${call.status}`} className="space-y-2">
-                      {/* Main Call Item */}
-                      <div
-                        className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] flex flex-col justify-center ${
-                          selectedCallId === call.id
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
-                            : (() => {
-                                const status = call.status.toLowerCase();
-                                const direction = call.direction;
-                                
-                                // Background colors based on status and direction
-                                if (['answered', 'in_progress'].includes(status)) {
-                                  return direction === 'outgoing'
-                                    ? 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/30 dark:hover:to-emerald-900/30'
-                                    : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
-                                }
-                                if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
-                                  return direction === 'outgoing'
-                                    ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 border-l-4 border-l-indigo-500'
-                                    : 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-900/30 dark:hover:to-teal-900/30 border-l-4 border-l-emerald-500';
-                                }
-                                if (['busy'].includes(status)) {
-                                  return direction === 'outgoing'
-                                    ? 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 hover:from-red-100 hover:to-rose-100 dark:hover:from-red-900/30 dark:hover:to-rose-900/30'
-                                    : 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 hover:from-red-100 hover:to-pink-100 dark:hover:from-red-900/30 dark:hover:to-pink-900/30';
-                                }
-                                if (['no answer', 'missed', 'failed'].includes(status)) {
-                                  return direction === 'outgoing'
-                                    ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/30 dark:hover:to-amber-900/30'
-                                    : 'border-yellow-300 dark:border-yellow-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30';
-                                }
-                                // Default (completed, etc.)
+                {sortedCalls.map((call) => (
+                  <div key={`${call.id}-${call.startTime}`} className="space-y-2">
+                    {/* Individual Call Item */}
+                    <div
+                      className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] flex flex-col justify-center cursor-pointer ${
+                        selectedCallId === call.id
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                          : (() => {
+                              const status = call.status.toLowerCase();
+                              const direction = call.direction;
+                              
+                              // Background colors based on status and direction (following design specs)
+                              if (['answered', 'in_progress'].includes(status)) {
                                 return direction === 'outgoing'
-                                  ? 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-700 dark:hover:to-slate-700'
-                                  : 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-700 dark:hover:to-gray-700';
-                              })()
-                        }`}
-                      >
-                        <div className="flex flex-col cursor-pointer" onClick={() => onCallSelect(call.id)}>
-                          {/* Main call info line */}
-                          <div className="flex items-center space-x-3">
-                            {/* Direction Icon */}
-                            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
-                              {call.direction === 'outgoing' ? (
-                                <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                              ) : call.direction === 'incoming' ? (
-                                <PhoneIncoming className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                              ) : (
-                                <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                              )}
-                            </div>
+                                  ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30'
+                                  : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
+                              }
+                              if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
+                                return direction === 'outgoing'
+                                  ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 border-l-4 border-l-indigo-500'
+                                  : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30 border-l-4 border-l-green-500';
+                              }
+                              if (['busy'].includes(status)) {
+                                return direction === 'outgoing'
+                                  ? 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 hover:from-red-100 hover:to-rose-100 dark:hover:from-red-900/30 dark:hover:to-rose-900/30'
+                                  : 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 hover:from-red-100 hover:to-pink-100 dark:hover:from-red-900/30 dark:hover:to-pink-900/30';
+                              }
+                              if (['no answer', 'missed', 'failed'].includes(status)) {
+                                return direction === 'outgoing'
+                                  ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/30 dark:hover:to-amber-900/30'
+                                  : 'border-yellow-300 dark:border-yellow-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30';
+                              }
+                              // Default (completed, etc.)
+                              return direction === 'outgoing'
+                                ? 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-700 dark:hover:to-slate-700'
+                                : 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-700 dark:hover:to-gray-700';
+                            })()
+                      }`}
+                      onClick={() => onCallSelect(call.id)}
+                    >
+                      {/* Main call info line */}
+                      <div className="flex items-center space-x-3">
+                        {/* Direction Icon */}
+                        <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                          {call.direction === 'outgoing' ? (
+                            <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                          ) : call.direction === 'incoming' ? (
+                            <PhoneIncoming className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          ) : (
+                            <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                          )}
+                        </div>
 
-                            {/* Real Phone Number */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-base font-bold text-gray-900 dark:text-gray-100 font-mono truncate">
-                                  {call.direction === 'outgoing' 
-                                    ? (call.otherParty || call.callerNumber || 'Unknown') 
-                                    : (call.callerNumber || 'Unknown')
-                                  }
-                                </span>
-                                {call.frequency > 1 && (
-                                  <div
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onToggleExpansion(call.callerNumber);
-                                    }}
-                                    className="flex items-center space-x-1 px-2 py-0.5 text-[10px] rounded-full font-medium bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors duration-200 cursor-pointer flex-shrink-0"
-                                  >
-                                    <span>{call.frequency}</span>
-                                    {expandedCalls.has(call.callerNumber) ? (
-                                      <CircleMinus className="h-3 w-3" />
-                                    ) : (
-                                      <CirclePlus className="h-3 w-3" />
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                        {/* Phone Number */}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-base font-bold text-gray-900 dark:text-gray-100 font-mono truncate">
+                            {call.direction === 'outgoing' 
+                              ? (call.otherParty || call.callerNumber || 'Unknown') 
+                              : (call.callerNumber || 'Unknown')
+                            }
+                          </span>
+                        </div>
 
                             {/* Extension */}
                             <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 flex-shrink-0">
@@ -430,120 +369,74 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                               </span>
                             </div>
 
-                            {/* Direction Badge */}
-                            <div className="flex-shrink-0">
-                              {call.direction ? (
-                                <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                                  call.direction === 'outgoing'
-                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
-                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
-                                }`}>
-                                  {call.direction === 'outgoing' ? '📤 Out' : '📥 In'}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                                  📞 -
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Status Badge */}
-                            <div className="flex-shrink-0">
-                              <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)} ${
-                                ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
-                                  ? (call.direction === 'outgoing'
-                                      ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold'
-                                      : 'animate-pulse ring-2 ring-emerald-400 dark:ring-emerald-500 shadow-lg shadow-emerald-200 dark:shadow-emerald-900 bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white font-bold')
-                                  : ''
-                              }`}>
-                                                                 {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
-                                 {call.status === 'completed' && '🏁'}
-                                 {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
-                                 {call.status === 'busy' && '🚫'}
-                                 {(['no answer', 'no_answer', 'missed', 'failed'].includes(call.status.toLowerCase())) && '❌'}
-                                 {(['canceled', 'cancelled'].includes(call.status.toLowerCase())) && '🚫'}
-                                 {call.status === 'congestion' && '🌐'}
-                                 <span className="ml-2">{call.status}</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Second line: time and duration */}
-                          <div className="mt-2 ml-7 flex items-center space-x-3">
-                            <div className="flex items-center space-x-1">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
-                            </div>
-                            
-                            {/* Duration - Right side of start time */}
-                            {call.duration && (
-                              <div className="flex items-center space-x-1">
-                                <Timer className="h-3 w-3 text-gray-400" />
-                                <span className={`text-xs font-medium ${
-                                  call.direction === 'outgoing' 
-                                    ? 'text-indigo-600 dark:text-indigo-400' 
-                                    : 'text-emerald-600 dark:text-emerald-400'
-                                }`}>
-                                  {formatDuration(call.duration)}
-                                </span>
-                              </div>
-                            )}
-                            {!call.duration && (
-                              <div className="flex items-center space-x-1">
-                                <Timer className="h-3 w-3 text-gray-400" />
-                                <span className="text-xs text-gray-500 dark:text-gray-400">Latest call</span>
-                              </div>
-                            )}
-                          </div>
+                        {/* Direction Badge */}
+                        <div className="flex-shrink-0">
+                          {call.direction ? (
+                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                              call.direction === 'outgoing'
+                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            }`}>
+                              {call.direction === 'outgoing' ? '📤 Out' : '📥 In'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                              📞 -
+                            </span>
+                          )}
                         </div>
-                        {/* Expanded Call List */}
-                        {expandedCalls.has(call.callerNumber) && call.frequency > 1 && (
-                          <div className="mt-3 border-t border-gray-200 dark:border-gray-600 pt-3">
-                            <div className="space-y-2">
-                              {call.allCalls.slice(1).map((subCall, index) => (
-                                <div
-                                  key={subCall.id}
-                                  className="group p-4 bg-gray-50 dark:bg-gray-800 border rounded-lg transition-all duration-200 border-gray-200 dark:border-gray-700 min-h-[60px] flex flex-col justify-center"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2 mb-1">
-                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                          Call #{call.frequency - index - 1}
-                                        </p>
-                                        <span className="text-gray-400">•</span>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                          {formatTime(subCall.startTime)}
-                                        </p>
-                                        {subCall.duration && (
-                                          <>
-                                            <span className="text-gray-400">•</span>
-                                            <div className="flex items-center space-x-1">
-                                              <Timer className="h-3 w-3 text-gray-400" />
-                                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatDuration(subCall.duration)}</p>
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {formatDateTime(subCall.created_at)}
-                                      </p>
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                      <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium mb-1 ${getStatusColor(subCall.status)}`}>
-                                        {subCall.status}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+
+                        {/* Status Badge */}
+                        <div className="flex-shrink-0">
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)} ${
+                            ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
+                              ? (call.direction === 'outgoing'
+                                  ? 'animate-pulse ring-2 ring-indigo-400 dark:ring-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-indigo-900 bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white font-bold'
+                                  : 'animate-pulse ring-2 ring-green-400 dark:ring-green-500 shadow-lg shadow-green-200 dark:shadow-green-900 bg-green-600 text-white dark:bg-green-500 dark:text-white font-bold')
+                              : ''
+                          }`}>
+                            {(call.status === 'answered' || call.status === 'in_progress') && '✅'}
+                            {call.status === 'completed' && '🏁'}
+                            {(['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
+                            {call.status === 'busy' && '🚫'}
+                            {(['no answer', 'no_answer', 'missed', 'failed'].includes(call.status.toLowerCase())) && '❌'}
+                            {(['canceled', 'cancelled'].includes(call.status.toLowerCase())) && '🚫'}
+                            {call.status === 'congestion' && '🌐'}
+                            <span className="ml-2">{call.status.charAt(0).toUpperCase() + call.status.slice(1)}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Second line: time and duration */}
+                      <div className="mt-2 ml-7 flex items-center space-x-3">
+                        <div className="flex items-center space-x-1">
+                          <Clock className="h-3 w-3 text-gray-400" />
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
+                        </div>
+                        
+                        {/* Duration - Right side of start time */}
+                        {call.duration && (
+                          <div className="flex items-center space-x-1">
+                            <Timer className="h-3 w-3 text-gray-400" />
+                            <span className={`text-xs font-medium ${
+                              call.direction === 'outgoing' 
+                                ? 'text-indigo-600 dark:text-indigo-400' 
+                                : 'text-green-600 dark:text-green-400'
+                            }`}>
+                              {formatDuration(call.duration)}
+                            </span>
+                          </div>
+                        )}
+                        {!call.duration && (
+                          <div className="flex items-center space-x-1">
+                            <Timer className="h-3 w-3 text-gray-400" />
+                            <span className="text-xs text-gray-500 dark:text-gray-400">No duration</span>
                           </div>
                         )}
                       </div>
-
                     </div>
-                  ))}
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
@@ -553,7 +446,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   <PhoneIncoming className="h-10 w-10 text-gray-400" />
                 </div>
                 <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Completed Calls</h4>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are currently active</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are currently active or in progress</p>
               </div>
             </div>
           )}

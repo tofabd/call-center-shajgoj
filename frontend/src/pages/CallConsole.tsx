@@ -32,32 +32,8 @@ import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 
 // Removed WordPress/WooCommerce-specific interfaces
 
-// Interface for unique call with frequency
-interface UniqueCall {
-  id: number;
-  callerNumber: string;
-  callerName: string | null;
-  startTime: string;
-  status: string;
-  duration?: number;
-  frequency: number;
-  allCalls: Array<{
-    id: number;
-    callerNumber: string;
-    callerName: string | null;
-    startTime: string;
-    endTime?: string;
-    status: string;
-    duration?: number;
-    created_at: string;
-  }>;
-  direction?: 'incoming' | 'outgoing';
-  agentExten?: string | null;
-  otherParty?: string | null;
-}
-
 const CallConsole: React.FC = () => {
-  const [callLogs, setCallLogs] = useState<UniqueCall[]>([]);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]); // Changed to CallLog[] for individual calls
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
   const [isCallDetailsModalOpen, setIsCallDetailsModalOpen] = useState(false);
   const [isManualSelection, setIsManualSelection] = useState(false);
@@ -65,63 +41,7 @@ const CallConsole: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Removed WooCommerce modal states
-  const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
   // Removed WooCommerce notes states
-
-  // Transform flat call logs into grouped unique calls for UI
-  const transformToUniqueCalls = (logs: CallLog[]): UniqueCall[] => {
-    if (!logs || logs.length === 0) {
-      console.log('📭 No call logs received');
-      return [];
-    }
-
-    console.log('🔄 Transforming call logs:', logs.length, 'calls');
-    
-    // Group calls by caller number for frequency calculation
-    const callsByNumber = logs.reduce((acc, call) => {
-      const key = call.callerNumber || 'unknown';
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(call);
-      return acc;
-    }, {} as Record<string, CallLog[]>);
-
-    // Transform to UniqueCall format
-    const transformed = Object.entries(callsByNumber).map(([callerNumber, calls]) => {
-      const sortedCalls = calls.sort((a, b) => 
-        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-      );
-      
-      const latestCall = sortedCalls[0];
-      
-      return {
-        id: latestCall.id,
-        callerNumber: callerNumber,
-        callerName: latestCall.callerName,
-        startTime: latestCall.startTime,
-        status: latestCall.status,
-        duration: latestCall.duration,
-        frequency: calls.length,
-        allCalls: sortedCalls.map(call => ({
-          id: call.id,
-          callerNumber: call.callerNumber,
-          callerName: call.callerName,
-          startTime: call.startTime,
-          endTime: call.endTime,
-          status: call.status,
-          duration: call.duration,
-          created_at: call.startTime,
-        })),
-        direction: latestCall.direction,
-        agentExten: latestCall.agentExten,
-        otherParty: latestCall.otherParty
-      };
-    });
-
-    console.log('✅ Transformed to unique calls:', transformed.length);
-    return transformed;
-  };
 
   // Refs for cleanup  
   const isMountedRef = useRef(true);
@@ -137,10 +57,13 @@ const CallConsole: React.FC = () => {
       const logs = await callLogService.getCallLogs();
       console.log('📊 Received call data:', logs);
       
-      const transformed = transformToUniqueCalls(logs);
-      console.log('🔄 Setting call logs:', transformed.length, 'unique calls');
+      // Sort calls by start time (most recent first)
+      const sortedLogs = logs.sort((a, b) => 
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
       
-      setCallLogs(transformed);
+      console.log('🔄 Setting call logs:', sortedLogs.length, 'individual calls');
+      setCallLogs(sortedLogs);
     } catch (err) {
       console.error('❌ Error fetching call data:', err);
       setError('Failed to fetch call data from MongoDB API');
@@ -175,45 +98,48 @@ const CallConsole: React.FC = () => {
       
       if (!isMountedRef.current) return;
       
-      // Update the specific call in the list
+      // Update the specific call in the list or add new one
       setCallLogs(prevLogs => {
-        const updatedLogs = [...prevLogs];
-        let found = false;
+        const callId = parseInt(callUpdate.id);
+        const existingIndex = prevLogs.findIndex(call => call.id === callId);
         
-        // Find and update existing call
-        for (let i = 0; i < updatedLogs.length; i++) {
-          const uniqueCall = updatedLogs[i];
+        if (existingIndex >= 0) {
+          // Update existing call
+          const updatedLogs = [...prevLogs];
+          updatedLogs[existingIndex] = {
+            ...updatedLogs[existingIndex],
+            status: callUpdate.status || updatedLogs[existingIndex].status,
+            duration: callUpdate.duration || updatedLogs[existingIndex].duration,
+            endTime: callUpdate.ended_at || updatedLogs[existingIndex].endTime,
+            direction: callUpdate.direction || updatedLogs[existingIndex].direction,
+            agentExten: callUpdate.agent_exten || updatedLogs[existingIndex].agentExten,
+            otherParty: callUpdate.other_party || updatedLogs[existingIndex].otherParty
+          };
           
-          // Check if any call in allCalls matches the updated call
-          const callIndex = uniqueCall.allCalls.findIndex(call => call.id === parseInt(callUpdate.id));
+          console.log('✅ Updated existing call:', callId);
+          return updatedLogs;
+        } else {
+          // Add new call if it doesn't exist
+          const newCall: CallLog = {
+            id: callId,
+            callerNumber: callUpdate.other_party || 'Unknown',
+            callerName: null,
+            startTime: callUpdate.started_at || new Date().toISOString(),
+            endTime: callUpdate.ended_at,
+            status: callUpdate.status || 'unknown',
+            duration: callUpdate.duration,
+            direction: callUpdate.direction,
+            agentExten: callUpdate.agent_exten,
+            otherParty: callUpdate.other_party
+          };
           
-          if (callIndex >= 0) {
-            // Update the specific call in allCalls
-            uniqueCall.allCalls[callIndex] = {
-              ...uniqueCall.allCalls[callIndex],
-              status: callUpdate.status,
-              duration: callUpdate.duration,
-              endTime: callUpdate.ended_at
-            };
-            
-            // If this is the latest call (index 0), update the main UniqueCall data
-            if (callIndex === 0) {
-              uniqueCall.status = callUpdate.status;
-              uniqueCall.duration = callUpdate.duration;
-            }
-            
-            found = true;
-            break;
-          }
+          console.log('➕ Added new call:', callId);
+          // Add to beginning and sort by start time
+          const updatedLogs = [newCall, ...prevLogs].sort((a, b) => 
+            new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+          );
+          return updatedLogs;
         }
-        
-        // If call not found, refresh the entire list
-        if (!found) {
-          console.log('🔄 Call not found in list, refreshing data...');
-          fetchData(false);
-        }
-        
-        return updatedLogs;
       });
     });
     
@@ -368,19 +294,6 @@ const CallConsole: React.FC = () => {
     setIsManualSelection(false);
   };
 
-  // Function to toggle call expansion
-  const toggleCallExpansion = (callerNumber: string) => {
-    setExpandedCalls(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(callerNumber)) {
-        newSet.delete(callerNumber);
-      } else {
-        newSet.add(callerNumber);
-      }
-      return newSet;
-    });
-  };
-
   // Customer selection removed
 
   // WooCommerce order handlers removed
@@ -393,16 +306,14 @@ const CallConsole: React.FC = () => {
       {/* WooCommerce modals removed */}
 
       <div className="flex gap-4 p-6 h-full overflow-hidden">
-        {/* Left Column - Call Monitor (Completed/Inactive Calls) */}
+        {/* Left Column - Call Monitor (All Calls) */}
         <div className="flex-1 min-w-0">
           <CallHistory
-            callLogs={callLogs}
+            callLogs={callLogs} // Now passing individual calls
             selectedCallId={selectedCallId}
             loading={loading}
             error={error}
-            expandedCalls={expandedCalls}
             onCallSelect={handleCallSelect}
-            onToggleExpansion={toggleCallExpansion}
             onRefresh={handleManualRefresh}
           />
         </div>
