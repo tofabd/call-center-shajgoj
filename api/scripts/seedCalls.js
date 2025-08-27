@@ -11,7 +11,6 @@ const sampleCalls = [
     caller_number: '+1234567890',
     caller_name: 'John Doe',
     agent_exten: '1001',
-    status: 'answered',
     started_at: new Date('2024-01-15T10:00:00Z'),
     answered_at: new Date('2024-01-15T10:05:00Z'),
     ended_at: new Date('2024-01-15T10:15:00Z'),
@@ -23,7 +22,6 @@ const sampleCalls = [
     direction: 'outgoing',
     other_party: '+0987654321',
     agent_exten: '1002',
-    status: 'completed',
     started_at: new Date('2024-01-15T11:00:00Z'),
     answered_at: new Date('2024-01-15T11:02:00Z'),
     ended_at: new Date('2024-01-15T11:10:00Z'),
@@ -36,7 +34,6 @@ const sampleCalls = [
     caller_number: '+1555123456',
     caller_name: 'Jane Smith',
     agent_exten: '1003',
-    status: 'no_answer',
     started_at: new Date('2024-01-15T12:00:00Z'),
     ended_at: new Date('2024-01-15T12:30:00Z'),
     ring_seconds: 30
@@ -46,7 +43,6 @@ const sampleCalls = [
     direction: 'outgoing',
     other_party: '+1555987654',
     agent_exten: '1001',
-    status: 'busy',
     started_at: new Date('2024-01-15T13:00:00Z'),
     ended_at: new Date('2024-01-15T13:05:00Z'),
     ring_seconds: 5
@@ -57,7 +53,6 @@ const sampleCalls = [
     caller_number: '+1888123456',
     caller_name: 'Bob Johnson',
     agent_exten: '1002',
-    status: 'ended',
     started_at: new Date('2024-01-15T14:00:00Z'),
     answered_at: new Date('2024-01-15T14:03:00Z'),
     ended_at: new Date('2024-01-15T14:20:00Z'),
@@ -84,7 +79,8 @@ async function seedCalls() {
     // Display the created calls
     console.log('\n📞 Sample calls created:');
     result.forEach((call, index) => {
-      console.log(`${index + 1}. ${call.direction} call to ${call.caller_number || call.other_party} - Status: ${call.status}`);
+      const status = call.ended_at ? (call.answered_at ? 'ended' : (call.disposition || 'ended')) : (call.answered_at ? 'answered' : 'ringing');
+      console.log(`${index + 1}. ${call.direction} call to ${call.caller_number || call.other_party} - Status: ${status}`);
     });
     
     await mongoose.disconnect();

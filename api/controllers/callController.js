@@ -19,7 +19,8 @@ export const getCalls = async (req, res) => {
     // Build filter query
     const filter = {};
     
-    if (status) filter.status = status;
+    // Note: status filtering is now handled by the virtual field in the model
+    // We'll filter by status after fetching the data
     if (direction) filter.direction = direction;
     if (agent_exten) filter.agent_exten = agent_exten;
     
@@ -40,11 +41,21 @@ export const getCalls = async (req, res) => {
 
     // Execute query with pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const calls = await Call.find(filter)
+    let calls = await Call.find(filter)
       .sort({ started_at: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .lean();
+
+    // Filter by status if provided (using virtual status field)
+    if (status) {
+      calls = calls.filter(call => {
+        const callStatus = call.ended_at 
+          ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
+          : (call.answered_at ? 'answered' : 'ringing');
+        return callStatus === status;
+      });
+    }
 
     // Transform MongoDB data to frontend format
     const transformedCalls = calls.map(call => ({
@@ -53,7 +64,9 @@ export const getCalls = async (req, res) => {
       callerName: call.caller_name,
       startTime: call.started_at,
       endTime: call.ended_at,
-      status: call.status,
+      status: call.ended_at 
+        ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
+        : (call.answered_at ? 'answered' : 'ringing'),
       duration: call.talk_seconds || 
                 (call.ended_at && call.started_at ? 
                   Math.floor((new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000) : 
@@ -143,25 +156,38 @@ export const getCallStatistics = async (req, res) => {
       dateFilter.agent_exten = agent_exten;
     }
 
-    // Aggregate statistics
+    // Get all calls in date range for status calculation
+    const calls = await Call.find(dateFilter).lean();
+
+    // Calculate status-based statistics using virtual status logic
+    let answeredCalls = 0;
+    let missedCalls = 0;
+    const statusCounts = {};
+
+    calls.forEach(call => {
+      const status = call.ended_at 
+        ? (call.answered_at ? 'ended' : (call.disposition || 'ended'))
+        : (call.answered_at ? 'answered' : 'ringing');
+      
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+      
+      if (status === 'answered') {
+        answeredCalls++;
+      } else if (['ended', 'busy', 'no_answer'].includes(status) && !call.answered_at) {
+        missedCalls++;
+      }
+    });
+
+    // Aggregate other statistics
     const [
       totalCalls,
-      answeredCalls,
-      missedCalls,
       callsByDirection,
-      callsByStatus,
       averageStats
     ] = await Promise.all([
       Call.countDocuments(dateFilter),
-      Call.countDocuments({ ...dateFilter, status: 'answered' }),
-      Call.countDocuments({ ...dateFilter, status: { $in: ['ended', 'busy', 'no_answer'] }, answered_at: null }),
       Call.aggregate([
         { $match: dateFilter },
         { $group: { _id: '$direction', count: { $sum: 1 } } }
-      ]),
-      Call.aggregate([
-        { $match: dateFilter },
-        { $group: { _id: '$status', count: { $sum: 1 } } }
       ]),
       Call.aggregate([
         { $match: { ...dateFilter, answered_at: { $ne: null } } },
@@ -185,11 +211,6 @@ export const getCallStatistics = async (req, res) => {
       directionStats[item._id] = item.count;
     });
 
-    const statusStats = {};
-    callsByStatus.forEach(item => {
-      statusStats[item._id] = item.count;
-    });
-
     const avgData = averageStats[0] || {};
 
     res.json({
@@ -205,7 +226,7 @@ export const getCallStatistics = async (req, res) => {
           incoming: directionStats.incoming || 0,
           outgoing: directionStats.outgoing || 0
         },
-        byStatus: statusStats,
+        byStatus: statusCounts,
         averages: {
           ringTime: Math.round(avgData.avgRingTime || 0),
           talkTime: Math.round(avgData.avgTalkTime || 0),
@@ -231,8 +252,8 @@ export const getLiveCalls = async (req, res) => {
   try {
     const liveCalls = await Call.find({
       $or: [
-        { status: { $in: ['ringing', 'answered'] } },
-        { ended_at: null } // Any call without an end time
+        { ended_at: null }, // Any call without an end time
+        { answered_at: { $ne: null }, ended_at: null } // Answered calls that haven't ended
       ]
     }).sort({ started_at: -1 });
 

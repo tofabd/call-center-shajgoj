@@ -81,7 +81,6 @@ class AmiProcess {
       Log.info('📞 Real-time call update', {
         linkedid: call.linkedid,
         direction: call.direction,
-        status: call.status,
         other_party: call.other_party,
         agent_exten: call.agent_exten
       });

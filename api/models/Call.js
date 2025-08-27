@@ -59,11 +59,6 @@ const callSchema = new mongoose.Schema({
   caller_name: {
     type: String,
     default: null
-  },
-  status: {
-    type: String,
-    enum: ['ringing', 'answered', 'ended', 'busy', 'no_answer'],
-    default: 'ringing'
   }
 }, {
   timestamps: true,
@@ -73,7 +68,6 @@ const callSchema = new mongoose.Schema({
 // Indexes for better query performance
 callSchema.index({ linkedid: 1 }); // Unique index (declared above as unique)
 callSchema.index({ started_at: -1 });
-callSchema.index({ status: 1 });
 callSchema.index({ direction: 1 });
 callSchema.index({ other_party: 1 });
 callSchema.index({ agent_exten: 1 });
@@ -84,6 +78,21 @@ callSchema.virtual('duration').get(function() {
   if (!this.started_at) return null;
   const endTime = this.ended_at || new Date();
   return Math.floor((endTime - this.started_at) / 1000);
+});
+
+// Virtual for call status based on other fields
+callSchema.virtual('status').get(function() {
+  if (this.ended_at) {
+    if (this.answered_at) {
+      return 'ended';
+    } else {
+      return this.disposition || 'ended';
+    }
+  } else if (this.answered_at) {
+    return 'answered';
+  } else {
+    return 'ringing';
+  }
 });
 
 // Ensure virtual fields are serialized

@@ -15,7 +15,7 @@ class BroadcastService extends EventEmitter {
    */
   callUpdated(call) {
     this.emit('call.updated', call);
-    console.log(`📡 Call event broadcasted: ${call.linkedid} (${call.status || call.direction})`);
+    console.log(`📡 Call event broadcasted: ${call.linkedid} (${call.direction})`);
   }
 
   /**

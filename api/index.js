@@ -188,7 +188,6 @@ broadcast.onCallUpdated((call) => {
   io.emit('call-updated', {
     id: call._id,
     linkedid: call.linkedid,
-    status: call.status,
     direction: call.direction,
     other_party: call.other_party,
     agent_exten: call.agent_exten,

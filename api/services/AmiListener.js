@@ -415,7 +415,6 @@ class AmiListener {
         const stateDesc = (fields.ChannelStateDesc || '').toLowerCase();
         if (stateDesc === 'up') {
           call.answered_at = new Date();
-          call.status = 'answered';
           if (call.started_at) {
             call.ring_seconds = Math.max(0, Math.floor((call.answered_at - call.started_at) / 1000));
           }
@@ -453,7 +452,6 @@ class AmiListener {
 
         if (activeLegs === 0) {
           call.ended_at = new Date();
-          call.status = 'ended';
           if (fields.Cause) {
             call.hangup_cause = fields.Cause;
           }
@@ -542,7 +540,6 @@ class AmiListener {
       const now = new Date();
       if (!call.answered_at) {
         call.answered_at = now;
-        call.status = 'answered';
         if (call.started_at) {
           call.ring_seconds = Math.max(0, Math.floor((now - call.started_at) / 1000));
         }
