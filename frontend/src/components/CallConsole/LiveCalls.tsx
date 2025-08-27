@@ -111,14 +111,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
         );
         
         if (existingIndex >= 0) {
-          // Update existing call
-          const updatedCalls = [...prevCalls];
-          const existingCall = updatedCalls[existingIndex];
-          updatedCalls[existingIndex] = {
-            ...existingCall,
-            // Update only the fields from the update event
-            status: (update.status as LiveCall['status']) || existingCall.status,
-            direction: update.direction || existingCall.direction,
+                  // Update existing call
+        const updatedCalls = [...prevCalls];
+        const existingCall = updatedCalls[existingIndex];
+        updatedCalls[existingIndex] = {
+          ...existingCall,
+          // Update only the fields from the update event
+          direction: update.direction || existingCall.direction,
             other_party: update.other_party || existingCall.other_party,
             agent_exten: update.agent_exten || existingCall.agent_exten,
             started_at: update.started_at || existingCall.started_at,
@@ -129,9 +128,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           };
           return updatedCalls;
         } else {
-          // Add new call if it's active
-          const activeStatuses = ['ringing', 'answered', 'ring', 'calling', 'incoming', 'started', 'start', 'in_progress'];
-          if (activeStatuses.includes(update.status?.toLowerCase() || '')) {
+          // Add new call if it's active (not ended)
+          if (!update.ended_at) {
             const newCall: LiveCall = {
               _id: update.id,
               id: update.id,
@@ -142,7 +140,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               started_at: update.started_at || new Date().toISOString(),
               answered_at: update.answered_at,
               ended_at: update.ended_at,
-              status: 'ringing', // Default to ringing for new calls
               caller_number: update.other_party || 'Unknown',
               duration: update.duration,
               createdAt: update.timestamp || new Date().toISOString(),
@@ -207,18 +204,18 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
   // Computed values (replacing hook return values)
   const activeCalls = liveCalls.filter(call => {
-    const status = call.status?.toLowerCase() || '';
-    return ['ringing', 'answered', 'ring', 'calling', 'incoming', 'started', 'start', 'in_progress'].includes(status);
+    // A call is active if it hasn't ended yet
+    return !call.ended_at;
   });
 
   const ringingCalls = liveCalls.filter(call => {
-    const status = call.status?.toLowerCase() || '';
-    return ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status);
+    // A call is ringing if it hasn't been answered and hasn't ended
+    return !call.answered_at && !call.ended_at;
   });
 
   const answeredCalls = liveCalls.filter(call => {
-    const status = call.status?.toLowerCase() || '';
-    return ['answered', 'in_progress'].includes(status);
+    // A call is answered if it has been answered but hasn't ended
+    return call.answered_at && !call.ended_at;
   });
 
   // Manual refresh handler with new design pattern
@@ -435,12 +432,12 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               <div className="p-4 space-y-3">
                 {sortedCalls.map((call) => (
                   <div
-                    key={`${call.id || call._id}-${call.status}`}
+                    key={`${call.id || call._id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
                     className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
                       selectedCallId === call.id
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                         : (() => {
-                            const status = call.status.toLowerCase();
+                            const callStatus = call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing';
                             const direction = call.direction;
                             
                             if (['answered', 'in_progress'].includes(status)) {

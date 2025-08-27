@@ -80,21 +80,6 @@ callSchema.virtual('duration').get(function() {
   return Math.floor((endTime - this.started_at) / 1000);
 });
 
-// Virtual for call status based on other fields
-callSchema.virtual('status').get(function() {
-  if (this.ended_at) {
-    if (this.answered_at) {
-      return 'ended';
-    } else {
-      return this.disposition || 'ended';
-    }
-  } else if (this.answered_at) {
-    return 'answered';
-  } else {
-    return 'ringing';
-  }
-});
-
 // Ensure virtual fields are serialized
 callSchema.set('toJSON', { virtuals: true });
 

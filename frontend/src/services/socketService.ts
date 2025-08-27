@@ -3,7 +3,6 @@ import { io, Socket } from 'socket.io-client';
 export interface CallUpdateEvent {
   id: string;
   linkedid: string;
-  status: string;
   direction?: 'incoming' | 'outgoing';
   other_party?: string;
   agent_exten?: string;

@@ -12,7 +12,6 @@ export interface LiveCall {
   ended_at?: string;
   ring_seconds?: number;
   talk_seconds?: number;
-  status: 'ringing' | 'answered' | 'ended' | 'busy' | 'no_answer';
   caller_number?: string;
   caller_name?: string;
   dial_status?: string;
