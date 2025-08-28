@@ -628,7 +628,7 @@ class StuckCallsCleanup {
 }
 
 // Execute if run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && process.argv[1].endsWith('cleanupStuckCalls.js')) {
   const cleanup = new StuckCallsCleanup();
   const exitCode = await cleanup.execute();
   process.exit(exitCode);

@@ -66,7 +66,7 @@ const callSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-callSchema.index({ linkedid: 1 }); // Unique index (declared above as unique)
+// Note: linkedid already has unique index from schema definition
 callSchema.index({ started_at: -1 });
 callSchema.index({ direction: 1 });
 callSchema.index({ other_party: 1 });
