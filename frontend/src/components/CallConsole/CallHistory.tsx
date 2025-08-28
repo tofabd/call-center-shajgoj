@@ -17,6 +17,7 @@ interface IndividualCall {
   agentExten?: string | null;
   otherParty?: string | null;
   created_at?: string;
+  disposition?: string; // Added for completed calls
 }
 
 interface CallHistoryProps {
@@ -167,12 +168,16 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   // Show only completed/ended calls (filter out active calls)
   const sortedCalls = callLogs
     .filter(call => {
-      const status = call.status.toLowerCase();
-      // Filter out ringing and answered calls (active calls)
+      // Show calls that are completed (have endTime OR disposition)
+      if (call.endTime || call.disposition) {
+        return true; // Show all completed calls including answered+ended
+      }
+      
+      // If no endTime and no disposition, filter out active calls
       return ![
         'ringing', 'ring', 'calling', 'incoming', 
         'started', 'start', 'answered', 'in_progress'
-      ].includes(status);
+      ].includes(call.status?.toLowerCase());
     })
     .sort((a, b) => {
       // Sort by start time (most recent first)

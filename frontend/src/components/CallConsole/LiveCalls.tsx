@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw } from 'lucide-react';
+import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw, CircleDashed } from 'lucide-react';
 import socketService from '../../services/socketService';
 import type { CallUpdateEvent } from '../../services/socketService';
 import type { LiveCall } from '../../services/callService';
@@ -355,17 +355,36 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
   // Sort displayCalls (only ringing and answered)
   const sortedCalls = displayCalls.sort((a, b) => {
+    // Primary sort: by start time (most recent first)
+    const aTime = new Date(a.started_at).getTime();
+    const bTime = new Date(b.started_at).getTime();
+    
+    if (aTime !== bTime) {
+      return bTime - aTime; // Most recent first
+    }
+    
+    // Secondary sort: by status priority (if same start time)
     const aPriority = getStatusPriority(a.status);
     const bPriority = getStatusPriority(b.status);
     
-    if (aPriority === bPriority) {
-      return new Date(b.started_at).getTime() - new Date(a.started_at).getTime();
-    }
     return aPriority - bPriority;
   });
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <>
+             <style>
+         {`
+           @keyframes spin {
+             from { transform: rotate(0deg); }
+             to { transform: rotate(360deg); }
+           }
+           
+           .animate-spin {
+             animation: spin 2s linear infinite !important;
+           }
+         `}
+       </style>
+      <div className="flex flex-col h-full w-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
@@ -407,7 +426,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                  </div>
                  <div className="flex items-center space-x-1">
                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                   <span className="text-blue-600 dark:text-blue-400">{answeredCalls.length} Answered</span>
+                   <span className="text-blue-600 dark:text-blue-400">{answeredCalls.length} In Progress</span>
                  </div>
                </div>
             </div>
@@ -554,18 +573,24 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                                 : 'animate-pulse ring-2 ring-green-400 dark:ring-green-500 shadow-lg shadow-green-200 dark:shadow-green-900 bg-green-600 text-white dark:bg-green-500 dark:text-white font-bold ringing-badge')
                             : ''
                         }`}>
-                          {(call.status === 'answered') && <span className="mr-1">✅</span>}
-                          {(call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
+                                                     {(call.status === 'answered' || call.status === 'in_progress') && (
+                                                       <CircleDashed className={`h-3 w-3 mr-1 animate-spin ${
+                                                         call.direction === 'outgoing' 
+                                                           ? 'text-indigo-600 dark:text-indigo-400' 
+                                                           : 'text-green-600 dark:text-green-400'
+                                                       }`} />
+                                                     )}
+                           {(call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) && <RingingIcon />}
                           <span className={(call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase())) ? "ml-1 font-bold" : "ml-2"}>
-                            {call.status?.toLowerCase() === 'ringing' ? 'Ringing' : 
-                             call.status?.toLowerCase() === 'ring' ? 'Ringing' :
-                             call.status?.toLowerCase() === 'calling' ? 'Calling' :
-                             call.status?.toLowerCase() === 'incoming' ? 'Incoming' :
-                             call.status?.toLowerCase() === 'started' ? 'Started' :
-                             call.status?.toLowerCase() === 'start' ? 'Started' :
-                             call.status?.toLowerCase() === 'answered' ? 'Answered' :
-                             call.status?.toLowerCase() === 'in_progress' ? 'In Progress' :
-                             call.status || 'Unknown'}
+                                                         {call.status?.toLowerCase() === 'ringing' ? 'Ringing' : 
+                              call.status?.toLowerCase() === 'ring' ? 'Ringing' :
+                              call.status?.toLowerCase() === 'calling' ? 'Calling' :
+                              call.status?.toLowerCase() === 'incoming' ? 'Incoming' :
+                              call.status?.toLowerCase() === 'started' ? 'Started' :
+                              call.status?.toLowerCase() === 'start' ? 'Started' :
+                              call.status?.toLowerCase() === 'answered' ? 'In Progress' :
+                              call.status?.toLowerCase() === 'in_progress' ? 'In Progress' :
+                              call.status || 'Unknown'}
                           </span>
                         </span>
                       </div>
@@ -610,9 +635,10 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
         </div>
 
 
-      </div>
-    </div>
-  );
-};
+             </div>
+     </div>
+     </>
+   );
+ };
 
 export default LiveCalls;
