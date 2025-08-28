@@ -8,7 +8,8 @@ import {
   updateExtensionStatus,
   getExtensionStatistics,
   refreshExtensionStatus,
-  getQueryServiceStatus
+  getQueryServiceStatus,
+  getExtensionCallStatistics
 } from '../controllers/extensionController.js';
 
 const router = express.Router();
@@ -33,6 +34,9 @@ router.put('/status', updateExtensionStatus);
 
 // GET /api/extensions/:id - Get extension by ID
 router.get('/:id', getExtensionById);
+
+// GET /api/extensions/:id/call-statistics - Get call statistics for specific extension
+router.get('/:id/call-statistics', getExtensionCallStatistics);
 
 // PUT /api/extensions/:id - Update extension
 router.put('/:id', updateExtension);

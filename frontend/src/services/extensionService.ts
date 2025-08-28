@@ -62,6 +62,43 @@ export interface RefreshResult {
   };
 }
 
+export interface ExtensionCallStats {
+  extension: string;
+  agentName: string;
+  date: string;
+  summary: {
+    totalCalls: number;
+    answeredCalls: number;
+    missedCalls: number;
+    answerRate: number;
+  };
+  byDirection: {
+    incoming: number;
+    outgoing: number;
+  };
+  byStatus: Record<string, number>;
+  averages: {
+    ringTime: number;
+    talkTime: number;
+    totalTalkTime: number;
+  };
+  recentCalls: Array<{
+    id: string;
+    linkedid: string;
+    direction?: 'incoming' | 'outgoing';
+    other_party?: string;
+    started_at: string;
+    answered_at?: string;
+    ended_at?: string;
+    ring_seconds?: number;
+    talk_seconds?: number;
+    caller_number?: string;
+    caller_name?: string;
+    disposition?: string;
+    status: string;
+  }>;
+}
+
 export const extensionService = {
   // Get all extensions
   async getExtensions(): Promise<Extension[]> {
@@ -153,6 +190,12 @@ export const extensionService = {
   // Get AMI Query Service status
   async getQueryServiceStatus(): Promise<QueryServiceStatus> {
     const response = await api.get('/extensions/query-service/status');
+    return response.data.data;
+  },
+
+  // Get extension call statistics for today
+  async getExtensionCallStatistics(extensionId: string): Promise<ExtensionCallStats> {
+    const response = await api.get(`/extensions/${extensionId}/call-statistics`);
     return response.data.data;
   }
 };

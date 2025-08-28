@@ -343,3 +343,135 @@ export const getExtensionStatistics = async (req, res) => {
     });
   }
 };
+
+// Get extension call statistics for today
+export const getExtensionCallStatistics = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get extension details
+    const extension = await Extension.findById(id);
+    if (!extension) {
+      return res.status(404).json({
+        success: false,
+        message: 'Extension not found'
+      });
+    }
+
+    // Calculate today's date range (00:00:00 to 23:59:59)
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+    // Import Call model for statistics calculation
+    const Call = (await import('../models/Call.js')).default;
+
+    // Get calls for this extension today
+    const todayCalls = await Call.find({
+      agent_exten: extension.extension,
+      started_at: { $gte: startOfDay, $lte: endOfDay }
+    }).sort({ started_at: -1 }).lean();
+
+    // Calculate statistics
+    let totalCalls = 0;
+    let answeredCalls = 0;
+    let missedCalls = 0;
+    let incomingCalls = 0;
+    let outgoingCalls = 0;
+    const statusCounts = {};
+    const directionCounts = {};
+    let totalRingTime = 0;
+    let totalTalkTime = 0;
+    let answeredCallCount = 0;
+
+    todayCalls.forEach(call => {
+      totalCalls++;
+      
+      // Count by direction
+      if (call.direction) {
+        directionCounts[call.direction] = (directionCounts[call.direction] || 0) + 1;
+        if (call.direction === 'incoming') incomingCalls++;
+        if (call.direction === 'outgoing') outgoingCalls++;
+      }
+
+      // Count by status/disposition
+      let callStatus = 'unknown';
+      if (call.ended_at) {
+        callStatus = call.disposition || 'ended';
+      } else if (call.answered_at) {
+        callStatus = 'answered';
+      } else {
+        callStatus = 'ringing';
+      }
+
+      statusCounts[callStatus] = (statusCounts[callStatus] || 0) + 1;
+
+      // Count answered vs missed
+      if (call.answered_at) {
+        answeredCalls++;
+        answeredCallCount++;
+        if (call.talk_seconds) totalTalkTime += call.talk_seconds;
+      } else if (call.ended_at && !call.answered_at) {
+        missedCalls++;
+      }
+
+      // Accumulate ring time
+      if (call.ring_seconds) totalRingTime += call.ring_seconds;
+    });
+
+    // Calculate averages
+    const avgRingTime = answeredCallCount > 0 ? Math.round(totalRingTime / answeredCallCount) : 0;
+    const avgTalkTime = answeredCallCount > 0 ? Math.round(totalTalkTime / answeredCallCount) : 0;
+    const answerRate = totalCalls > 0 ? parseFloat((answeredCalls / totalCalls * 100).toFixed(2)) : 0;
+
+    // Get recent calls (last 10) for display
+    const recentCalls = todayCalls.slice(0, 10).map(call => ({
+      id: call._id,
+      linkedid: call.linkedid,
+      direction: call.direction,
+      other_party: call.other_party,
+      started_at: call.started_at,
+      answered_at: call.answered_at,
+      ended_at: call.ended_at,
+      ring_seconds: call.ring_seconds,
+      talk_seconds: call.talk_seconds,
+      caller_number: call.caller_number,
+      caller_name: call.caller_name,
+      disposition: call.disposition,
+      status: call.ended_at ? (call.disposition || 'ended') : (call.answered_at ? 'answered' : 'ringing')
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        extension: extension.extension,
+        agentName: extension.agent_name || `Extension ${extension.extension}`,
+        date: today.toISOString().split('T')[0],
+        summary: {
+          totalCalls,
+          answeredCalls,
+          missedCalls,
+          answerRate
+        },
+        byDirection: {
+          incoming: incomingCalls,
+          outgoing: outgoingCalls
+        },
+        byStatus: statusCounts,
+        averages: {
+          ringTime: avgRingTime,
+          talkTime: avgTalkTime,
+          totalTalkTime: totalTalkTime
+        },
+        recentCalls
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching extension call statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching extension call statistics',
+      error: error.message
+    });
+  }
+};

@@ -1,28 +1,33 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { StatusTooltip } from '../common/StatusTooltip';
+import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
 import socketService from '../../services/socketService';
 import type { ExtensionStatusEvent } from '../../services/socketService';
-import type { Extension } from '../../services/extensionService';
+import type { Extension, ExtensionCallStats } from '../../services/extensionService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
-interface ExtensionsStatusProps {}
-
-const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
+const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+
   const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
-  const [updateCount, setUpdateCount] = useState(0);
-  const [avgUpdateInterval, setAvgUpdateInterval] = useState<number | null>(null);
+
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
+  const [extensionStats, setExtensionStats] = useState<ExtensionCallStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   // Countdown timer effect
   useEffect(() => {
@@ -76,27 +81,13 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
     const handleExtensionUpdate = (update: ExtensionStatusEvent) => {
       console.log('📱 Real-time extension update received:', update);
       
-      const now = new Date();
-      
-      // Calculate update frequency
-      if (lastUpdate) {
-        const updateInterval = now.getTime() - lastUpdate.getTime();
-        setAvgUpdateInterval(prev => prev ? (prev + updateInterval) / 2 : updateInterval);
-      }
-      
-      setLastUpdate(now);
-      setUpdateCount(prev => prev + 1);
-      
       setExtensions(prevExtensions => 
         prevExtensions.map(ext => 
           ext.extension === update.extension 
             ? { 
                 ...ext, 
                 status: update.status,
-                status_code: update.status_code || ext.status_code,
-                device_state: update.device_state || ext.device_state,
                 agent_name: update.agent_name || ext.agent_name,
-                last_status_change: update.last_status_change || ext.last_status_change,
                 last_seen: update.last_seen || ext.last_seen
               } as Extension
             : ext
@@ -166,8 +157,7 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
       setExtensions(data);
       setError(null);
       
-      // Update last update time
-      setLastUpdate(new Date());
+
       
       console.log(`✅ Extensions loaded from database: ${data.length} extensions in ${dbTime}ms`);
     } catch (err) {
@@ -224,6 +214,33 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
         }, 1000); // Keep spinning for visual feedback
       });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
+
+  const handleExtensionClick = useCallback(async (extension: Extension) => {
+    console.log('📱 Extension clicked:', extension);
+    setSelectedExtension(extension);
+    setIsModalOpen(true);
+    setStatsLoading(true);
+    setStatsError(null);
+    setExtensionStats(null);
+
+    try {
+      const stats = await extensionService.getExtensionCallStatistics(extension._id);
+      setExtensionStats(stats);
+      console.log('✅ Extension statistics loaded:', stats);
+    } catch (error) {
+      console.error('❌ Failed to load extension statistics:', error);
+      setStatsError('Failed to load call statistics for this extension');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedExtension(null);
+    setExtensionStats(null);
+    setStatsError(null);
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -290,8 +307,6 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
   // Calculate statistics from sorted extensions
   const onlineCount = sortedExtensions.filter(ext => ext.status === 'online').length;
   const offlineCount = sortedExtensions.filter(ext => ext.status === 'offline').length;
-  const unknownCount = sortedExtensions.filter(ext => ext.status === 'unknown').length;
-  const totalCount = sortedExtensions.length;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
@@ -419,9 +434,10 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
               {sortedExtensions.map((extension) => (
                 <div 
                   key={extension.id} 
-                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 min-h-[80px] ${
+                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 min-h-[80px] cursor-pointer ${
                     extension.status === 'online' ? 'ring-2 ring-green-200 dark:ring-green-800/30' : ''
                   }`}
+                  onClick={() => handleExtensionClick(extension)}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="flex-shrink-0">
@@ -460,6 +476,14 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
           </div>
         )}
         
+        {/* Extension Statistics Modal */}
+        <ExtensionStatsModal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          stats={extensionStats}
+          loading={statsLoading}
+          error={statsError}
+        />
 
       </div>
     </div>
