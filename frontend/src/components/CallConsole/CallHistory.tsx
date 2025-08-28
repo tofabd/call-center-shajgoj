@@ -67,10 +67,34 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
   const [connectionHealth, setConnectionHealth] = React.useState<'good' | 'poor' | 'stale'>('good');
   const [realtimeStatus, setRealtimeStatus] = React.useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
+  const [countdown, setCountdown] = React.useState(30);
   
   // Use prop isRefreshing if provided, otherwise use local state
   const refreshing = propIsRefreshing ?? isRefreshing;
   
+  // Countdown timer effect
+  React.useEffect(() => {
+    if (!refreshing && !isAutoRefreshing) {
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            return 30; // Reset to 30 seconds
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [refreshing, isAutoRefreshing]);
+
+  // Reset countdown when refresh occurs
+  React.useEffect(() => {
+    if (refreshing || isAutoRefreshing) {
+      setCountdown(30);
+    }
+  }, [refreshing, isAutoRefreshing]);
+
   const handleRefresh = useCallback(() => {
     if (onRefresh) {
       console.log('🔄 Manual refresh triggered');
@@ -229,6 +253,12 @@ const CallHistory: React.FC<CallHistoryProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and ended calls</p>
             </div>
             <div className="flex items-center space-x-2">
+              {/* Countdown Timer / Updating Status */}
+              <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
+                <span className="mr-1">⏰</span>
+                {refreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
+              </div>
+              
               {onRefresh && (
                 <button
                   onClick={handleRefresh}

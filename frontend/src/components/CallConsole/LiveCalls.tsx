@@ -51,6 +51,30 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!isRefreshing && !isAutoRefreshing) {
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            return 30; // Reset to 30 seconds
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [isRefreshing, isAutoRefreshing]);
+
+  // Reset countdown when refresh occurs
+  useEffect(() => {
+    if (isRefreshing || isAutoRefreshing) {
+      setCountdown(30);
+    }
+  }, [isRefreshing, isAutoRefreshing]);
 
   // Real-time connection and data management
   useEffect(() => {
@@ -362,6 +386,12 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             
             {/* Control buttons */}
             <div className="flex items-center space-x-2">
+              {/* Countdown Timer / Updating Status */}
+              <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
+                <span className="mr-1">⏰</span>
+                {isRefreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
+              </div>
+              
               {/* Refresh Button with TodayStatistics Design */}
               <button
                 onClick={handleRefresh}
