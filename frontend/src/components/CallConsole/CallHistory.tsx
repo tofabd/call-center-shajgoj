@@ -249,13 +249,38 @@ const CallHistory: React.FC<CallHistoryProps> = ({
               <Phone className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h3>
+              <div className="flex items-center space-x-3">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h3>
+                {/* Real-time status indicator with reusable StatusTooltip */}
+                <div className="flex items-center">
+                  <StatusTooltip status={realtimeStatus} health={connectionHealth}>
+                    <span className="relative flex size-3 cursor-help group">
+                      {realtimeStatus === 'connected' && connectionHealth === 'good' && (
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                      )}
+                      <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
+                        realtimeStatus === 'connected'
+                          ? connectionHealth === 'good'
+                            ? 'bg-green-500 group-hover:bg-green-600'
+                            : connectionHealth === 'poor'
+                            ? 'bg-yellow-500 group-hover:bg-yellow-600'
+                            : 'bg-orange-500 group-hover:bg-orange-600'
+                          : realtimeStatus === 'reconnecting'
+                            ? 'bg-blue-500 group-hover:bg-blue-600'
+                            : realtimeStatus === 'checking'
+                            ? 'bg-gray-500 group-hover:bg-gray-600'
+                            : 'bg-red-500 group-hover:bg-red-600'
+                      }`}></span>
+                    </span>
+                  </StatusTooltip>
+                </div>
+              </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and ended calls</p>
             </div>
             <div className="flex items-center space-x-2">
               {/* Countdown Timer / Updating Status */}
               <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
-                <span className="mr-1">⏰</span>
+                {!(refreshing || isAutoRefreshing) && <span className="mr-1">⏰</span>}
                 {refreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
               </div>
               
@@ -277,29 +302,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                   }`} />
                 </button>
               )}
-                             {/* Real-time status indicator with reusable StatusTooltip */}
-               <div className="flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
-                 <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                   <span className="relative flex size-3 cursor-help group">
-                     {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                     )}
-                     <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                       realtimeStatus === 'connected'
-                         ? connectionHealth === 'good'
-                           ? 'bg-green-500 group-hover:bg-green-600'
-                           : connectionHealth === 'poor'
-                           ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                           : 'bg-orange-500 group-hover:bg-orange-600'
-                         : realtimeStatus === 'reconnecting'
-                           ? 'bg-blue-500 group-hover:bg-blue-600'
-                           : realtimeStatus === 'checking'
-                           ? 'bg-gray-500 group-hover:bg-gray-600'
-                           : 'bg-red-500 group-hover:bg-red-600'
-                     }`}></span>
-                   </span>
-                 </StatusTooltip>
-               </div>
+
             </div>
           </div>
         </div>

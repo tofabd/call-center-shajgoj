@@ -229,11 +229,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   }, []);
 
   // Computed values (replacing hook return values)
-  const activeCalls = liveCalls.filter(call => {
-    // A call is active if it hasn't ended yet
-    return !call.ended_at;
-  });
-
   const ringingCalls = liveCalls.filter(call => {
     // A call is ringing if it hasn't been answered and hasn't ended
     return !call.answered_at && !call.ended_at;
@@ -243,6 +238,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // A call is answered if it has been answered but hasn't ended
     return call.answered_at && !call.ended_at;
   });
+
+  // Combined calls to display (only ringing and answered)
+  const displayCalls = [...ringingCalls, ...answeredCalls];
 
   // Manual refresh handler with new design pattern
   const handleRefresh = useCallback(async () => {
@@ -355,8 +353,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     return statusPriority[status.toLowerCase()] || 999;
   };
 
-  // Sort activeCalls and remove unused variable
-  const sortedCalls = activeCalls.sort((a, b) => {
+  // Sort displayCalls (only ringing and answered)
+  const sortedCalls = displayCalls.sort((a, b) => {
     const aPriority = getStatusPriority(a.status);
     const bPriority = getStatusPriority(b.status);
     
@@ -376,19 +374,49 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               <Phone className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
               <div className="flex items-center space-x-3">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {activeCalls.length} active • {ringingCalls.length} ringing • {answeredCalls.length} answered
-                </p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
+                {/* Real-time status indicator with reusable StatusTooltip */}
+                <div className="flex items-center">
+                  <StatusTooltip status={realtimeStatus} health={connectionHealth}>
+                    <span className="relative flex size-3 cursor-help group">
+                      {realtimeStatus === 'connected' && connectionHealth === 'good' && (
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                      )}
+                      <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
+                        realtimeStatus === 'connected'
+                          ? connectionHealth === 'good'
+                            ? 'bg-green-500 group-hover:bg-green-600'
+                            : connectionHealth === 'poor'
+                            ? 'bg-yellow-500 group-hover:bg-yellow-600'
+                            : 'bg-orange-500 group-hover:bg-orange-600'
+                          : realtimeStatus === 'reconnecting'
+                            ? 'bg-blue-500 group-hover:bg-blue-600'
+                            : realtimeStatus === 'checking'
+                            ? 'bg-gray-500 group-hover:bg-gray-600'
+                            : 'bg-red-500 group-hover:bg-red-600'
+                      }`}></span>
+                    </span>
+                  </StatusTooltip>
+                </div>
               </div>
+                             <div className="flex items-center space-x-4 text-sm">
+                 <div className="flex items-center space-x-1">
+                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                   <span className="text-green-600 dark:text-green-400">{ringingCalls.length} Ringing</span>
+                 </div>
+                 <div className="flex items-center space-x-1">
+                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                   <span className="text-blue-600 dark:text-blue-400">{answeredCalls.length} Answered</span>
+                 </div>
+               </div>
             </div>
             
             {/* Control buttons */}
             <div className="flex items-center space-x-2">
               {/* Countdown Timer / Updating Status */}
               <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
-                <span className="mr-1">⏰</span>
+                {!(isRefreshing || isAutoRefreshing) && <span className="mr-1">⏰</span>}
                 {isRefreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
               </div>
               
@@ -410,36 +438,14 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 }`} />
               </button>
               
-                             {/* Real-time status indicator with reusable StatusTooltip */}
-               <div className="flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
-                 <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                   <span className="relative flex size-3 cursor-help group">
-                     {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                     )}
-                     <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                       realtimeStatus === 'connected'
-                         ? connectionHealth === 'good'
-                           ? 'bg-green-500 group-hover:bg-green-600'
-                           : connectionHealth === 'poor'
-                           ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                           : 'bg-orange-500 group-hover:bg-orange-600'
-                         : realtimeStatus === 'reconnecting'
-                           ? 'bg-blue-500 group-hover:bg-blue-600'
-                           : realtimeStatus === 'checking'
-                           ? 'bg-gray-500 group-hover:bg-gray-600'
-                           : 'bg-red-500 group-hover:bg-red-600'
-                     }`}></span>
-                   </span>
-                 </StatusTooltip>
-               </div>
+
             </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {loading && liveCalls.length === 0 ? (
+                     {loading && displayCalls.length === 0 ? (
             <div className="flex items-center justify-center flex-1 p-6">
               <div className="text-center">
                 <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -463,7 +469,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 </div>
               </div>
             </div>
-          ) : activeCalls.length > 0 ? (
+                     ) : displayCalls.length > 0 ? (
             <div className="flex-1 overflow-y-auto narrow-scrollbar">
               <div className="p-4 space-y-3">
                 {sortedCalls.map((call) => (
@@ -591,15 +597,15 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center flex-1 p-6">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Phone className="h-10 w-10 text-gray-400" />
-                </div>
-                <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Active Calls</h4>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are completed or inactive</p>
-              </div>
-            </div>
+                         <div className="flex items-center justify-center flex-1 p-6">
+               <div className="text-center">
+                 <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                   <Phone className="h-10 w-10 text-gray-400" />
+                 </div>
+                 <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Live Calls</h4>
+                 <p className="text-gray-500 dark:text-gray-400 text-sm">No calls are currently ringing or in progress</p>
+               </div>
+             </div>
           )}
         </div>
 
