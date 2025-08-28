@@ -8,6 +8,46 @@ import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
+// Utility function to calculate duration since status change
+const getDurationSinceStatusChange = (lastStatusChange?: string): string => {
+  if (!lastStatusChange) return '';
+  
+  const statusChangeTime = new Date(lastStatusChange);
+  const now = new Date();
+  const diffMs = now.getTime() - statusChangeTime.getTime();
+  
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) {
+    return `${days}d ${hours % 24}h`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    return `${seconds}s`;
+  }
+};
+
+// Utility function to format duration display
+const getDurationDisplay = (extension: Extension): string => {
+  if (!extension.last_status_change) return '';
+  
+  const duration = getDurationSinceStatusChange(extension.last_status_change);
+  if (!duration) return '';
+  
+  if (extension.status === 'online') {
+    return `Online for ${duration}`;
+  } else if (extension.status === 'offline') {
+    return `Offline for ${duration}`;
+  }
+  
+  return '';
+};
+
 const ExtensionsStatus: React.FC = () => {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +61,9 @@ const ExtensionsStatus: React.FC = () => {
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  
+  // Duration update timer for real-time duration display
+  const [durationUpdateTimer, setDurationUpdateTimer] = useState<NodeJS.Timeout | null>(null);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -51,6 +94,22 @@ const ExtensionsStatus: React.FC = () => {
       setCountdown(30);
     }
   }, [isRefreshing, isAutoRefreshing]);
+
+  // Duration update timer effect - updates duration display every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // Force re-render to update duration display
+      setExtensions(prevExtensions => [...prevExtensions]);
+    }, 1000);
+    
+    setDurationUpdateTimer(timer);
+    
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Initial load from database
@@ -106,9 +165,24 @@ const ExtensionsStatus: React.FC = () => {
         console.log('📱 Page became visible, refreshing extensions from database...');
         loadExtensions(true);
         
+        // Restart duration update timer
+        if (durationUpdateTimer) {
+          clearInterval(durationUpdateTimer);
+        }
+        const newTimer = setInterval(() => {
+          setExtensions(prevExtensions => [...prevExtensions]);
+        }, 1000);
+        setDurationUpdateTimer(newTimer);
+        
         // Reconnect socket if needed
         if (!socketService.isConnected()) {
           socketService.reconnect();
+        }
+      } else {
+        // Clear duration timer when page becomes hidden to save resources
+        if (durationUpdateTimer) {
+          clearInterval(durationUpdateTimer);
+          setDurationUpdateTimer(null);
         }
       }
     };
@@ -120,6 +194,10 @@ const ExtensionsStatus: React.FC = () => {
       if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
         console.log('⏹️ Stopped automatic database refresh');
+      }
+      if (durationUpdateTimer) {
+        clearInterval(durationUpdateTimer);
+        console.log('⏹️ Stopped duration update timer');
       }
       socketService.removeAllListeners();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -211,6 +289,16 @@ const ExtensionsStatus: React.FC = () => {
           }, 30000);
           setAutoRefreshInterval(newInterval);
           console.log('⏰ Restarted automatic database refresh timer');
+          
+          // Restart duration update timer
+          if (durationUpdateTimer) {
+            clearInterval(durationUpdateTimer);
+          }
+          const newDurationTimer = setInterval(() => {
+            setExtensions(prevExtensions => [...prevExtensions]);
+          }, 1000);
+          setDurationUpdateTimer(newDurationTimer);
+          console.log('⏰ Restarted duration update timer');
         }, 1000); // Keep spinning for visual feedback
       });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
@@ -465,8 +553,12 @@ const ExtensionsStatus: React.FC = () => {
                       {extension.device_state}
                     </div>
                     {extension.last_status_change && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Status changed: {new Date(extension.last_status_change).toLocaleTimeString()}
+                      <div className={`text-xs font-medium ${
+                        extension.status === 'online' 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {getDurationDisplay(extension)}
                       </div>
                     )}
                   </div>
