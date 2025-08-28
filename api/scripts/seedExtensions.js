@@ -8,16 +8,25 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/call_c
 
 // Sample agent names for random assignment
 const agentNames = [
-  'John Smith', 'Jane Doe', 'Michael Johnson', 'Sarah Wilson', 'Robert Brown',
-  'Lisa Davis', 'David Miller', 'Emma Garcia', 'James Rodriguez', 'Olivia Martinez',
+  'John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'David Brown',
+  'Lisa Davis', 'Robert Miller', 'Emma Garcia', 'James Rodriguez', 'Olivia Martinez',
   'William Anderson', 'Sophia Taylor', 'Benjamin Thomas', 'Isabella Jackson',
   'Lucas White', 'Mia Harris', 'Henry Clark', 'Charlotte Lewis', 'Alexander Lee',
   'Amelia Walker', 'Sebastian Hall', 'Harper Allen', 'Ethan Young', 'Evelyn King',
   'Jacob Wright', 'Abigail Lopez', 'Samuel Hill', 'Emily Scott', 'Daniel Green',
   'Elizabeth Adams', 'Matthew Baker', 'Sofia Gonzalez', 'Joseph Nelson', 'Avery Carter',
   'Andrew Mitchell', 'Scarlett Perez', 'Joshua Roberts', 'Grace Turner', 'Christopher Phillips',
-  'Chloe Campbell'
+  'Chloe Campbell', 'Ryan Murphy', 'Zoe Richardson'
 ];
+
+// Configuration
+const config = {
+  supportRange: { start: 1001, end: 1020 },
+  salesRange: { start: 2001, end: 2020 },
+  specialExtensions: ['5000'],
+  defaultStatus: 'offline', // Fixed: changed from 'online' to 'offline'
+  clearExisting: true
+};
 
 /**
  * Get a random agent name from the list
@@ -28,7 +37,18 @@ const getRandomAgentName = () => {
 };
 
 /**
- * Generate extension data for a given range
+ * Get department based on extension number
+ */
+const getDepartment = (extension) => {
+  const ext = parseInt(extension);
+  if (ext >= 2000) return 'Sales';
+  if (ext >= 1000) return 'Support';
+  if (ext === 5000) return 'Administration';
+  return 'General';
+};
+
+/**
+ * Generate extensions for a given range
  */
 const generateExtensions = (start, end) => {
   const extensions = [];
@@ -36,84 +56,90 @@ const generateExtensions = (start, end) => {
     extensions.push({
       extension: i.toString(),
       agent_name: getRandomAgentName(),
-      status: 'offline', // Default status as requested
-      last_seen: null,
+      status_code: 0,
+      device_state: 'NOT_INUSE',
+      status: config.defaultStatus,
+      department: getDepartment(i.toString()),
       is_active: true,
-      context: 'ext-local',
-      hint: `SIP/${i}`,
-      metadata: {
-        department: i >= 2000 ? 'Sales' : 'Support',
-        team: i >= 2000 ? 'Sales Team' : 'Support Team',
-        shift: Math.random() > 0.5 ? 'Day' : 'Night'
-      }
+      last_status_change: new Date(),
+      last_seen: new Date()
     });
   }
   return extensions;
 };
 
-const seedExtensions = async () => {
+/**
+ * Generate special extensions
+ */
+const generateSpecialExtensions = () => {
+  return config.specialExtensions.map(ext => ({
+    extension: ext,
+    agent_name: ext === '5000' ? 'System Administrator' : 'Special Agent',
+    status_code: 0,
+    device_state: 'NOT_INUSE',
+    status: config.defaultStatus,
+    department: getDepartment(ext),
+    is_active: true,
+    last_status_change: new Date(),
+    last_seen: new Date()
+  }));
+};
+
+async function seedExtensions() {
   try {
-    // Connect to MongoDB
+    // Check for force flag
+    const confirmDrop = process.argv.includes('--force');
+    if (!confirmDrop) {
+      console.log('⚠️  Use --force flag to drop existing collection and recreate');
+      console.log('   Usage: node seedExtensions.js --force');
+      console.log('   Or modify script to preserve existing data');
+      process.exit(0);
+    }
+
+    console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
     console.log('✅ Connected to MongoDB');
 
-    // Clear existing extensions (optional - comment out if you want to keep existing ones)
-    const existingCount = await Extension.countDocuments();
-    console.log(`📊 Found ${existingCount} existing extensions`);
-    
-    // Ask user if they want to clear existing extensions
-    console.log('🗑️ Clearing existing extensions...');
-    await Extension.deleteMany({});
-    console.log('✅ Cleared existing extensions');
+    // Drop existing extensions collection
+    console.log('🗑️ Dropping existing extensions collection...');
+    await mongoose.connection.db.dropCollection('extensions');
+    console.log('✅ Extensions collection dropped');
 
-    // Generate extensions for range 1001-1020
-    const supportExtensions = generateExtensions(1001, 1020);
-    console.log(`📞 Generated ${supportExtensions.length} support extensions (1001-1020)`);
+    // Generate extensions for support range (1001-1020)
+    const supportExtensions = generateExtensions(config.supportRange.start, config.supportRange.end);
+    console.log(`📞 Generated ${supportExtensions.length} support extensions (${config.supportRange.start}-${config.supportRange.end})`);
 
-    // Generate extensions for range 2001-2020
-    const salesExtensions = generateExtensions(2001, 2020);
-    console.log(`📞 Generated ${salesExtensions.length} sales extensions (2001-2020)`);
+    // Generate extensions for sales range (2001-2020)
+    const salesExtensions = generateExtensions(config.salesRange.start, config.salesRange.end);
+    console.log(`📞 Generated ${salesExtensions.length} sales extensions (${config.salesRange.start}-${config.salesRange.end})`);
 
-    // Generate extension 5000 (Special/Admin extension)
-    const specialExtension = {
-      extension: '5000',
-      agent_name: 'System Administrator',
-      status: 'offline',
-      last_seen: null,
-      is_active: true,
-      context: 'ext-local',
-      hint: 'SIP/5000',
-      metadata: {
-        department: 'Administration',
-        team: 'System Team',
-        shift: '24/7',
-        is_special: true
-      }
-    };
-    console.log(`📞 Generated special extension 5000 (Administration)`);
+    // Generate special extensions (5000)
+    const specialExtensions = generateSpecialExtensions();
+    console.log(`📞 Generated ${specialExtensions.length} special extensions (${specialExtensions.join(', ')})`);
 
     // Combine all extensions
-    const allExtensions = [...supportExtensions, ...salesExtensions, specialExtension];
+    const allExtensions = [...supportExtensions, ...salesExtensions, ...specialExtensions];
 
-    // Insert extensions into database
+    // Create new extensions with enhanced schema
+    console.log('🌱 Seeding extensions with standard schema...');
     const createdExtensions = await Extension.insertMany(allExtensions);
-    console.log(`✅ Successfully inserted ${createdExtensions.length} extensions`);
+    console.log(`✅ Created ${createdExtensions.length} extensions`);
 
     // Display summary
     console.log('\n📋 Extension Seeding Summary:');
     console.log('='.repeat(50));
     console.log(`Total Extensions Created: ${createdExtensions.length}`);
-    console.log(`Support Extensions (1001-1020): ${supportExtensions.length}`);
-    console.log(`Sales Extensions (2001-2020): ${salesExtensions.length}`);
-    console.log(`Special Extension (5000): 1`);
-    console.log(`Default Status: offline`);
-    console.log(`Default Context: ext-local`);
+    console.log(`Support Extensions (${config.supportRange.start}-${config.supportRange.end}): ${supportExtensions.length}`);
+    console.log(`Sales Extensions (${config.salesRange.start}-${config.salesRange.end}): ${salesExtensions.length}`);
+    console.log(`Special Extensions (${config.specialExtensions.join(', ')}): ${specialExtensions.length}`);
+    console.log(`Default Status: ${config.defaultStatus}`);
+    console.log(`Default Device State: NOT_INUSE`);
 
     // Display sample extensions
     console.log('\n📝 Sample Extensions Created:');
     console.log('-'.repeat(50));
     createdExtensions.slice(0, 5).forEach((ext, index) => {
-      console.log(`${index + 1}. Extension ${ext.extension} - ${ext.agent_name} (${ext.metadata.department})`);
+      console.log(`${index + 1}. Extension ${ext.extension} - ${ext.agent_name} (${ext.department})`);
     });
 
     if (createdExtensions.length > 5) {
@@ -133,7 +159,7 @@ const seedExtensions = async () => {
 
     // Display extensions by department
     const deptCounts = await Extension.aggregate([
-      { $group: { _id: '$metadata.department', count: { $sum: 1 } } }
+      { $group: { _id: '$department', count: { $sum: 1 } } }
     ]);
     
     console.log('\n🏢 Extensions by Department:');
@@ -155,11 +181,10 @@ const seedExtensions = async () => {
       console.error('   Consider clearing existing extensions or modifying the script to handle duplicates.');
     }
   } finally {
-    await mongoose.connection.close();
-    console.log('🔒 Database connection closed');
-    process.exit(0);
+    await mongoose.disconnect();
+    console.log('🔌 Disconnected from MongoDB');
   }
-};
+}
 
 // Handle script arguments
 const args = process.argv.slice(2);
@@ -168,17 +193,19 @@ const helpFlag = args.includes('--help') || args.includes('-h');
 if (helpFlag) {
   console.log('🔧 Extension Seeder Help');
   console.log('='.repeat(30));
-  console.log('Usage: node scripts/seedExtensions.js [options]');
+  console.log('Usage: node seedExtensions.js [options]');
   console.log('');
   console.log('Options:');
+  console.log('  --force        Drop existing collection and recreate (required)');
   console.log('  --help, -h     Show this help message');
   console.log('');
   console.log('Description:');
-  console.log('  Seeds extensions from 1001-1020, 2001-2020, and 5000 with:');
-  console.log('  - Random agent names (except 5000 which is System Administrator)');
-  console.log('  - Default offline status');
-  console.log('  - Department assignment (Support: 1001-1020, Sales: 2001-2020, Administration: 5000)');
-  console.log('  - Random shift assignments (except 5000 which is 24/7)');
+  console.log('  Seeds extensions with standard schema:');
+  console.log(`  - Support: ${config.supportRange.start}-${config.supportRange.end} (${config.supportRange.end - config.supportRange.start + 1} extensions)`);
+  console.log(`  - Sales: ${config.salesRange.start}-${config.salesRange.end} (${config.salesRange.end - config.salesRange.start + 1} extensions)`);
+  console.log(`  - Special: ${config.specialExtensions.join(', ')} (${config.specialExtensions.length} extensions)`);
+  console.log(`  - Default status: ${config.defaultStatus}`);
+  console.log(`  - Random agent names assigned`);
   console.log('');
   console.log('Environment Variables:');
   console.log('  MONGODB_URI    MongoDB connection string');
@@ -187,8 +214,9 @@ if (helpFlag) {
 }
 
 console.log('🌱 Starting Extension Seeding Process...');
-console.log('📋 Will create extensions: 1001-1020 (Support), 2001-2020 (Sales), and 5000 (Administration)');
-console.log('👤 Each extension will have a random agent name and offline status (except 5000 which is System Administrator)');
+console.log(`📋 Will create extensions: ${config.supportRange.start}-${config.supportRange.end} (Support), ${config.salesRange.start}-${config.salesRange.end} (Sales), and ${config.specialExtensions.join(', ')} (Special)`);
+console.log(`👤 Each extension will have a random agent name and ${config.defaultStatus} status`);
+console.log('⚠️  Use --force flag to proceed with collection drop and recreation');
 console.log('');
 
 seedExtensions();

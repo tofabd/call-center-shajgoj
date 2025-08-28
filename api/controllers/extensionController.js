@@ -89,11 +89,8 @@ export const createExtension = async (req, res) => {
     const {
       extension,
       agent_name,
-      status = 'unknown',
-      is_active = true,
-      context,
-      hint,
-      metadata = {}
+      department,
+      is_active = true
     } = req.body;
 
     // Validation
@@ -113,15 +110,17 @@ export const createExtension = async (req, res) => {
       });
     }
 
+    const now = new Date();
     const newExtension = new Extension({
       extension,
       agent_name,
-      status,
+      department,
       is_active,
-      context,
-      hint,
-      metadata,
-      last_seen: status === 'online' ? new Date() : null
+      status_code: 0,
+      device_state: 'NOT_INUSE',
+      status: 'unknown',
+      last_status_change: now,
+      last_seen: now
     });
 
     await newExtension.save();
@@ -150,6 +149,10 @@ export const updateExtension = async (req, res) => {
     delete updateData._id;
     delete updateData.createdAt;
     delete updateData.updatedAt;
+    delete updateData.status_code;
+    delete updateData.device_state;
+    delete updateData.status;
+    delete updateData.last_status_change;
 
     const extension = await Extension.findByIdAndUpdate(
       id,

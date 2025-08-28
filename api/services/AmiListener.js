@@ -600,27 +600,44 @@ class AmiListener {
 
   async handleExtensionStatus(fields) {
     const extension = fields.Exten;
-    const status = fields.Status;
+    const statusCode = fields.Status;
     const statusText = fields.StatusText;
 
-    if (!extension || status === null) {
+    if (!extension || statusCode === null) {
       console.warn('⚠️ ExtensionStatus event missing required fields: Exten or Status');
       return;
     }
 
     try {
-      const mappedStatus = this.mapExtensionStatus(status);
-      const updatedExtension = await Extension.updateStatus(extension, mappedStatus);
+      // Map status code to device state
+      const deviceState = this.mapDeviceState(statusCode, statusText);
+      
+      // Update extension with new fields
+      const updatedExtension = await Extension.updateStatus(extension, statusCode, deviceState);
       
       // Broadcast extension status update
       if (updatedExtension) {
         broadcast.extensionStatusUpdated(updatedExtension);
       }
       
-      console.log(`📱 Extension status updated: ${extension} -> ${status} (${statusText}) -> ${mappedStatus}`);
+      console.log(`📱 Extension status updated: ${extension} -> ${statusCode} (${statusText}) -> ${deviceState}`);
     } catch (error) {
       console.error('❌ Failed to update extension status:', error.message);
     }
+  }
+
+  mapDeviceState(statusCode, statusText) {
+    const deviceStateMap = {
+      0: 'NOT_INUSE',      // NotInUse
+      1: 'INUSE',          // InUse
+      2: 'BUSY',           // Busy
+      4: 'UNAVAILABLE',    // Unavailable
+      8: 'RINGING',        // Ringing
+      16: 'RING*INUSE',    // Ringinuse
+      '-1': 'UNKNOWN'      // Unknown
+    };
+    
+    return deviceStateMap[statusCode] || 'UNKNOWN';
   }
 
   mapExtensionStatus(asteriskStatus) {

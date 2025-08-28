@@ -22,8 +22,19 @@ class BroadcastService extends EventEmitter {
    * Broadcast an extension status update event
    */
   extensionStatusUpdated(extension) {
-    this.emit('extension.status.updated', extension);
-    console.log(`📱 Extension status broadcasted: ${extension.extension} -> ${extension.status}`);
+    this.emit('extension.status.updated', {
+      extension: extension.extension,
+      agent_name: extension.agent_name,
+      status: extension.status,
+      status_code: extension.status_code,
+      device_state: extension.device_state,
+      last_status_change: extension.last_status_change,
+      last_seen: extension.last_seen,
+      department: extension.department,
+      is_active: extension.is_active
+    });
+    
+    console.log(`📱 Extension status broadcasted: ${extension.extension} -> ${extension.status} (${extension.device_state})`);
   }
 
   /**

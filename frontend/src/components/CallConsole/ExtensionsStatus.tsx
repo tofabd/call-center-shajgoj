@@ -93,7 +93,10 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
             ? { 
                 ...ext, 
                 status: update.status,
+                status_code: update.status_code || ext.status_code,
+                device_state: update.device_state || ext.device_state,
                 agent_name: update.agent_name || ext.agent_name,
+                last_status_change: update.last_status_change || ext.last_status_change,
                 last_seen: update.last_seen || ext.last_seen
               } as Extension
             : ext
@@ -442,9 +445,12 @@ const ExtensionsStatus: React.FC<ExtensionsStatusProps> = () => {
                     <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
                       {getStatusIcon(extension.status)} {extension.status}
                     </div>
-                    {extension.last_seen && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {extension.device_state}
+                    </div>
+                    {extension.last_status_change && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Last seen: {new Date(extension.last_seen).toLocaleString()}
+                        Status changed: {new Date(extension.last_status_change).toLocaleTimeString()}
                       </div>
                     )}
                   </div>

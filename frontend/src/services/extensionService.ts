@@ -5,12 +5,13 @@ export interface Extension {
   id: string; // For backward compatibility, will map from _id
   extension: string;
   agent_name?: string;
+  status_code: number;
+  device_state: string;
   status: 'online' | 'offline' | 'unknown';
-  is_active: boolean;
+  last_status_change?: string;
   last_seen?: string;
-  context?: string;
-  hint?: string;
-  metadata?: Record<string, unknown>;
+  is_active: boolean;
+  department?: string;
   createdAt: string;
   updatedAt: string;
   created_at: string; // For backward compatibility
@@ -72,7 +73,12 @@ export const extensionService = {
       ...ext,
       id: ext._id, // Map _id to id for backward compatibility
       created_at: ext.createdAt, // Map createdAt to created_at
-      updated_at: ext.updatedAt  // Map updatedAt to updated_at
+      updated_at: ext.updatedAt, // Map updatedAt to updated_at
+      // Ensure new fields have default values if missing
+      status_code: ext.status_code || 0,
+      device_state: ext.device_state || 'NOT_INUSE',
+      last_status_change: ext.last_status_change || null,
+      department: ext.department || null
     }));
     
     return mappedExtensions;
@@ -85,7 +91,7 @@ export const extensionService = {
   },
 
   // Create new extension
-  async createExtension(data: { extension: string; agent_name?: string }): Promise<Extension> {
+  async createExtension(data: { extension: string; agent_name?: string; department?: string }): Promise<Extension> {
     const response = await api.post('/extensions', data);
     const ext = response.data.data;
     return {
@@ -97,7 +103,7 @@ export const extensionService = {
   },
 
   // Update extension
-  async updateExtension(id: string, data: { extension?: string; agent_name?: string; status?: string; is_active?: boolean }): Promise<Extension> {
+  async updateExtension(id: string, data: { extension?: string; agent_name?: string; department?: string; is_active?: boolean }): Promise<Extension> {
     const response = await api.put(`/extensions/${id}`, data);
     const ext = response.data.data;
     return {
