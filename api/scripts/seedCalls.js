@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import Call from '../models/Call.js';
+import Call from '../src/models/Call.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

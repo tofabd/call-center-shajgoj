@@ -5,9 +5,9 @@ import { config } from 'dotenv';
 config();
 
 // Import models and services
-import Extension from '../models/Extension.js';
-import AmiQueryService from '../services/AmiQueryService.js';
-import broadcast from '../services/BroadcastService.js';
+import Extension from '../src/models/Extension.js';
+import AmiQueryService from '../src/services/AmiQueryService.js';
+import broadcast from '../src/services/BroadcastService.js';
 
 // Database connection
 const connectDB = async () => {

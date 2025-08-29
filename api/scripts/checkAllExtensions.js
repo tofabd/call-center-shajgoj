@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Import models
-import Extension from '../models/Extension.js';
+import Extension from '../src/models/Extension.js';
 
 // Database connection
 const connectDB = async () => {

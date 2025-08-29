@@ -3,15 +3,15 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import connectDB from './config/database.js';
-import userRoutes from './routes/userRoutes.js';
-import authRoutes from './routes/authRoutes.js';
-import callRoutes from './routes/callRoutes.js';
-import extensionRoutes from './routes/extensionRoutes.js';
-import { errorHandler, notFound } from './middleware/errorHandler.js';
-import AmiListener from './services/AmiListener.js';
-import { initializeAmiQueryService, stopAmiQueryService } from './services/AmiQueryServiceInstance.js';
-import broadcast from './services/BroadcastService.js';
+import connectDB from './src/config/database.js';
+import userRoutes from './src/routes/userRoutes.js';
+import authRoutes from './src/routes/authRoutes.js';
+import callRoutes from './src/routes/callRoutes.js';
+import extensionRoutes from './src/routes/extensionRoutes.js';
+import { errorHandler, notFound } from './src/middleware/errorHandler.js';
+import AmiListener from './src/services/AmiListener.js';
+import { initializeAmiQueryService, stopAmiQueryService } from './src/services/AmiQueryServiceInstance.js';
+import broadcast from './src/services/BroadcastService.js';
 
 // Load environment variables
 dotenv.config();

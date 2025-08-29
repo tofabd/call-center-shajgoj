@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import mongoose from 'mongoose';
-import AmiListener from './services/AmiListener.js';
-import broadcast from './services/BroadcastService.js';
-import Log from './services/LogService.js';
+import AmiListener from '../src/services/AmiListener.js';
+import broadcast from '../src/services/BroadcastService.js';
+import Log from '../src/services/LogService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

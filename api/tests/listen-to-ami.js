@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import mongoose from 'mongoose';
-import AmiListener from './services/AmiListener.js';
+import AmiListener from '../src/services/AmiListener.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

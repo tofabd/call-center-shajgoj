@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import Extension from './models/Extension.js';
-import { initializeAmiQueryService, getAmiQueryService } from './services/AmiQueryServiceInstance.js';
+import Extension from '../src/models/Extension.js';
+import { initializeAmiQueryService, getAmiQueryService } from '../src/services/AmiQueryServiceInstance.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

@@ -4,8 +4,6 @@ import {
   Plus, 
   Edit, 
   Trash2, 
-  Power, 
-  PowerOff, 
   Search,
   RefreshCw,
   AlertTriangle,
@@ -43,10 +41,10 @@ const ExtensionManagement: React.FC = () => {
     try {
       setLoading(true);
       const data = await extensionService.getExtensions();
-      // Add is_active field with default true for existing extensions
+      // Use the actual is_active field from the database, default to true if not present
       const extensionsWithActive = data.map(ext => ({
         ...ext,
-        is_active: true // Default to active for now, this should come from backend
+        is_active: ext.is_active !== undefined ? ext.is_active : true
       }));
       setExtensions(extensionsWithActive);
     } catch (err) {
@@ -174,31 +172,8 @@ const ExtensionManagement: React.FC = () => {
       // Set the deleting state for this specific extension
       setDeletingExtensionId(deletingExtension.id);
       
-      // Record start time for minimum loading duration
-      const startTime = Date.now();
-      const minLoadingTime = 2000; // Minimum 2 seconds
-      
       // Call the API to delete the extension
       await extensionService.deleteExtension(deletingExtension.id);
-      
-      // Calculate how long the operation took
-      const elapsedTime = Date.now() - startTime;
-      const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-      
-      // Wait for remaining time to ensure minimum 2 seconds of loading state
-      if (remainingTime > 0) {
-        console.log(`⏱️ API call took ${elapsedTime}ms, waiting ${remainingTime}ms more for minimum loading time`);
-        
-        // Update progress during the wait
-        const progressInterval = setInterval(() => {
-          setDeletingProgress(prev => Math.min(prev + 10, 100));
-        }, remainingTime / 10);
-        
-        await new Promise(resolve => setTimeout(resolve, remainingTime));
-        clearInterval(progressInterval);
-      } else {
-        console.log(`⚡ API call took ${elapsedTime}ms, no additional wait needed`);
-      }
       
       // Remove the extension from local state without refreshing the page
       setExtensions(prev => prev.filter(ext => ext.id !== deletingExtension.id));
@@ -397,14 +372,12 @@ const ExtensionManagement: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
                 {filteredExtensions.map((extension) => (
-                  <tr 
-                    key={extension.id} 
-                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
-                      !extension.is_active ? 'opacity-60' : ''
-                    } ${
-                      deletingExtensionId === extension.id ? 'bg-red-50 dark:bg-red-900/20 opacity-80' : ''
-                    }`}
-                  >
+                                     <tr 
+                     key={extension.id} 
+                     className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
+                       deletingExtensionId === extension.id ? 'bg-red-50 dark:bg-red-900/20 opacity-80' : ''
+                     }`}
+                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
                         {extension.extension}
@@ -415,34 +388,44 @@ const ExtensionManagement: React.FC = () => {
                         {extension.agent_name || '-'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                        {getStatusIcon(extension.status)} {extension.status}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleToggleActive(extension)}
-                        disabled={deletingExtensionId === extension.id}
-                        className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          extension.is_active
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-                        }`}
-                      >
-                        {extension.is_active ? (
-                          <>
-                            <Power className="h-3 w-3" />
-                            <span>Active</span>
-                          </>
-                        ) : (
-                          <>
-                            <PowerOff className="h-3 w-3" />
-                            <span>Inactive</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
+                                         <td className="px-6 py-4 whitespace-nowrap">
+                       <div className={`text-sm font-medium ${
+                         !extension.is_active 
+                           ? 'text-gray-500 dark:text-gray-400' // Gray color for inactive
+                           : getStatusColor(extension.status)    // Normal colors for active
+                       }`}>
+                         {!extension.is_active 
+                           ? '🔒 Disabled'  // Show "Disabled" instead of actual status
+                           : `${getStatusIcon(extension.status)} ${extension.status}`  // Normal status display
+                         }
+                       </div>
+                     </td>
+                                         <td className="px-6 py-4 whitespace-nowrap">
+                       <div className="flex items-center space-x-3">
+                         <button
+                           onClick={() => handleToggleActive(extension)}
+                           disabled={deletingExtensionId === extension.id}
+                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                             extension.is_active
+                               ? 'bg-green-600 dark:bg-green-500'
+                               : 'bg-gray-300 dark:bg-gray-600'
+                           }`}
+                         >
+                           <span
+                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                               extension.is_active ? 'translate-x-6' : 'translate-x-1'
+                             }`}
+                           />
+                         </button>
+                         <span className={`text-sm font-medium ${
+                           extension.is_active
+                             ? 'text-green-600 dark:text-green-400'
+                             : 'text-green-600 dark:text-green-400'
+                         }`}>
+                           {extension.is_active ? 'Active' : 'Inactive'}
+                         </span>
+                       </div>
+                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {extension.last_seen ? new Date(extension.last_seen).toLocaleString() : '-'}
                     </td>

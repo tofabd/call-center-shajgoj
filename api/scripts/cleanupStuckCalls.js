@@ -18,9 +18,9 @@
 
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Call from '../models/Call.js';
-import BroadcastService from '../services/BroadcastService.js';
-import LogService from '../services/LogService.js';
+import Call from '../src/models/Call.js';
+import BroadcastService from '../src/services/BroadcastService.js';
+import LogService from '../src/services/LogService.js';
 
 // Load environment variables
 dotenv.config();
