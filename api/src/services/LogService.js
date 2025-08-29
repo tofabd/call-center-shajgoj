@@ -1,8 +1,31 @@
+import pino from 'pino';
+
 /**
- * Comprehensive logging service similar to Laravel's Log facade
+ * Enhanced logging service using Pino for high-performance structured logging
+ * Maintains compatibility with existing LogService API while adding Pino benefits
  */
 class LogService {
   constructor() {
+    // Create Pino logger instance
+    this.logger = pino({
+      level: process.env.LOG_LEVEL || 'info',
+      transport: process.env.NODE_ENV === 'development' ? {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname'
+        }
+      } : undefined,
+      // Add custom serializers for better log formatting
+      serializers: {
+        req: pino.stdSerializers.req,
+        res: pino.stdSerializers.res,
+        err: pino.stdSerializers.err
+      }
+    });
+
+    // Maintain backward compatibility
     this.levels = {
       error: 0,
       warn: 1,
@@ -20,7 +43,7 @@ class LogService {
   }
 
   /**
-   * Format log message with context
+   * Format log message with context (maintained for backward compatibility)
    */
   formatMessage(level, message, context = {}) {
     const timestamp = this.timestamp();
@@ -36,46 +59,47 @@ class LogService {
   }
 
   /**
-   * Log error message
+   * Log error message using Pino
    */
   error(message, context = {}) {
     if (this.shouldLog('error')) {
-      console.error(this.formatMessage('error', message, context));
+      this.logger.error({ ...context, message });
     }
   }
 
   /**
-   * Log warning message
+   * Log warning message using Pino
    */
   warn(message, context = {}) {
     if (this.shouldLog('warn')) {
-      console.warn(this.formatMessage('warn', message, context));
+      this.logger.warn({ ...context, message });
     }
   }
 
   /**
-   * Log info message
+   * Log info message using Pino
    */
   info(message, context = {}) {
     if (this.shouldLog('info')) {
-      console.log(this.formatMessage('info', message, context));
+      this.logger.info({ ...context, message });
     }
   }
 
   /**
-   * Log debug message
+   * Log debug message using Pino
    */
   debug(message, context = {}) {
     if (this.shouldLog('debug')) {
-      console.debug(this.formatMessage('debug', message, context));
+      this.logger.debug({ ...context, message });
     }
   }
 
   /**
-   * Log AMI event with full context
+   * Log AMI event with full context using Pino
    */
   amiEvent(eventType, fields) {
     this.info(`AMI ${eventType} event`, {
+      eventType,
       linkedid: fields.Linkedid,
       uniqueid: fields.Uniqueid,
       channel: fields.Channel,
@@ -89,10 +113,53 @@ class LogService {
   }
 
   /**
-   * Log call decision with context
+   * Log call decision with context using Pino
    */
   callDecision(message, context) {
     this.info(`Call direction decision: ${message}`, context);
+  }
+
+  /**
+   * Get the underlying Pino logger for advanced usage
+   */
+  getPinoLogger() {
+    return this.logger;
+  }
+
+  /**
+   * Log HTTP request (for middleware usage)
+   */
+  httpRequest(req, res, responseTime) {
+    this.info('HTTP Request', {
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      responseTime: `${responseTime}ms`,
+      userAgent: req.get('User-Agent'),
+      ip: req.ip || req.connection.remoteAddress
+    });
+  }
+
+  /**
+   * Log database operations
+   */
+  database(operation, collection, details = {}) {
+    this.info(`Database ${operation}`, {
+      operation,
+      collection,
+      ...details
+    });
+  }
+
+  /**
+   * Log socket events
+   */
+  socketEvent(event, socketId, data = {}) {
+    this.info(`Socket ${event}`, {
+      event,
+      socketId,
+      ...data
+    });
   }
 }
 
