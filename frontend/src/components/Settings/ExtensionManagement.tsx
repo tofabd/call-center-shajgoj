@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { 
   Plus, 
   Edit, 
@@ -7,7 +8,8 @@ import {
   PowerOff, 
   Search,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  LoaderCircle
 } from 'lucide-react';
 import { extensionService } from '../../services/extensionService';
 import type { Extension } from '../../services/extensionService';
@@ -19,11 +21,11 @@ interface ExtensionWithActive extends Extension {
 const ExtensionManagement: React.FC = () => {
   const [extensions, setExtensions] = useState<ExtensionWithActive[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingExtension, setEditingExtension] = useState<ExtensionWithActive | null>(null);
   const [deletingExtension, setDeletingExtension] = useState<ExtensionWithActive | null>(null);
+  const [deletingExtensionId, setDeletingExtensionId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   // Form states
@@ -47,9 +49,16 @@ const ExtensionManagement: React.FC = () => {
         is_active: true // Default to active for now, this should come from backend
       }));
       setExtensions(extensionsWithActive);
-      setError(null);
     } catch (err) {
-      setError('Failed to load extensions');
+      toast.error('Failed to load extensions', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
       console.error('Error loading extensions:', err);
     } finally {
       setLoading(false);
@@ -61,9 +70,27 @@ const ExtensionManagement: React.FC = () => {
       setSyncing(true);
       await extensionService.syncExtensions();
       await loadExtensions();
+      
+      toast.success('Extensions synced successfully from Asterisk', {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } catch (err) {
       console.error('Error syncing extensions:', err);
-      setError('Failed to sync extensions');
+      toast.error('Failed to sync extensions', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } finally {
       setSyncing(false);
     }
@@ -78,9 +105,27 @@ const ExtensionManagement: React.FC = () => {
       setIsAddModalOpen(false);
       setFormData({ extension: '', agent_name: '', is_active: true });
       await loadExtensions();
+      
+      toast.success(`Extension ${formData.extension} added successfully`, {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } catch (err) {
       console.error('Error adding extension:', err);
-      setError('Failed to add extension');
+      toast.error('Failed to add extension', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     }
   };
 
@@ -95,9 +140,27 @@ const ExtensionManagement: React.FC = () => {
       setEditingExtension(null);
       setFormData({ extension: '', agent_name: '', is_active: true });
       await loadExtensions();
+      
+      toast.success(`Extension ${formData.extension} updated successfully`, {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } catch (err) {
       console.error('Error updating extension:', err);
-      setError('Failed to update extension');
+      toast.error('Failed to update extension', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     }
   };
 
@@ -105,12 +168,67 @@ const ExtensionManagement: React.FC = () => {
     if (!deletingExtension) return;
     
     try {
-      await extensionService.deleteExtension(deletingExtension.id);
+      // Close the confirmation modal immediately
       setDeletingExtension(null);
-      await loadExtensions();
+      
+      // Set the deleting state for this specific extension
+      setDeletingExtensionId(deletingExtension.id);
+      
+      // Record start time for minimum loading duration
+      const startTime = Date.now();
+      const minLoadingTime = 2000; // Minimum 2 seconds
+      
+      // Call the API to delete the extension
+      await extensionService.deleteExtension(deletingExtension.id);
+      
+      // Calculate how long the operation took
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+      
+      // Wait for remaining time to ensure minimum 2 seconds of loading state
+      if (remainingTime > 0) {
+        console.log(`⏱️ API call took ${elapsedTime}ms, waiting ${remainingTime}ms more for minimum loading time`);
+        
+        // Update progress during the wait
+        const progressInterval = setInterval(() => {
+          setDeletingProgress(prev => Math.min(prev + 10, 100));
+        }, remainingTime / 10);
+        
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+        clearInterval(progressInterval);
+      } else {
+        console.log(`⚡ API call took ${elapsedTime}ms, no additional wait needed`);
+      }
+      
+      // Remove the extension from local state without refreshing the page
+      setExtensions(prev => prev.filter(ext => ext.id !== deletingExtension.id));
+      
+      // Clear the deleting states
+      setDeletingExtensionId(null);
+      
+      // Show success toast
+      toast.success(`Extension ${deletingExtension.extension} deleted successfully`, {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } catch (err) {
       console.error('Error deleting extension:', err);
-      setError('Failed to delete extension');
+      toast.error('Failed to delete extension', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
+      // Clear the deleting state on error
+      setDeletingExtensionId(null);
     }
   };
 
@@ -127,9 +245,27 @@ const ExtensionManagement: React.FC = () => {
             : ext
         )
       );
+      
+      toast.success(`Extension ${extension.extension} ${!extension.is_active ? 'activated' : 'deactivated'} successfully`, {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     } catch (err) {
       console.error('Error toggling extension active status:', err);
-      setError('Failed to update extension status');
+      toast.error('Failed to update extension status', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
     }
   };
 
@@ -221,15 +357,7 @@ const ExtensionManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            <span className="text-red-600 dark:text-red-400 font-medium">{error}</span>
-          </div>
-        </div>
-      )}
+
 
       {/* Extensions Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -269,7 +397,14 @@ const ExtensionManagement: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
                 {filteredExtensions.map((extension) => (
-                  <tr key={extension.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${!extension.is_active ? 'opacity-60' : ''}`}>
+                  <tr 
+                    key={extension.id} 
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
+                      !extension.is_active ? 'opacity-60' : ''
+                    } ${
+                      deletingExtensionId === extension.id ? 'bg-red-50 dark:bg-red-900/20 opacity-80' : ''
+                    }`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
                         {extension.extension}
@@ -288,7 +423,8 @@ const ExtensionManagement: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleToggleActive(extension)}
-                        className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        disabled={deletingExtensionId === extension.id}
+                        className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           extension.is_active
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
@@ -314,15 +450,25 @@ const ExtensionManagement: React.FC = () => {
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => openEditModal(extension)}
-                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
+                          disabled={deletingExtensionId === extension.id}
+                          className={`text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                            deletingExtensionId === extension.id ? 'scale-95' : 'hover:scale-110'
+                          }`}
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => setDeletingExtension(extension)}
-                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                          disabled={deletingExtensionId === extension.id}
+                          className={`text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                            deletingExtensionId === extension.id ? 'scale-95 animate-pulse' : 'hover:scale-110'
+                          }`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {deletingExtensionId === extension.id ? (
+                            <LoaderCircle className="h-5 w-5 animate-spin text-red-600 dark:text-red-400" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </td>
@@ -448,15 +594,21 @@ const ExtensionManagement: React.FC = () => {
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setDeletingExtension(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                disabled={deletingExtensionId === deletingExtension?.id}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                disabled={deletingExtensionId === deletingExtension?.id}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Delete Extension
+                {deletingExtensionId === deletingExtension?.id ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <span>Delete Extension</span>
+                )}
               </button>
             </div>
           </div>
