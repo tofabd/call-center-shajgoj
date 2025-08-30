@@ -143,9 +143,9 @@ extensionSchema.statics.mapStatus = function(statusCode) {
 
 // EXPLICIT EXTENSION CREATION METHOD - for manual creation only
 extensionSchema.statics.createExtension = async function(extensionData) {
-  // Validate extension format
-  if (!/^\d{3,4}$/.test(extensionData.extension)) {
-    throw new Error(`Invalid extension format: ${extensionData.extension}. Must be 3-4 digits only.`);
+  // Validate extension format - aligned with schema validation (3-5 digits)
+  if (!/^\d{3,5}$/.test(extensionData.extension)) {
+    throw new Error(`Invalid extension format: ${extensionData.extension}. Must be 3-5 digits only.`);
   }
   
   // Check if extension already exists

@@ -190,6 +190,74 @@ class AmiQueryService {
     }
   }
 
+  // Query individual extension status using ExtensionState action
+  async queryExtensionStatus(extensionNumber) {
+    try {
+      this.logger.info(`🔍 Querying ExtensionState for extension ${extensionNumber}...`);
+      
+      // Generate unique ActionID for this query
+      const actionId = `ext_status_${extensionNumber}_${Date.now()}`;
+      
+      // Use exact ExtensionState format as specified
+      const command = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\n\r\n`;
+      
+      this.logger.info(`📤 Sending ExtensionState command for ${extensionNumber}:`, { actionId, command });
+      
+      const response = await this.sendCommand(command, 10000); // 10 second timeout for individual query
+      
+      this.logger.info(`✅ ExtensionState query completed for ${extensionNumber}`);
+      
+      // Parse the response to extract status
+      const status = this.parseExtensionStateResponse(response, extensionNumber);
+      
+      return {
+        extension: extensionNumber,
+        status: status,
+        error: null
+      };
+      
+    } catch (error) {
+      this.logger.error(`❌ ExtensionState query failed for ${extensionNumber}:`, { error: error.message });
+      
+      return {
+        extension: extensionNumber,
+        status: 'unknown',
+        error: error.message
+      };
+    }
+  }
+
+  // Parse individual ExtensionState response
+  parseExtensionStateResponse(response, extensionNumber) {
+    try {
+      const lines = response.split('\r\n');
+      
+      // Look for ExtensionStatus event or Response
+      for (const line of lines) {
+        if (line.startsWith('Status: ')) {
+          const statusCode = line.substring(8).trim();
+          return this.mapExtensionStatus(statusCode);
+        }
+      }
+      
+      // If no Status found, check for Response: Success
+      if (response.includes('Response: Success')) {
+        // Look for ExtensionStatus event in the response
+        const eventMatch = response.match(/Event: ExtensionStatus\r\nExten: (\d+)\r\nStatus: (\d+)/);
+        if (eventMatch && eventMatch[2]) {
+          return this.mapExtensionStatus(eventMatch[2]);
+        }
+      }
+      
+      this.logger.warn(`⚠️ Could not parse ExtensionState response for ${extensionNumber}:`, { response });
+      return 'unknown';
+      
+    } catch (error) {
+      this.logger.error(`❌ Error parsing ExtensionState response for ${extensionNumber}:`, { error: error.message, response });
+      return 'unknown';
+    }
+  }
+
   parseExtensionStateListResponse(response) {
     const extensions = [];
     const lines = response.split('\r\n');
@@ -478,19 +546,52 @@ class AmiQueryService {
   }
 
   // Get service status
-  async getStatus() {
-    const extensionCount = await Extension.countDocuments({ is_active: true });
-    
+  getStatus() {
     return {
       connected: this.connected,
-      queryInterval: this.queryIntervalMs,
+      extensionsMonitored: this.extensionList.length,
+      isQuerying: this.isQuerying,
       lastQueryTime: this.lastQueryTime,
-      extensionsMonitored: extensionCount,
-      statistics: {
-        successfulQueries: this.successfulQueries,
-        failedQueries: this.failedQueries
-      },
-      isQuerying: this.isQuerying
+      successfulQueries: this.successfulQueries,
+      failedQueries: this.failedQueries,
+      eventsMode: process.env.AMI_EVENTS || 'off'
+    };
+  }
+
+  // Validate connection health
+  async validateConnection() {
+    if (!this.connected || !this.socket) {
+      return false;
+    }
+
+    try {
+      // Send a simple ping to validate connection
+      const pingId = `health_check_${Date.now()}`;
+      const pingCmd = `Action: Ping\r\nActionID: ${pingId}\r\n\r\n`;
+      
+      const response = await this.sendCommand(pingCmd, 5000);
+      return response.includes('Response: Success');
+      
+    } catch (error) {
+      this.logger.warn('⚠️ Connection validation failed:', { error: error.message });
+      return false;
+    }
+  }
+
+  // Get connection status with detailed information
+  getConnectionStatus() {
+    return {
+      connected: this.connected,
+      host: process.env.AMI_HOST || '103.177.125.83',
+      port: process.env.AMI_PORT || 5038,
+      username: process.env.AMI_USERNAME || 'admin',
+      eventsMode: process.env.AMI_EVENTS || 'off',
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      lastQueryTime: this.lastQueryTime,
+      successfulQueries: this.successfulQueries,
+      failedQueries: this.failedQueries,
+      socketState: this.socket ? this.socket.connecting ? 'connecting' : 'connected' : 'disconnected'
     };
   }
 
