@@ -607,6 +607,18 @@ class AmiEventProcessor {
     console.warn('⚠️ [EventProcessor] Unknown extension status value:', asteriskStatus);
     return 'unknown';
   }
+
+  /**
+   * Stop event processing
+   */
+  stop() {
+    console.log('🛑 [EventProcessor] Stopping event processing...');
+    
+    // Clear any event handlers
+    this.eventHandlers.clear();
+    
+    console.log('✅ [EventProcessor] Event processing stopped');
+  }
 }
 
 export default AmiEventProcessor;

@@ -108,46 +108,6 @@ class HybridAmiService {
   }
 
   /**
-   * Stop the service
-   */
-  async stop() {
-    console.log('🛑 [HybridAmiService] Stopping Hybrid AMI Service...');
-    
-    this.isRunning = false;
-    this.connectionState = 'disconnected';
-    
-    try {
-      await this.connectionManager.cleanup();
-      console.log('✅ [HybridAmiService] Service stopped successfully');
-    } catch (error) {
-      console.error('❌ [HybridAmiService] Error during shutdown:', error.message);
-    }
-  }
-
-  /**
-   * Get service status
-   */
-  getStatus() {
-    const connectionStatus = this.connectionManager.getConnectionStatus();
-    
-    return {
-      service: 'HybridAmiService',
-      running: this.isRunning,
-      connectionState: this.connectionState,
-      connection: connectionStatus,
-      reconnectAttempts: this.reconnectAttempts,
-      maxReconnectAttempts: this.maxReconnectAttempts
-    };
-  }
-
-  /**
-   * Check if service is healthy
-   */
-  isHealthy() {
-    return this.isRunning && this.connectionManager.isHealthy();
-  }
-
-  /**
    * Force reconnection
    */
   async reconnect() {
@@ -299,6 +259,61 @@ class HybridAmiService {
    */
   getEventProcessor() {
     return this.eventProcessor;
+  }
+
+  /**
+   * Check if the service is healthy and running
+   */
+  isHealthy() {
+    return this.isRunning && 
+           this.connectionState === 'connected' && 
+           this.connectionManager.isHealthy();
+  }
+
+  /**
+   * Get the current service status
+   */
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      connectionState: this.connectionState,
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      connection: this.connectionManager.getStatus()
+    };
+  }
+
+  /**
+   * Stop the service
+   */
+  async stop() {
+    if (!this.isRunning) {
+      console.log('⚠️ [HybridAmiService] Service is not running');
+      return;
+    }
+
+    console.log('🛑 [HybridAmiService] Stopping Hybrid AMI Service...');
+    
+    try {
+      // Stop event processing
+      if (this.eventProcessor) {
+        this.eventProcessor.stop();
+      }
+      
+      // Stop connection manager
+      if (this.connectionManager) {
+        await this.connectionManager.disconnect();
+      }
+      
+      this.isRunning = false;
+      this.connectionState = 'disconnected';
+      
+      console.log('✅ [HybridAmiService] Hybrid AMI Service stopped successfully');
+      
+    } catch (error) {
+      console.error('❌ [HybridAmiService] Error stopping service:', error.message);
+      throw error;
+    }
   }
 }
 

@@ -12,6 +12,13 @@ import {
   getExtensionCallStatistics
 } from '../controllers/extensionController.js';
 
+import {
+  createSeparateConnectionAndRefresh,
+  getSeparateConnectionStatus,
+  closeSeparateConnection,
+  closeAllSeparateConnections
+} from '../controllers/hybridAmiRefreshController.js';
+
 const router = express.Router();
 
 // GET /api/extensions - Get all extensions with pagination and filtering
@@ -26,8 +33,18 @@ router.get('/query-service/status', getQueryServiceStatus);
 // POST /api/extensions - Create new extension
 router.post('/', createExtension);
 
-// POST /api/extensions/refresh - Manual refresh extension status
+// POST /api/extensions/refresh - Manual refresh extension status (existing)
 router.post('/refresh', refreshExtensionStatus);
+
+// Hybrid AMI Refresh Routes - Separate connection operations
+// POST /api/extensions/hybrid-refresh - Create separate connection and refresh
+router.post('/hybrid-refresh', createSeparateConnectionAndRefresh);
+
+// GET /api/extensions/hybrid-refresh/status - Get separate connection status
+router.get('/hybrid-refresh/status', getSeparateConnectionStatus);
+
+// POST /api/extensions/hybrid-refresh/close - Close all separate connections
+router.post('/hybrid-refresh/close', closeAllSeparateConnections);
 
 // PUT /api/extensions/status - Update extension status (used by AMI)
 router.put('/status', updateExtensionStatus);

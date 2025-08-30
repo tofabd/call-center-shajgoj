@@ -3,9 +3,11 @@ import { RefreshCw } from 'lucide-react';
 import { StatusTooltip } from '../common/StatusTooltip';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
+import { hybridAmiRefreshService } from '../../services/hybridAmiRefreshService';
 import socketService from '../../services/socketService';
 import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
+import type { HybridAmiRefreshResult } from '../../services/hybridAmiRefreshService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 // Utility function to calculate duration since status change

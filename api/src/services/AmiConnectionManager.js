@@ -155,10 +155,25 @@ class AmiConnectionManager {
   }
 
   /**
+   * Get connection status (alias for compatibility)
+   */
+  getStatus() {
+    return this.getConnectionStatus();
+  }
+
+  /**
    * Check if connection is healthy
    */
   isHealthy() {
     return this.socket && this.connected && this.connectionState === 'connected';
+  }
+
+  /**
+   * Disconnect the connection
+   */
+  async disconnect() {
+    console.log('🔌 [ConnectionManager] Disconnecting...');
+    await this.cleanup();
   }
 
   /**
