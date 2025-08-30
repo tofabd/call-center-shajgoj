@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import {
   getExtensions,
   getExtensionById,
@@ -27,13 +29,88 @@ router.get('/', getExtensions);
 // GET /api/extensions/statistics - Get extension statistics
 router.get('/statistics', getExtensionStatistics);
 
-// GET /api/extensions/query-service/status - Get AMI Query Service status
+// GET /api/extensions/query-service/status - Get AMI Query Service status (uses separate connection)
 router.get('/query-service/status', getQueryServiceStatus);
+
+// GET /api/extensions/ami-responses - List available AMI response JSON files
+router.get('/ami-responses', (req, res) => {
+  try {
+    const debugDir = path.join(process.cwd(), 'debug', 'ami-responses');
+    if (!fs.existsSync(debugDir)) {
+      return res.json({
+        success: true,
+        data: {
+          files: [],
+          message: 'No AMI response files found'
+        }
+      });
+    }
+    
+    const files = fs.readdirSync(debugDir)
+      .filter(file => file.endsWith('.json'))
+      .map(file => {
+        const filepath = path.join(debugDir, file);
+        const stats = fs.statSync(filepath);
+        return {
+          filename: file,
+          fileSize: stats.size,
+          createdAt: stats.birthtime,
+          modifiedAt: stats.mtime
+        };
+      })
+      .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
+    
+    res.json({
+      success: true,
+      data: {
+        files: files,
+        totalFiles: files.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to list AMI response files',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/extensions/ami-responses/:filename - Download specific AMI response JSON file
+router.get('/ami-responses/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const debugDir = path.join(process.cwd(), 'debug', 'ami-responses');
+    const filepath = path.join(debugDir, filename);
+    
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'AMI response file not found'
+      });
+    }
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filepath);
+    fileStream.pipe(res);
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download AMI response file',
+      error: error.message
+    });
+  }
+});
 
 // POST /api/extensions - Create new extension
 router.post('/', createExtension);
 
-// POST /api/extensions/refresh - Manual refresh extension status (existing)
+// POST /api/extensions/refresh - Manual refresh extension status (uses separate Hybrid AMI connection)
 router.post('/refresh', refreshExtensionStatus);
 
 // Hybrid AMI Refresh Routes - Separate connection operations

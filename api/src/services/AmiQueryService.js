@@ -28,10 +28,15 @@ class AmiQueryService {
   }
 
   async start() {
-    const host = process.env.AMI_HOST || '103.177.125.83';
-    const port = parseInt(process.env.AMI_PORT) || 5038;
-    const username = process.env.AMI_USERNAME || 'admin';
-    const password = process.env.AMI_PASSWORD || 'Tractor@0152';
+    const host = process.env.AMI_HOST;
+    const port = parseInt(process.env.AMI_PORT);
+    const username = process.env.AMI_USERNAME;
+    const password = process.env.AMI_PASSWORD;
+
+    // Validate required environment variables
+    if (!host || !port || !username || !password) {
+      throw new Error('Missing required AMI environment variables. Please ensure AMI_HOST, AMI_PORT, AMI_USERNAME, and AMI_PASSWORD are set in your .env file.');
+    }
 
     this.logger.info(`🔌 Starting AMI Query Service - connecting to ${host}:${port}...`);
 
@@ -582,9 +587,9 @@ class AmiQueryService {
   getConnectionStatus() {
     return {
       connected: this.connected,
-      host: process.env.AMI_HOST || '103.177.125.83',
-      port: process.env.AMI_PORT || 5038,
-      username: process.env.AMI_USERNAME || 'admin',
+      host: process.env.AMI_HOST || 'Not set',
+      port: process.env.AMI_PORT || 'Not set',
+      username: process.env.AMI_USERNAME || 'Not set',
       eventsMode: process.env.AMI_EVENTS || 'off',
       reconnectAttempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts,

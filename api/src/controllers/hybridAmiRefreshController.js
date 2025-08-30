@@ -1,9 +1,64 @@
 import logger from '../config/logging.js';
 import HybridAmiService from '../services/HybridAmiService.js';
 import Extension from '../models/Extension.js';
+import fs from 'fs';
+import path from 'path';
 
 // Store separate connection instances
 const separateConnections = new Map();
+
+/**
+ * Create JSON file with AMI response data for manual refresh
+ */
+const createAmiResponseJsonFile = async (amiResults, connectionId) => {
+  try {
+    // Create debug directory if it doesn't exist
+    const debugDir = path.join(process.cwd(), 'debug', 'ami-responses');
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    // Create filename with timestamp and connection ID
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `ami-refresh-${timestamp}-${connectionId}.json`;
+    const filepath = path.join(debugDir, filename);
+    
+    // Prepare JSON data
+    const jsonData = {
+      metadata: {
+        refreshTimestamp: new Date().toISOString(),
+        connectionId: connectionId,
+        totalExtensions: amiResults.length,
+        amiHost: process.env.AMI_HOST,
+        amiPort: process.env.AMI_PORT,
+        generatedAt: new Date().toISOString()
+      },
+      amiResponses: amiResults,
+      summary: {
+        successfulQueries: amiResults.filter(r => !r.error).length,
+        failedQueries: amiResults.filter(r => r.error).length,
+        onlineCount: amiResults.filter(r => r.status === 'online').length,
+        offlineCount: amiResults.filter(r => r.status === 'offline').length,
+        unknownCount: amiResults.filter(r => r.status === 'unknown').length
+      }
+    };
+    
+    // Write JSON file
+    fs.writeFileSync(filepath, JSON.stringify(jsonData, null, 2));
+    
+    logger.info(`📄 AMI response JSON file created: ${filepath}`);
+    
+    return {
+      filename: filename,
+      filepath: filepath,
+      fileSize: fs.statSync(filepath).size
+    };
+    
+  } catch (error) {
+    logger.error('❌ Failed to create AMI response JSON file:', error.message);
+    return null;
+  }
+};
 
 /**
  * Create a separate Hybrid AMI connection and refresh extension statuses
@@ -44,6 +99,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     
     // Query each extension status via the separate AMI connection
     const results = [];
+    const amiResponses = []; // Store all AMI responses for JSON file
     let successfulQueries = 0;
     let failedQueries = 0;
     
@@ -52,6 +108,17 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         logger.info(`🔍 [HybridAmiRefreshController] Querying extension ${extension.extension} via separate connection`);
         
         const statusResult = await separateAmiService.queryExtensionStatus(extension.extension);
+        
+        // Store AMI response for JSON file
+        const amiResponse = {
+          extension: extension.extension,
+          agent_name: extension.agent_name,
+          database_id: extension._id,
+          ami_response: statusResult,
+          query_timestamp: new Date().toISOString(),
+          success: !statusResult.error
+        };
+        amiResponses.push(amiResponse);
         
         if (statusResult.error) {
           logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
@@ -84,6 +151,16 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       } catch (error) {
         logger.error(`❌ [HybridAmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
         failedQueries++;
+        
+        // Add failed response to AMI responses
+        amiResponses.push({
+          extension: extension.extension,
+          agent_name: extension.agent_name,
+          database_id: extension._id,
+          ami_response: { error: error.message, status: 'unknown' },
+          query_timestamp: new Date().toISOString(),
+          success: false
+        });
       }
     }
     
@@ -93,11 +170,16 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       connectionInfo.lastUsed = new Date();
     }
     
+    // Create JSON file with AMI responses
+    const jsonFileInfo = await createAmiResponseJsonFile(amiResponses, connectionId);
+    
     logger.info(`✅ [HybridAmiRefreshController] Separate connection refresh completed: ${connectionId}`, {
       extensionsChecked: validExtensions.length,
       successfulQueries,
       failedQueries,
-      resultsCount: results.length
+      resultsCount: results.length,
+      jsonFileCreated: !!jsonFileInfo,
+      jsonFilename: jsonFileInfo?.filename
     });
     
     res.json({
@@ -111,7 +193,12 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
           successfulQueries,
           failedQueries
         },
-        results: results
+        results: results,
+        jsonFile: jsonFileInfo ? {
+          filename: jsonFileInfo.filename,
+          fileSize: jsonFileInfo.fileSize,
+          message: 'AMI response data saved to JSON file'
+        } : null
       }
     });
     

@@ -3,11 +3,9 @@ import { RefreshCw } from 'lucide-react';
 import { StatusTooltip } from '../common/StatusTooltip';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
-import { hybridAmiRefreshService } from '../../services/hybridAmiRefreshService';
 import socketService from '../../services/socketService';
 import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
-import type { HybridAmiRefreshResult } from '../../services/hybridAmiRefreshService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 // Utility function to calculate duration since status change
@@ -73,6 +71,8 @@ const ExtensionsStatus: React.FC = () => {
   const [extensionStats, setExtensionStats] = useState<ExtensionCallStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  
+
 
   // Countdown timer effect
   useEffect(() => {
@@ -223,27 +223,60 @@ const ExtensionsStatus: React.FC = () => {
     };
   }, []);
 
-  const loadExtensions = async (isRefresh = false) => {
+  const loadExtensions = async (isRefresh = false, retryCount = 0) => {
     const dbStartTime = Date.now();
+    const maxRetries = 2;
+    
     try {
       if (!isRefresh) {
         setLoading(true);
       }
       
-      console.log(`💾 ${isRefresh ? 'Refreshing' : 'Loading'} extensions from database...`);
+      console.log(`💾 ${isRefresh ? 'Refreshing' : 'Loading'} extensions from database... (attempt ${retryCount + 1})`);
       const data = await extensionService.getExtensions();
       const dbTime = Date.now() - dbStartTime;
+      
+      // Validate that we received valid data
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Invalid data format received from database');
+      }
+      
+      // Check if we have extensions data
+      if (data.length === 0) {
+        console.warn('⚠️ No extensions found in database - this might indicate a data issue');
+      }
       
       setExtensions(data);
       setError(null);
       
-
-      
       console.log(`✅ Extensions loaded from database: ${data.length} extensions in ${dbTime}ms`);
+      
+      // If this was a retry, log success
+      if (retryCount > 0) {
+        console.log(`🔄 Retry successful after ${retryCount} attempts`);
+      }
+      
     } catch (err) {
       const dbTime = Date.now() - dbStartTime;
       console.error(`❌ Error loading extensions from database after ${dbTime}ms:`, err);
-      setError('Failed to load extensions from database');
+      
+      // Implement retry logic for database failures
+      if (retryCount < maxRetries) {
+        console.log(`🔄 Retrying database load in 1 second... (attempt ${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => {
+          loadExtensions(isRefresh, retryCount + 1);
+        }, 1000);
+        return; // Don't set error state yet, we're retrying
+      }
+      
+      // After max retries, set error state
+      setError(`Failed to load extensions from database after ${maxRetries} attempts: ${err instanceof Error ? err.message : String(err)}`);
+      
+      // If this was a refresh operation, try to load from cache/previous state
+      if (isRefresh && extensions.length > 0) {
+        console.log('🔄 Refresh failed, keeping previous extension data');
+      }
+      
     } finally {
       if (!isRefresh) {
         setLoading(false);
@@ -265,12 +298,19 @@ const ExtensionsStatus: React.FC = () => {
     extensionService.refreshStatus()
       .then((result) => {
         console.log('✅ AMI refresh completed, extensions updated in database:', result);
-        // After AMI refresh, reload extensions from database to get updated status
+        
+        // Add a small delay to ensure database is updated before loading
+        return new Promise(resolve => setTimeout(resolve, 500));
+      })
+      .then(() => {
+        // After delay, reload extensions from database to get updated status
+        console.log('🔄 Loading updated extensions from database after AMI refresh...');
         return loadExtensions(true);
       })
       .catch((error) => {
         console.error('❌ AMI refresh failed:', error);
         // Fallback to database reload if AMI refresh fails
+        console.log('🔄 Fallback: Loading extensions from database due to AMI failure...');
         return loadExtensions(true);
       })
       .finally(() => {
@@ -305,6 +345,49 @@ const ExtensionsStatus: React.FC = () => {
       });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
+  // Add keyboard event listener for manual refresh (Ctrl+R or F5)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl+R or F5 for manual refresh
+      if ((event.ctrlKey && event.key === 'r') || event.key === 'F5') {
+        event.preventDefault(); // Prevent default browser refresh
+        if (!isRefreshing && !isAutoRefreshing) {
+          console.log('⌨️ Keyboard shortcut detected - triggering manual refresh');
+          handleRefresh();
+        }
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+
+  // Add double-click event for manual refresh on the header
+  const handleHeaderDoubleClick = useCallback(() => {
+    if (!isRefreshing && !isAutoRefreshing) {
+      console.log('🖱️ Header double-click detected - triggering manual refresh');
+      handleRefresh();
+    }
+  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+
+  // Add right-click context menu event for manual refresh
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!isRefreshing && !isAutoRefreshing) {
+      console.log('🖱️ Right-click context menu detected - triggering manual refresh');
+      handleRefresh();
+    }
+  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+
+  // Check if we're in event-driven mode or fallback mode
+  const isEventDrivenMode = realtimeStatus === 'connected' && connectionHealth === 'good';
+  const isFallbackMode = !isEventDrivenMode;
+
   const handleExtensionClick = useCallback(async (extension: Extension) => {
     console.log('📱 Extension clicked:', extension);
     setSelectedExtension(extension);
@@ -331,6 +414,8 @@ const ExtensionsStatus: React.FC = () => {
     setExtensionStats(null);
     setStatsError(null);
   }, []);
+
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -400,8 +485,13 @@ const ExtensionsStatus: React.FC = () => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
-      <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex-shrink-0">
-        <div className="flex items-center justify-between">
+             <div 
+         className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex-shrink-0 cursor-pointer"
+         onDoubleClick={handleHeaderDoubleClick}
+         onContextMenu={handleContextMenu}
+         title="Double-click or right-click to refresh extensions"
+       >
+         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-indigo-600 rounded-lg">
               <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -435,16 +525,22 @@ const ExtensionsStatus: React.FC = () => {
                    </StatusTooltip>
                  </div>
                </div>
-               <div className="flex items-center space-x-4 text-sm">
-                 <div className="flex items-center space-x-1">
-                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                   <span className="text-green-600 dark:text-green-400">{onlineCount} Online</span>
-                 </div>
-                 <div className="flex items-center space-x-1">
-                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                   <span className="text-red-600 dark:text-red-400">{offlineCount} Offline</span>
-                 </div>
-               </div>
+                               <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-green-600 dark:text-green-400">{onlineCount} Online</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <span className="text-red-600 dark:text-red-400">{offlineCount} Offline</span>
+                  </div>
+                  {isFallbackMode && (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                      <span className="text-yellow-600 dark:text-yellow-400 text-xs">Fallback Mode</span>
+                    </div>
+                  )}
+                </div>
              </div>
           </div>
           
@@ -456,28 +552,30 @@ const ExtensionsStatus: React.FC = () => {
               {isRefreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
             </div>
             
-            {/* Refresh Button */}
-            <button
-              onClick={handleRefresh}
-              className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                isRefreshing || isAutoRefreshing
-                  ? 'bg-blue-100 dark:bg-blue-900/30' 
-                  : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
-              }`}
-              title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh extensions'}
-              disabled={isRefreshing || isAutoRefreshing}
-            >
+                         {/* Refresh Button */}
+             <button
+               onClick={handleRefresh}
+               className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                 isRefreshing || isAutoRefreshing
+                   ? 'bg-blue-100 dark:bg-blue-900/30' 
+                   : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
+               }`}
+                               title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : `Click to refresh extensions (or use Ctrl+R, F5, double-click header, or right-click header)${isFallbackMode ? ' - Currently in fallback mode due to connection issues' : ''}`}
+               disabled={isRefreshing || isAutoRefreshing}
+             >
               <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
                 isRefreshing || isAutoRefreshing
                   ? 'text-blue-600 dark:text-blue-400 animate-spin'
                   : 'text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110'
               }`} />
-                        </button>
+            </button>
             
-                           
+
           </div>
         </div>
       </div>
+      
+
       
       <div className="flex-1 min-h-0 flex flex-col">
         {loading ? (

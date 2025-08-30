@@ -10,7 +10,7 @@ import callRoutes from './src/routes/callRoutes.js';
 import extensionRoutes from './src/routes/extensionRoutes.js';
 import { errorHandler, notFound } from './src/middleware/errorHandler.js';
 import AmiListener from './src/services/AmiListener.js';
-import { initializeAmiQueryService, stopAmiQueryService } from './src/services/AmiQueryServiceInstance.js';
+
 import { initializeHybridAmiService, stopHybridAmiService } from './src/services/HybridAmiServiceInstance.js';
 import broadcast from './src/services/BroadcastService.js';
 import { createComponentLogger } from './src/config/logging.js';
@@ -292,26 +292,7 @@ httpServer.listen(PORT, () => {
     logger.info('AMI Listener is disabled via environment variable');
   }
 
-  // Start AMI Query Service for periodic status checks
-  if (process.env.ENABLE_AMI_QUERY_SERVICE !== 'false') {
-    logger.info('Starting AMI Query Service for periodic extension status checks');
-    initializeAmiQueryService().catch(err => {
-      logger.error('Failed to start AMI Query Service', { error: err.message, stack: err.stack });
-    });
-    
-    // Graceful shutdown for AMI Query Service
-    process.on('SIGTERM', () => {
-      logger.info('SIGTERM received, shutting down AMI Query Service gracefully');
-      stopAmiQueryService();
-    });
-    
-    process.on('SIGINT', () => {
-      logger.info('SIGINT received, shutting down AMI Query Service gracefully');
-      stopAmiQueryService();
-    });
-  } else {
-    logger.info('AMI Query Service is disabled via environment variable');
-  }
+
 });
 
 // Graceful shutdown

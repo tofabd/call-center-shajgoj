@@ -32,10 +32,15 @@ class AmiListener {
   }
 
   async start() {
-    const host = process.env.AMI_HOST || '103.177.125.83';
-    const port = parseInt(process.env.AMI_PORT) || 5038;
-    const username = process.env.AMI_USERNAME || 'admin';
-    const password = process.env.AMI_PASSWORD || 'Tractor@0152';
+    const host = process.env.AMI_HOST;
+    const port = parseInt(process.env.AMI_PORT);
+    const username = process.env.AMI_USERNAME;
+    const password = process.env.AMI_PASSWORD;
+
+    // Validate required environment variables
+    if (!host || !port || !username || !password) {
+      throw new Error('Missing required AMI environment variables. Please ensure AMI_HOST, AMI_PORT, AMI_USERNAME, and AMI_PASSWORD are set in your .env file.');
+    }
 
     console.log(`🔌 Connecting to Asterisk AMI at ${host}:${port}...`);
 

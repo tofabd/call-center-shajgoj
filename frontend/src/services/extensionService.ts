@@ -60,6 +60,11 @@ export interface RefreshResult {
     successfulQueries: number;
     failedQueries: number;
   };
+  jsonFile?: {
+    filename: string;
+    fileSize: number;
+    message: string;
+  };
 }
 
 export interface ExtensionCallStats {
@@ -197,5 +202,19 @@ export const extensionService = {
   async getExtensionCallStatistics(extensionId: string): Promise<ExtensionCallStats> {
     const response = await api.get(`/extensions/${extensionId}/call-statistics`);
     return response.data.data;
+  },
+
+  // List available AMI response JSON files
+  async getAmiResponseFiles(): Promise<{ files: Array<{ filename: string; fileSize: number; createdAt: string; modifiedAt: string }>; totalFiles: number }> {
+    const response = await api.get('/extensions/ami-responses');
+    return response.data.data;
+  },
+
+  // Download specific AMI response JSON file
+  async downloadAmiResponseFile(filename: string): Promise<Blob> {
+    const response = await api.get(`/extensions/ami-responses/${filename}`, {
+      responseType: 'blob'
+    });
+    return response.data;
   }
 };

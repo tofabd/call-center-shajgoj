@@ -1,6 +1,7 @@
 import Extension from '../models/Extension.js';
-import { getAmiQueryService } from '../services/AmiQueryServiceInstance.js';
+
 import { createComponentLogger } from '../config/logging.js';
+import { createSeparateConnectionAndRefresh } from './hybridAmiRefreshController.js';
 
 // Initialize logger for this controller
 const logger = createComponentLogger('ExtensionController');
@@ -304,33 +305,17 @@ export const updateExtensionStatus = async (req, res) => {
   }
 };
 
-// Manual refresh extension status
+// Manual refresh extension status using separate Hybrid AMI connection
 export const refreshExtensionStatus = async (req, res) => {
   try {
-    logger.info('🔄 Manual extension refresh triggered via API');
+    logger.info('🔄 Manual extension refresh triggered via API - using separate Hybrid AMI connection');
     
-    const amiQueryService = getAmiQueryService();
+    // Use the separate connection refresh system
+    const result = await createSeparateConnectionAndRefresh(req, res);
     
-    if (!amiQueryService) {
-      logger.error('❌ AMI Query Service not available for manual refresh');
-      return res.status(503).json({
-        success: false,
-        message: 'AMI Query Service not available'
-      });
-    }
-
-    const result = await amiQueryService.manualRefresh();
+    // The response is already handled by createSeparateConnectionAndRefresh
+    // This function just serves as a wrapper/alias for backward compatibility
     
-    logger.info('✅ Manual extension refresh completed successfully', {
-      extensionsChecked: result.extensionsChecked,
-      lastQueryTime: result.lastQueryTime
-    });
-    
-    res.json({
-      success: true,
-      message: 'Extension status refresh completed successfully',
-      data: result
-    });
   } catch (error) {
     logger.error('❌ Manual refresh failed', { error: error.message });
     res.status(500).json({
@@ -341,41 +326,25 @@ export const refreshExtensionStatus = async (req, res) => {
   }
 };
 
-// Get AMI Query Service status
+// Get AMI Query Service status - Now uses separate connection system
 export const getQueryServiceStatus = async (req, res) => {
   try {
-    logger.info('📊 Fetching AMI Query Service status');
+    logger.info('📊 AMI Query Service status requested - using separate connection system');
     
-    const amiQueryService = getAmiQueryService();
+    // Import the status function from the hybrid controller
+    const { getSeparateConnectionStatus } = await import('./hybridAmiRefreshController.js');
     
-    if (!amiQueryService) {
-      logger.warn('⚠️ AMI Query Service not initialized');
-      return res.json({
-        success: true,
-        data: {
-          connected: false,
-          message: 'AMI Query Service not initialized'
-        }
-      });
-    }
-
-    const status = await amiQueryService.getStatus();
+    // Get status from separate connection system
+    const status = await getSeparateConnectionStatus(req, res);
     
-    logger.info('✅ AMI Query Service status fetched', { 
-      connected: status.connected,
-      extensionsMonitored: status.extensionsMonitored,
-      isQuerying: status.isQuerying
-    });
+    // The response is already handled by getSeparateConnectionStatus
+    // This function serves as a wrapper for backward compatibility
     
-    res.json({
-      success: true,
-      data: status
-    });
   } catch (error) {
-    logger.error('❌ Error fetching query service status', { error: error.message });
+    logger.error('❌ Error in query service status endpoint', { error: error.message });
     res.status(500).json({
       success: false,
-      message: 'Error fetching query service status',
+      message: 'Error in query service status endpoint',
       error: error.message
     });
   }

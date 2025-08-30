@@ -5,8 +5,8 @@ import AmiEventProcessor from './AmiEventProcessor.js';
 dotenv.config();
 
 /**
- * HybridAmiService - Combines reliable connections (PHP-style) with efficient event processing (Node.js-style)
- * Best of both worlds: Simple connections + Powerful event handling
+ * HybridAmiService - Combines reliable TCP connections with efficient event processing
+ * Best of both worlds: Robust connection management + Powerful real-time event handling
  */
 class HybridAmiService {
   constructor() {
@@ -30,22 +30,27 @@ class HybridAmiService {
 
     console.log('🚀 [HybridAmiService] Starting Hybrid AMI Service...');
     
-    const host = process.env.AMI_HOST || '103.177.125.83';
-    const port = parseInt(process.env.AMI_PORT) || 5038;
-    const username = process.env.AMI_USERNAME || 'admin';
-    const password = process.env.AMI_PASSWORD || 'Tractor@0152';
+    const host = process.env.AMI_HOST;
+    const port = parseInt(process.env.AMI_PORT);
+    const username = process.env.AMI_USERNAME;
+    const password = process.env.AMI_PASSWORD;
+
+    // Validate required environment variables
+    if (!host || !port || !username || !password) {
+      throw new Error('Missing required AMI environment variables. Please ensure AMI_HOST, AMI_PORT, AMI_USERNAME, and AMI_PASSWORD are set in your .env file.');
+    }
 
     try {
-      // Phase 1: Establish connection (PHP-style)
+      // Phase 1: Establish TCP connection
       console.log('🔌 [HybridAmiService] Phase 1: Establishing connection...');
       await this.connectionManager.establishConnection(host, port, username, password);
       this.connectionState = 'connected';
       
-      // Phase 2: Authenticate (Events: on for real-time event processing)
+      // Phase 2: Authenticate with AMI
       console.log('🔐 [HybridAmiService] Phase 2: Authenticating...');
       await this.connectionManager.authenticate(username, password, 'on');
       
-      // Phase 3: Setup event processing (Node.js-style)
+      // Phase 3: Setup real-time event processing
       console.log('📡 [HybridAmiService] Phase 3: Setting up event processing...');
       const socket = this.connectionManager.getSocket();
       this.eventProcessor.setupEventProcessing(socket);
@@ -54,8 +59,8 @@ class HybridAmiService {
       this.reconnectAttempts = 0;
       
       console.log('✅ [HybridAmiService] Hybrid AMI Service started successfully!');
-      console.log('🎯 [HybridAmiService] Connection: PHP-style reliability');
-      console.log('⚡ [HybridAmiService] Events: Node.js-style efficiency');
+      console.log('🎯 [HybridAmiService] Connection: Robust TCP reliability');
+      console.log('⚡ [HybridAmiService] Events: Real-time processing efficiency');
       
       // Setup connection monitoring
       this.setupConnectionMonitoring();
