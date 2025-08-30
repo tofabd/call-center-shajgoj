@@ -1,0 +1,56 @@
+{
+  "testInfo": {
+    "description": "Extension 2009 Status Test",
+    "startTime": "2025-08-30T15:54:04.172Z",
+    "endTime": "2025-08-30T15:54:17.247Z",
+    "duration": "13075ms",
+    "commands": [
+      "Action: Login",
+      "Action: ExtensionState",
+      "Action: Logoff"
+    ]
+  },
+  "connection": {
+    "host": "103.177.125.83",
+    "port": 5038,
+    "username": "admin"
+  },
+  "events": [
+    {
+      "type": "LoginResponse",
+      "timestamp": "2025-08-30T15:54:04.204Z",
+      "command": "Action: Login",
+      "response": "Asterisk Call Manager/7.0.3\r\nResponse: Success\r\nMessage: Authentication accepted\r\n\r\n"
+    },
+    {
+      "type": "RawResponse",
+      "timestamp": "2025-08-30T15:54:04.206Z",
+      "data": "Event: FullyBooted\r\nPrivilege: system,all\r\nUptime: 358029\r\nLastReload: 358029\r\nStatus: Fully Booted\r\n\r\n"
+    },
+    {
+      "type": "ExtensionStateCommand",
+      "timestamp": "2025-08-30T15:54:05.218Z",
+      "command": "Action: ExtensionState\r\nActionID: action-id-2009\r\nExten: 2009\r\nContext: from-internal\r\n\r\n"
+    },
+    {
+      "type": "RawResponse",
+      "timestamp": "2025-08-30T15:54:05.223Z",
+      "data": "Response: Success\r\nActionID: action-id-2009\r\nMessage: Extension Status\r\nExten: 2009\r\nContext: from-internal\r\nHint: SIP/2009,CustomPresence:2009\r\nStatus: 4\r\nStatusText: Unavailable\r\n\r\n"
+    },
+    {
+      "type": "LogoffCommand",
+      "timestamp": "2025-08-30T15:54:15.234Z",
+      "command": "Action: Logoff\r\n\r\n"
+    },
+    {
+      "type": "RawResponse",
+      "timestamp": "2025-08-30T15:54:15.237Z",
+      "data": "Response: Goodbye\r\nMessage: Thanks for all the fish.\r\n\r\n"
+    }
+  ],
+  "summary": {
+    "totalEvents": 6,
+    "extensionStateResponse": "Received",
+    "extensionStatusEvents": 0
+  }
+}
