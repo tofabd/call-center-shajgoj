@@ -63,7 +63,7 @@ class Extension2009Tester {
 
   login(username, password) {
     return new Promise((resolve, reject) => {
-      const loginCmd = `Action: Login\r\nUsername: ${username}\r\nSecret: ${password}\r\nEvents: off\r\n\r\n`;
+      const loginCmd = `Action: Login\r\nUsername: ${username}\r\nSecret: ${password}\r\nEvents: on\r\n\r\n`;
       
       console.log('🔐 Sending login command...');
       console.log('📤 Login command sent:');
