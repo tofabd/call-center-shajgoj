@@ -41,9 +41,9 @@ class HybridAmiService {
       await this.connectionManager.establishConnection(host, port, username, password);
       this.connectionState = 'connected';
       
-      // Phase 2: Authenticate
+      // Phase 2: Authenticate (Events: off for query-only mode)
       console.log('🔐 [HybridAmiService] Phase 2: Authenticating...');
-      await this.connectionManager.authenticate(username, password, 'on');
+      await this.connectionManager.authenticate(username, password, 'off');
       
       // Phase 3: Setup event processing (Node.js-style)
       console.log('📡 [HybridAmiService] Phase 3: Setting up event processing...');
@@ -167,6 +167,131 @@ class HybridAmiService {
    */
   getConnectionManager() {
     return this.connectionManager;
+  }
+
+  /**
+   * Query extension status via AMI
+   */
+  async queryExtensionStatus(extensionNumber) {
+    if (!this.isRunning || !this.connectionManager.isHealthy()) {
+      throw new Error('Hybrid AMI Service is not running or not healthy');
+    }
+
+    const socket = this.connectionManager.getSocket();
+    if (!socket) {
+      throw new Error('No active socket connection');
+    }
+
+    return new Promise((resolve, reject) => {
+      const actionId = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const query = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\n\r\n`;
+
+      let responseBuffer = '';
+      let responseTimeout;
+
+      const dataHandler = (data) => {
+        responseBuffer += data.toString();
+        
+        // Check if we have a complete response
+        if (responseBuffer.includes(`ActionID: ${actionId}`)) {
+          
+          // Show raw response data for every query
+          console.log(`\n🔍 Extension ${extensionNumber} - Raw AMI Response:`);
+          console.log('=' .repeat(60));
+          console.log(responseBuffer);
+          console.log('=' .repeat(60));
+          
+          if (responseBuffer.includes('Response: Success')) {
+            // Parse the response to get status
+            const lines = responseBuffer.split('\r\n');
+            const statusLine = lines.find(line => line.startsWith('Status: '));
+            const statusTextLine = lines.find(line => line.startsWith('StatusText: '));
+            
+            if (statusLine) {
+              const statusCode = statusLine.split(': ')[1];
+              const statusText = statusTextLine ? statusTextLine.split(': ')[1] : '';
+              
+              // Map status code to derived status
+              const derivedStatus = this.mapExtensionStatus(statusCode);
+              
+              console.log(`✅ Extension ${extensionNumber} - Parsed: statusCode=${statusCode}, derivedStatus=${derivedStatus}, statusText="${statusText}"\n`);
+              
+              resolve({
+                status: derivedStatus,
+                statusCode: statusCode,
+                statusText: statusText,
+                error: null
+              });
+            } else {
+              console.warn(`❌ Extension ${extensionNumber} - No Status line found in response\n`);
+              resolve({
+                status: 'unknown',
+                statusCode: null,
+                statusText: null,
+                error: 'Could not parse status from response'
+              });
+            }
+          } else if (responseBuffer.includes('Response: Error')) {
+            const lines = responseBuffer.split('\r\n');
+            const errorLine = lines.find(line => line.startsWith('Message: '));
+            const error = errorLine ? errorLine.split(': ')[1] : 'Unknown error';
+            
+            console.error(`❌ Extension ${extensionNumber} - AMI Error: ${error}\n`);
+            
+            resolve({
+              status: 'unknown',
+              statusCode: null,
+              statusText: null,
+              error: error
+            });
+          }
+          
+          // Clean up
+          clearTimeout(responseTimeout);
+          socket.removeListener('data', dataHandler);
+        }
+      };
+
+      socket.on('data', dataHandler);
+
+      // Send the query
+      try {
+        socket.write(query);
+      } catch (error) {
+        socket.removeListener('data', dataHandler);
+        clearTimeout(responseTimeout);
+        reject(error);
+        return;
+      }
+
+      // Timeout after 10 seconds
+      responseTimeout = setTimeout(() => {
+        socket.removeListener('data', dataHandler);
+        resolve({
+          status: 'unknown',
+          statusCode: null,
+          statusText: null,
+          error: 'Query timeout - no response received'
+        });
+      }, 10000);
+    });
+  }
+
+  /**
+   * Map extension status code to derived status
+   */
+  mapExtensionStatus(statusCode) {
+    const statusMap = {
+      '0': 'online',    // NotInUse
+      '1': 'online',    // InUse
+      '2': 'online',    // Busy
+      '4': 'offline',   // Unavailable
+      '8': 'online',    // Ringing
+      '16': 'online',   // Ringinuse
+      '-1': 'unknown'   // Unknown
+    };
+    
+    return statusMap[statusCode] || 'unknown';
   }
 
   /**
