@@ -1,11 +1,11 @@
 import pinoHttp from 'pino-http';
-import LogService from '../services/LogService.js';
+import { createComponentLogger } from '../config/logging.js';
 
 /**
  * Pino HTTP logging middleware for structured request/response logging
  */
 export const createLoggingMiddleware = () => {
-  const logger = LogService.getPinoLogger();
+  const logger = createComponentLogger('HTTP');
   
   return pinoHttp({
     logger,
@@ -47,10 +47,11 @@ export const createLoggingMiddleware = () => {
  * Simple logging middleware for backward compatibility
  */
 export const simpleLoggingMiddleware = (req, res, next) => {
+  const logger = createComponentLogger('HTTP');
   const start = Date.now();
   
   // Log request start
-  LogService.info(`${req.method} ${req.path}`, {
+  logger.info(`${req.method} ${req.path}`, {
     method: req.method,
     path: req.path,
     query: req.query,
@@ -63,7 +64,13 @@ export const simpleLoggingMiddleware = (req, res, next) => {
   res.end = function(chunk, encoding) {
     const responseTime = Date.now() - start;
     
-    LogService.httpRequest(req, res, responseTime);
+    logger.info(`${req.method} ${req.path} - ${res.statusCode}`, {
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      responseTime,
+      contentLength: res.getHeader('Content-Length')
+    });
     
     // Call original end method
     originalEnd.call(this, chunk, encoding);

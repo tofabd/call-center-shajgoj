@@ -12,11 +12,14 @@ import { errorHandler, notFound } from './src/middleware/errorHandler.js';
 import AmiListener from './src/services/AmiListener.js';
 import { initializeAmiQueryService, stopAmiQueryService } from './src/services/AmiQueryServiceInstance.js';
 import broadcast from './src/services/BroadcastService.js';
-import LogService from './src/services/LogService.js';
+import { createComponentLogger } from './src/config/logging.js';
 import { createLoggingMiddleware } from './src/middleware/loggingMiddleware.js';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize Pino logger for main application
+const logger = createComponentLogger('MainApp');
 
 const app = express();
 const httpServer = createServer(app);
@@ -44,7 +47,7 @@ app.use(createLoggingMiddleware());
 
 // Routes
 app.get('/', (req, res) => {
-  LogService.info('Root endpoint accessed');
+  logger.info('Root endpoint accessed');
   res.json({ 
     message: 'Call Center Shajgoj API',
     version: '1.0.0',
@@ -58,7 +61,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  LogService.info('Health check endpoint accessed');
+  logger.info('Health check endpoint accessed');
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
@@ -75,7 +78,7 @@ app.use('/api/extensions', extensionRoutes);
 
 // Documentation endpoint
 app.get('/api/docs', (req, res) => {
-  LogService.info('API documentation endpoint accessed');
+  logger.info('API documentation endpoint accessed');
   res.json({
     title: 'Call Center Shajgoj API Documentation',
     version: '1.0.0',
@@ -145,7 +148,7 @@ app.use(errorHandler);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  LogService.socketEvent('connected', socket.id);
+  logger.info('Socket.IO client connected', { socketId: socket.id });
   
   // Send initial connection confirmation
   socket.emit('connected', { 
@@ -172,21 +175,24 @@ io.on('connection', (socket) => {
   const healthCheck = setInterval(() => {
     const timeSinceLastPing = Date.now() - lastPing;
     if (timeSinceLastPing > 60000) { // 1 minute
-      LogService.warn(`Client ${socket.id} seems unresponsive, disconnecting`, { socketId: socket.id, timeSinceLastPing });
+      logger.warn('Socket.IO client seems unresponsive, disconnecting', { 
+        socketId: socket.id, 
+        timeSinceLastPing 
+      });
       socket.disconnect();
       clearInterval(healthCheck);
     }
   }, 30000);
   
   socket.on('disconnect', (reason) => {
-    LogService.socketEvent('disconnected', socket.id, { reason });
+    logger.info('Socket.IO client disconnected', { socketId: socket.id, reason });
     clearInterval(healthCheck);
   });
 });
 
 // Bridge BroadcastService events to Socket.IO
 broadcast.onCallUpdated((call) => {
-  LogService.info('Broadcasting call update to all clients', { linkedid: call.linkedid });
+  logger.info('Broadcasting call update to all clients', { linkedid: call.linkedid });
   
   // Derive status from call state using disposition for consistency
   let status;
@@ -218,7 +224,7 @@ broadcast.onCallUpdated((call) => {
 });
 
 broadcast.onExtensionStatusUpdated((extension) => {
-  LogService.info('Broadcasting extension status to all clients', { extension: extension.extension });
+  logger.info('Broadcasting extension status to all clients', { extension: extension.extension });
   io.emit('extension-status-updated', {
     extension: extension.extension,
     status: extension.status,
@@ -230,7 +236,7 @@ broadcast.onExtensionStatusUpdated((extension) => {
 
 // Start server with Socket.IO support
 httpServer.listen(PORT, () => {
-  LogService.info('Server started successfully', {
+  logger.info('Server started successfully', {
     port: PORT,
     endpoints: {
       api: `http://localhost:${PORT}`,
@@ -245,55 +251,55 @@ httpServer.listen(PORT, () => {
   
   // Start AMI services after server is running
   if (process.env.ENABLE_AMI_LISTENER !== 'false') {
-    LogService.info('Starting AMI Listener service');
+    logger.info('Starting AMI Listener service');
     const amiListener = new AmiListener();
     amiListener.start().catch(err => {
-      LogService.error('Failed to start AMI Listener', { error: err.message, stack: err.stack });
+      logger.error('Failed to start AMI Listener', { error: err.message, stack: err.stack });
     });
     
     // Graceful shutdown for AMI listener
     process.on('SIGTERM', () => {
-      LogService.info('SIGTERM received, shutting down AMI listener gracefully');
+      logger.info('SIGTERM received, shutting down AMI listener gracefully');
       amiListener.stop();
     });
     
     process.on('SIGINT', () => {
-      LogService.info('SIGINT received, shutting down AMI listener gracefully');
+      logger.info('SIGINT received, shutting down AMI listener gracefully');
       amiListener.stop();
     });
   } else {
-    LogService.info('AMI Listener is disabled via environment variable');
+    logger.info('AMI Listener is disabled via environment variable');
   }
 
   // Start AMI Query Service for periodic status checks
   if (process.env.ENABLE_AMI_QUERY_SERVICE !== 'false') {
-    LogService.info('Starting AMI Query Service for periodic extension status checks');
+    logger.info('Starting AMI Query Service for periodic extension status checks');
     initializeAmiQueryService().catch(err => {
-      LogService.error('Failed to start AMI Query Service', { error: err.message, stack: err.stack });
+      logger.error('Failed to start AMI Query Service', { error: err.message, stack: err.stack });
     });
     
     // Graceful shutdown for AMI Query Service
     process.on('SIGTERM', () => {
-      LogService.info('SIGTERM received, shutting down AMI Query Service gracefully');
+      logger.info('SIGTERM received, shutting down AMI Query Service gracefully');
       stopAmiQueryService();
     });
     
     process.on('SIGINT', () => {
-      LogService.info('SIGINT received, shutting down AMI Query Service gracefully');
+      logger.info('SIGINT received, shutting down AMI Query Service gracefully');
       stopAmiQueryService();
     });
   } else {
-    LogService.info('AMI Query Service is disabled via environment variable');
+    logger.info('AMI Query Service is disabled via environment variable');
   }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  LogService.info('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  LogService.info('SIGINT received, shutting down gracefully');
+  logger.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });

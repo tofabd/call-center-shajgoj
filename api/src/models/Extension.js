@@ -93,9 +93,25 @@ extensionSchema.index({ department: 1, is_active: 1 });
 extensionSchema.index({ last_status_change: -1 });
 extensionSchema.index({ last_seen: -1 });
 
-// STATUS UPDATE METHOD
+// STATUS UPDATE METHOD - ONLY UPDATES EXISTING ACTIVE EXTENSIONS
 extensionSchema.statics.updateStatus = async function(extension, statusCode, deviceState) {
   const now = new Date();
+  
+  // Only update existing active extensions, never create new ones
+  const existingExtension = await this.findOne({ extension });
+  
+  if (!existingExtension) {
+    console.log(`⚠️ Extension ${extension} not found in database - skipping update`);
+    return null;
+  }
+  
+  // Check if extension is active - don't update inactive extensions
+  if (!existingExtension.is_active) {
+    console.log(`🚫 Extension ${extension} is inactive - skipping status update`);
+    return null;
+  }
+  
+  // Update existing active extension only
   return this.findOneAndUpdate(
     { extension },
     { 
@@ -103,17 +119,10 @@ extensionSchema.statics.updateStatus = async function(extension, statusCode, dev
       device_state: deviceState,
       status: this.mapStatus(statusCode),
       last_status_change: now,
-      last_seen: now,
-      $setOnInsert: { 
-        agent_name: null,
-        is_active: true,
-        department: null
-      }
+      last_seen: now
     },
     { 
-      upsert: true, 
-      new: true,
-      setDefaultsOnInsert: true
+      new: true
     }
   );
 };
@@ -130,6 +139,35 @@ extensionSchema.statics.mapStatus = function(statusCode) {
     '-1': 'unknown' // Unknown
   };
   return statusMap[statusCode] || 'unknown';
+};
+
+// EXPLICIT EXTENSION CREATION METHOD - for manual creation only
+extensionSchema.statics.createExtension = async function(extensionData) {
+  // Validate extension format
+  if (!/^\d{3,4}$/.test(extensionData.extension)) {
+    throw new Error(`Invalid extension format: ${extensionData.extension}. Must be 3-4 digits only.`);
+  }
+  
+  // Check if extension already exists
+  const existing = await this.findOne({ extension: extensionData.extension });
+  if (existing) {
+    throw new Error(`Extension ${extensionData.extension} already exists in database.`);
+  }
+  
+  // Create new extension with validation
+  const newExtension = new this({
+    extension: extensionData.extension,
+    agent_name: extensionData.agent_name || null,
+    department: extensionData.department || null,
+    status: 'unknown',
+    status_code: -1,
+    device_state: 'UNKNOWN',
+    is_active: true,
+    last_status_change: null,
+    last_seen: null
+  });
+  
+  return await newExtension.save();
 };
 
 // UTILITY METHODS

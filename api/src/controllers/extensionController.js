@@ -1,5 +1,9 @@
 import Extension from '../models/Extension.js';
 import { getAmiQueryService } from '../services/AmiQueryServiceInstance.js';
+import { createComponentLogger } from '../config/logging.js';
+
+// Initialize logger for this controller
+const logger = createComponentLogger('ExtensionController');
 
 // Get all extensions with filtering
 export const getExtensions = async (req, res) => {
@@ -11,6 +15,14 @@ export const getExtensions = async (req, res) => {
       is_active,
       search
     } = req.query;
+
+    logger.info('📋 Fetching extensions from database', { 
+      page, 
+      limit, 
+      status, 
+      is_active, 
+      hasSearch: !!search 
+    });
 
     // Build filter query
     const filter = {};
@@ -36,6 +48,12 @@ export const getExtensions = async (req, res) => {
     const total = await Extension.countDocuments(filter);
     const totalPages = Math.ceil(total / parseInt(limit));
 
+    logger.info('✅ Extensions fetched successfully', { 
+      count: extensions.length, 
+      total, 
+      totalPages 
+    });
+
     res.json({
       success: true,
       data: extensions,
@@ -49,6 +67,7 @@ export const getExtensions = async (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('❌ Error fetching extensions', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error fetching extensions',
@@ -62,19 +81,24 @@ export const getExtensionById = async (req, res) => {
   try {
     const { id } = req.params;
     
+    logger.info('📋 Fetching extension by ID', { id });
+    
     const extension = await Extension.findById(id);
     if (!extension) {
+      logger.warn('⚠️ Extension not found', { id });
       return res.status(404).json({
         success: false,
         message: 'Extension not found'
       });
     }
 
+    logger.info('✅ Extension fetched successfully', { id, extension: extension.extension });
     res.json({
       success: true,
       data: extension
     });
   } catch (error) {
+    logger.error('❌ Error fetching extension by ID', { id: req.params.id, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error fetching extension',
@@ -93,8 +117,11 @@ export const createExtension = async (req, res) => {
       is_active = true
     } = req.body;
 
+    logger.info('📝 Creating new extension', { extension, agent_name, department, is_active });
+
     // Validation
     if (!extension) {
+      logger.warn('⚠️ Extension creation failed - missing extension number');
       return res.status(400).json({
         success: false,
         message: 'Extension number is required'
@@ -104,6 +131,7 @@ export const createExtension = async (req, res) => {
     // Check if extension already exists
     const existingExtension = await Extension.findOne({ extension });
     if (existingExtension) {
+      logger.warn('⚠️ Extension creation failed - extension already exists', { extension });
       return res.status(409).json({
         success: false,
         message: 'Extension already exists'
@@ -125,12 +153,18 @@ export const createExtension = async (req, res) => {
 
     await newExtension.save();
 
+    logger.info('✅ Extension created successfully', { 
+      id: newExtension._id, 
+      extension: newExtension.extension 
+    });
+
     res.status(201).json({
       success: true,
       message: 'Extension created successfully',
       data: newExtension
     });
   } catch (error) {
+    logger.error('❌ Error creating extension', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error creating extension',
@@ -144,6 +178,8 @@ export const updateExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    logger.info('📝 Updating extension', { id, updateData });
 
     // Remove fields that shouldn't be updated directly
     delete updateData._id;
@@ -161,11 +197,17 @@ export const updateExtension = async (req, res) => {
     );
 
     if (!extension) {
+      logger.warn('⚠️ Extension not found for update', { id });
       return res.status(404).json({
         success: false,
         message: 'Extension not found'
       });
     }
+
+    logger.info('✅ Extension updated successfully', { 
+      id, 
+      extension: extension.extension 
+    });
 
     res.json({
       success: true,
@@ -173,6 +215,7 @@ export const updateExtension = async (req, res) => {
       data: extension
     });
   } catch (error) {
+    logger.error('❌ Error updating extension', { id: req.params.id, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error updating extension',
@@ -186,19 +229,28 @@ export const deleteExtension = async (req, res) => {
   try {
     const { id } = req.params;
     
+    logger.info('🗑️ Deleting extension', { id });
+    
     const extension = await Extension.findByIdAndDelete(id);
     if (!extension) {
+      logger.warn('⚠️ Extension not found for deletion', { id });
       return res.status(404).json({
         success: false,
         message: 'Extension not found'
       });
     }
 
+    logger.info('✅ Extension deleted successfully', { 
+      id, 
+      extension: extension.extension 
+    });
+
     res.json({
       success: true,
       message: 'Extension deleted successfully'
     });
   } catch (error) {
+    logger.error('❌ Error deleting extension', { id: req.params.id, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error deleting extension',
@@ -212,7 +264,10 @@ export const updateExtensionStatus = async (req, res) => {
   try {
     const { extension, status } = req.body;
 
+    logger.info('📝 Updating extension status via API', { extension, status });
+
     if (!extension || !status) {
+      logger.warn('⚠️ Extension status update failed - missing parameters', { extension, status });
       return res.status(400).json({
         success: false,
         message: 'Extension and status are required'
@@ -221,12 +276,26 @@ export const updateExtensionStatus = async (req, res) => {
 
     const updatedExtension = await Extension.updateStatus(extension, status);
 
+    if (updatedExtension) {
+      logger.info('✅ Extension status updated successfully via API', { 
+        extension, 
+        status,
+        id: updatedExtension._id 
+      });
+    } else {
+      logger.warn('⚠️ Extension status update failed - extension not found or inactive', { extension });
+    }
+
     res.json({
       success: true,
       message: 'Extension status updated successfully',
       data: updatedExtension
     });
   } catch (error) {
+    logger.error('❌ Error updating extension status via API', { 
+      extension: req.body.extension, 
+      error: error.message 
+    });
     res.status(500).json({
       success: false,
       message: 'Error updating extension status',
@@ -238,9 +307,12 @@ export const updateExtensionStatus = async (req, res) => {
 // Manual refresh extension status
 export const refreshExtensionStatus = async (req, res) => {
   try {
+    logger.info('🔄 Manual extension refresh triggered via API');
+    
     const amiQueryService = getAmiQueryService();
     
     if (!amiQueryService) {
+      logger.error('❌ AMI Query Service not available for manual refresh');
       return res.status(503).json({
         success: false,
         message: 'AMI Query Service not available'
@@ -249,13 +321,18 @@ export const refreshExtensionStatus = async (req, res) => {
 
     const result = await amiQueryService.manualRefresh();
     
+    logger.info('✅ Manual extension refresh completed successfully', {
+      extensionsChecked: result.extensionsChecked,
+      lastQueryTime: result.lastQueryTime
+    });
+    
     res.json({
       success: true,
       message: 'Extension status refresh completed successfully',
       data: result
     });
   } catch (error) {
-    console.error('❌ Manual refresh failed:', error.message);
+    logger.error('❌ Manual refresh failed', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Failed to refresh extension status',
@@ -267,9 +344,12 @@ export const refreshExtensionStatus = async (req, res) => {
 // Get AMI Query Service status
 export const getQueryServiceStatus = async (req, res) => {
   try {
+    logger.info('📊 Fetching AMI Query Service status');
+    
     const amiQueryService = getAmiQueryService();
     
     if (!amiQueryService) {
+      logger.warn('⚠️ AMI Query Service not initialized');
       return res.json({
         success: true,
         data: {
@@ -281,11 +361,18 @@ export const getQueryServiceStatus = async (req, res) => {
 
     const status = await amiQueryService.getStatus();
     
+    logger.info('✅ AMI Query Service status fetched', { 
+      connected: status.connected,
+      extensionsMonitored: status.extensionsMonitored,
+      isQuerying: status.isQuerying
+    });
+    
     res.json({
       success: true,
       data: status
     });
   } catch (error) {
+    logger.error('❌ Error fetching query service status', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error fetching query service status',
@@ -297,6 +384,8 @@ export const getQueryServiceStatus = async (req, res) => {
 // Get extension statistics
 export const getExtensionStatistics = async (req, res) => {
   try {
+    logger.info('📊 Fetching extension statistics');
+    
     const [
       totalExtensions,
       activeExtensions,
@@ -321,21 +410,32 @@ export const getExtensionStatistics = async (req, res) => {
       statusStats[item._id] = item.count;
     });
 
+    const stats = {
+      summary: {
+        total: totalExtensions,
+        active: activeExtensions,
+        online: onlineExtensions,
+        offline: offlineExtensions,
+        unknown: unknownExtensions
+      },
+      byStatus: statusStats,
+      onlinePercentage: activeExtensions > 0 ? ((onlineExtensions / activeExtensions) * 100).toFixed(2) : 0
+    };
+
+    logger.info('✅ Extension statistics fetched successfully', { 
+      total: totalExtensions,
+      active: activeExtensions,
+      online: onlineExtensions,
+      offline: offlineExtensions,
+      unknown: unknownExtensions
+    });
+
     res.json({
       success: true,
-      data: {
-        summary: {
-          total: totalExtensions,
-          active: activeExtensions,
-          online: onlineExtensions,
-          offline: offlineExtensions,
-          unknown: unknownExtensions
-        },
-        byStatus: statusStats,
-        onlinePercentage: activeExtensions > 0 ? ((onlineExtensions / activeExtensions) * 100).toFixed(2) : 0
-      }
+      data: stats
     });
   } catch (error) {
+    logger.error('❌ Error fetching extension statistics', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error fetching extension statistics',
@@ -349,9 +449,12 @@ export const getExtensionCallStatistics = async (req, res) => {
   try {
     const { id } = req.params;
     
+    logger.info('📊 Fetching extension call statistics', { id });
+    
     // Get extension details
     const extension = await Extension.findById(id);
     if (!extension) {
+      logger.warn('⚠️ Extension not found for call statistics', { id });
       return res.status(404).json({
         success: false,
         message: 'Extension not found'
@@ -441,33 +544,46 @@ export const getExtensionCallStatistics = async (req, res) => {
       status: call.ended_at ? (call.disposition || 'ended') : (call.answered_at ? 'answered' : 'ringing')
     }));
 
+    const stats = {
+      extension: extension.extension,
+      agentName: extension.agent_name || `Extension ${extension.extension}`,
+      date: today.toISOString().split('T')[0],
+      summary: {
+        totalCalls,
+        answeredCalls,
+        missedCalls,
+        answerRate
+      },
+      byDirection: {
+        incoming: incomingCalls,
+        outgoing: outgoingCalls
+      },
+      byStatus: statusCounts,
+      averages: {
+        ringTime: avgRingTime,
+        talkTime: avgTalkTime,
+        totalTalkTime: totalTalkTime
+      },
+      recentCalls
+    };
+
+    logger.info('✅ Extension call statistics fetched successfully', {
+      extension: extension.extension,
+      totalCalls,
+      answeredCalls,
+      missedCalls,
+      answerRate
+    });
+
     res.json({
       success: true,
-      data: {
-        extension: extension.extension,
-        agentName: extension.agent_name || `Extension ${extension.extension}`,
-        date: today.toISOString().split('T')[0],
-        summary: {
-          totalCalls,
-          answeredCalls,
-          missedCalls,
-          answerRate
-        },
-        byDirection: {
-          incoming: incomingCalls,
-          outgoing: outgoingCalls
-        },
-        byStatus: statusCounts,
-        averages: {
-          ringTime: avgRingTime,
-          talkTime: avgTalkTime,
-          totalTalkTime: totalTalkTime
-        },
-        recentCalls
-      }
+      data: stats
     });
   } catch (error) {
-    console.error('❌ Error fetching extension call statistics:', error);
+    logger.error('❌ Error fetching extension call statistics', { 
+      id: req.params.id, 
+      error: error.message 
+    });
     res.status(500).json({
       success: false,
       message: 'Error fetching extension call statistics',

@@ -130,22 +130,43 @@ const updateDatabaseWithAMI = async (amiExtensions) => {
   console.log('💾 Updating database with AMI data...');
   
   try {
+    let updatedCount = 0;
+    let skippedCount = 0;
+    
     for (const amiExt of amiExtensions) {
+      // Only update existing extensions, never create new ones
+      const existingExtension = await Extension.findOne({ extension: amiExt.extension });
+      
+      if (!existingExtension) {
+        console.log(`⚠️ Extension ${amiExt.extension} not found in database - skipping update`);
+        skippedCount++;
+        continue;
+      }
+      
+      // Check if extension is active - don't update inactive extensions
+      if (!existingExtension.is_active) {
+        console.log(`🚫 Extension ${amiExt.extension} is inactive - skipping update`);
+        skippedCount++;
+        continue;
+      }
+      
+      // Update existing active extension
       await Extension.findOneAndUpdate(
         { extension: amiExt.extension },
         {
-          extension: amiExt.extension,
           status: amiExt.status,
           agent_name: amiExt.agent_name,
           last_seen: amiExt.last_seen,
           is_active: amiExt.is_active,
           updated_at: new Date()
         },
-        { upsert: true, new: true }
+        { new: true }
       );
+      
+      updatedCount++;
     }
     
-    console.log('✅ Database updated successfully');
+    console.log(`✅ Database updated successfully: ${updatedCount} extensions updated, ${skippedCount} skipped`);
   } catch (error) {
     console.error('❌ Database update failed:', error);
   }

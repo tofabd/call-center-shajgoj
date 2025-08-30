@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { createComponentLogger } from '../config/logging.js';
 
 /**
  * Simple broadcast service to emit real-time events
@@ -8,6 +9,7 @@ class BroadcastService extends EventEmitter {
   constructor() {
     super();
     this.setMaxListeners(100); // Allow more listeners
+    this.logger = createComponentLogger('BroadcastService');
   }
 
   /**
@@ -15,7 +17,10 @@ class BroadcastService extends EventEmitter {
    */
   callUpdated(call) {
     this.emit('call.updated', call);
-    console.log(`📡 Call event broadcasted: ${call.linkedid} (${call.direction})`);
+    this.logger.info('Call event broadcasted', { 
+      linkedid: call.linkedid, 
+      direction: call.direction 
+    });
   }
 
   /**
@@ -34,7 +39,11 @@ class BroadcastService extends EventEmitter {
       is_active: extension.is_active
     });
     
-    console.log(`📱 Extension status broadcasted: ${extension.extension} -> ${extension.status} (${extension.device_state})`);
+    this.logger.info('Extension status broadcasted', { 
+      extension: extension.extension, 
+      status: extension.status, 
+      deviceState: extension.device_state 
+    });
   }
 
   /**
@@ -56,6 +65,7 @@ class BroadcastService extends EventEmitter {
    */
   cleanup() {
     this.removeAllListeners();
+    this.logger.info('BroadcastService listeners cleaned up');
   }
 }
 

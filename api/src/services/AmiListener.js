@@ -598,6 +598,12 @@ class AmiListener {
     }
   }
 
+  /**
+   * Handle ExtensionStatus events from AMI
+   * IMPORTANT: This method ONLY updates existing extensions in the database.
+   * It NEVER creates new extensions automatically to prevent database pollution
+   * with AMI-generated codes like *47*1001*600.
+   */
   async handleExtensionStatus(fields) {
     const extension = fields.Exten;
     const statusCode = fields.Status;
@@ -608,19 +614,27 @@ class AmiListener {
       return;
     }
 
+    // Validate extension format - only allow clean numeric extensions
+    // Reject AMI-generated codes like *47*1001*600, *47*1001, etc.
+    if (!/^\d{3,4}$/.test(extension)) {
+      console.log(`🚫 Skipping AMI-generated extension code: ${extension} (Status: ${statusCode}, Text: ${statusText})`);
+      return;
+    }
+
     try {
       // Map status code to device state
       const deviceState = this.mapDeviceState(statusCode, statusText);
       
-      // Update extension with new fields
+      // Update extension with new fields (only if it exists in database)
       const updatedExtension = await Extension.updateStatus(extension, statusCode, deviceState);
       
-      // Broadcast extension status update
+      // Broadcast extension status update only if update was successful
       if (updatedExtension) {
         broadcast.extensionStatusUpdated(updatedExtension);
+        console.log(`📱 Extension status updated: ${extension} -> ${statusCode} (${statusText}) -> ${deviceState}`);
+      } else {
+        console.log(`⚠️ Extension ${extension} not found in database - status update skipped`);
       }
-      
-      console.log(`📱 Extension status updated: ${extension} -> ${statusCode} (${statusText}) -> ${deviceState}`);
     } catch (error) {
       console.error('❌ Failed to update extension status:', error.message);
     }
