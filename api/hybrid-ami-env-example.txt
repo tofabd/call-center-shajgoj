@@ -1,0 +1,60 @@
+# Hybrid AMI Service Configuration
+# Copy this to your .env file and adjust values as needed
+
+# AMI Connection Settings
+AMI_HOST=103.177.125.83
+AMI_PORT=5038
+AMI_USERNAME=admin
+AMI_PASSWORD=Tractor@0152
+
+# Service Selection
+# Set to 'true' to use the new Hybrid AMI Service (recommended)
+# Set to 'false' or remove to use the legacy AmiListener
+USE_HYBRID_AMI=true
+
+# AMI Listener Control
+# Set to 'false' to disable AMI listener completely
+ENABLE_AMI_LISTENER=true
+
+# AMI Query Service Control
+# Set to 'false' to disable periodic extension status checks
+ENABLE_AMI_QUERY_SERVICE=true
+
+# Connection Settings
+# These are handled automatically by the hybrid service
+# but can be overridden if needed
+
+# Connection timeout in milliseconds (default: 10000)
+AMI_CONNECTION_TIMEOUT=10000
+
+# Keep-alive interval in milliseconds (default: 30000)
+AMI_KEEPALIVE_INTERVAL=30000
+
+# Reconnection delay in milliseconds (default: 5000)
+AMI_RECONNECT_DELAY=5000
+
+# Maximum reconnection attempts (default: 10)
+AMI_MAX_RECONNECT_ATTEMPTS=10
+
+# Logging Level
+# Set to 'debug', 'info', 'warn', or 'error'
+LOG_LEVEL=info
+
+# CORS Settings
+CORS_ORIGIN=http://localhost:5173,http://localhost:3000
+
+# Server Port
+PORT=3000
+
+# Database Settings
+MONGODB_URI=mongodb://localhost:27017/call-center-shajgoj
+
+# JWT Secret
+JWT_SECRET=your-secret-key-here
+
+# Broadcast Settings
+BROADCAST_DRIVER=pusher
+PUSHER_APP_ID=your-pusher-app-id
+PUSHER_APP_KEY=your-pusher-key
+PUSHER_APP_SECRET=your-pusher-secret
+PUSHER_APP_CLUSTER=your-pusher-cluster

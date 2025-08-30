@@ -11,6 +11,7 @@ import extensionRoutes from './src/routes/extensionRoutes.js';
 import { errorHandler, notFound } from './src/middleware/errorHandler.js';
 import AmiListener from './src/services/AmiListener.js';
 import { initializeAmiQueryService, stopAmiQueryService } from './src/services/AmiQueryServiceInstance.js';
+import { initializeHybridAmiService, stopHybridAmiService } from './src/services/HybridAmiServiceInstance.js';
 import broadcast from './src/services/BroadcastService.js';
 import { createComponentLogger } from './src/config/logging.js';
 import { createLoggingMiddleware } from './src/middleware/loggingMiddleware.js';
@@ -251,22 +252,42 @@ httpServer.listen(PORT, () => {
   
   // Start AMI services after server is running
   if (process.env.ENABLE_AMI_LISTENER !== 'false') {
-    logger.info('Starting AMI Listener service');
-    const amiListener = new AmiListener();
-    amiListener.start().catch(err => {
-      logger.error('Failed to start AMI Listener', { error: err.message, stack: err.stack });
-    });
-    
-    // Graceful shutdown for AMI listener
-    process.on('SIGTERM', () => {
-      logger.info('SIGTERM received, shutting down AMI listener gracefully');
-      amiListener.stop();
-    });
-    
-    process.on('SIGINT', () => {
-      logger.info('SIGINT received, shutting down AMI listener gracefully');
-      amiListener.stop();
-    });
+    // Use Hybrid AMI Service instead of old AmiListener
+    if (process.env.USE_HYBRID_AMI === 'true') {
+      logger.info('Starting Hybrid AMI Service (recommended)');
+      initializeHybridAmiService().catch(err => {
+        logger.error('Failed to start Hybrid AMI Service', { error: err.message, stack: err.stack });
+      });
+      
+      // Graceful shutdown for Hybrid AMI Service
+      process.on('SIGTERM', () => {
+        logger.info('SIGTERM received, shutting down Hybrid AMI Service gracefully');
+        stopHybridAmiService();
+      });
+      
+      process.on('SIGINT', () => {
+        logger.info('SIGINT received, shutting down Hybrid AMI Service gracefully');
+        stopHybridAmiService();
+      });
+    } else {
+      // Fallback to old AmiListener
+      logger.info('Starting legacy AMI Listener service');
+      const amiListener = new AmiListener();
+      amiListener.start().catch(err => {
+        logger.error('Failed to start AMI Listener', { error: err.message, stack: err.stack });
+      });
+      
+      // Graceful shutdown for AMI listener
+      process.on('SIGTERM', () => {
+        logger.info('SIGTERM received, shutting down AMI listener gracefully');
+        amiListener.stop();
+      });
+      
+      process.on('SIGINT', () => {
+        logger.info('SIGINT received, shutting down AMI listener gracefully');
+        amiListener.stop();
+      });
+    }
   } else {
     logger.info('AMI Listener is disabled via environment variable');
   }
