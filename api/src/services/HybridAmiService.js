@@ -248,6 +248,7 @@ class HybridAmiService {
 
   /**
    * Query all extension statuses via AMI using ExtensionStateList (bulk query)
+   * Enhanced to capture and parse ALL events before completing
    */
   async queryExtensionStateList() {
     if (!this.isRunning || !this.connectionManager.isHealthy()) {
@@ -261,26 +262,68 @@ class HybridAmiService {
 
     return new Promise((resolve, reject) => {
       const actionId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const query = `Action: ExtensionStateList\r\nActionID: ${actionId}\r\nContext: from-internal\r\nEvents: on\r\n\r\n`;
+      const query = `Action: ExtensionStateList\r\nActionID: ${actionId}\r\nContext: from-internal\r\nEvents: off\r\n\r\n`;
 
       let responseBuffer = '';
       let responseTimeout;
       let isComplete = false;
+      let lastEventTime = Date.now();
+      let eventCount = 0;
+      let extensionCount = 0;
+      let completionEventDetected = false;
 
       const dataHandler = (data) => {
-        responseBuffer += data.toString();
+        const dataStr = data.toString();
+        responseBuffer += dataStr;
+        lastEventTime = Date.now();
+        eventCount++;
+
+        // Count extensions in the response
+        const extensionMatches = dataStr.match(/Extension: (\d+)/g);
+        if (extensionMatches) {
+          extensionCount += extensionMatches.length;
+        }
+
+        // Check if we have a complete response (Events: off format)
+        const hasCompletionSignal = (
+          responseBuffer.includes(`ActionID: ${actionId}`) && 
+          (
+            responseBuffer.includes('Response: Follows') || 
+            responseBuffer.includes('Response: Success')
+          )
+        );
         
-        // Check if we have a complete response (Response: Follows indicates end of list)
-        if (responseBuffer.includes(`ActionID: ${actionId}`) && 
-            (responseBuffer.includes('Response: Follows') || responseBuffer.includes('Response: Success'))) {
+        // Check for ExtensionStateListComplete event specifically
+        if (responseBuffer.includes('Event: ExtensionStateListComplete')) {
+          completionEventDetected = true;
+          console.log(`🎯 ExtensionStateListComplete event detected - list is complete`);
           
-          // Wait a bit more to ensure we get all extension data
+          // Send Logoff action to finish the query
+          try {
+            const logoffAction = `Action: Logoff\r\nActionID: ${actionId}-complete\r\n\r\n`;
+            socket.write(logoffAction);
+            console.log(`🔌 [HybridAmiService] Sent Logoff action after ExtensionStateListComplete`);
+          } catch (logoffError) {
+            console.warn(`⚠️ [HybridAmiService] Failed to send Logoff action:`, logoffError.message);
+          }
+          
+          // Process response immediately after ExtensionStateListComplete
           setTimeout(() => {
             if (!isComplete) {
               isComplete = true;
               processResponse();
             }
-          }, 500);
+          }, 500); // Shorter buffer since we have explicit completion
+        }
+        
+        if (hasCompletionSignal) {
+          // Enhanced waiting strategy: wait for events to stabilize
+          setTimeout(() => {
+            if (!isComplete) {
+              isComplete = true;
+              processResponse();
+            }
+          }, 1000); // Increased buffer to 1 second for more events
         }
       };
 
@@ -288,28 +331,42 @@ class HybridAmiService {
         if (isComplete) return;
         isComplete = true;
 
-        console.log(`\n🔍 Bulk ExtensionStateList - Raw AMI Response:`);
-        console.log('=' .repeat(60));
+        console.log(`\n🔍 Bulk ExtensionStateList - Enhanced Response Processing:`);
+        console.log('=' .repeat(70));
+        console.log(`📊 Total Events Received: ${eventCount}`);
+        console.log(`📊 Extensions Found: ${extensionCount}`);
+        console.log(`📊 Response Buffer Size: ${responseBuffer.length} characters`);
+        console.log('=' .repeat(70));
         console.log(responseBuffer);
-        console.log('=' .repeat(60));
+        console.log('=' .repeat(70));
 
         try {
-          // Parse the bulk response
+          // Parse the enhanced response with all events
           const extensions = this.parseExtensionStateListResponse(responseBuffer);
           
-          console.log(`✅ Bulk query completed: ${extensions.length} extensions found\n`);
+          console.log(`✅ Enhanced bulk query completed: ${extensions.length} extensions parsed\n`);
           
           resolve({
             extensions: extensions,
             rawAmiResponse: responseBuffer,
+            eventCount: eventCount,
+            extensionCount: extensionCount,
+            bufferSize: responseBuffer.length,
+            completionEventDetected: completionEventDetected,
             error: null
           });
           
         } catch (error) {
-          console.error(`❌ Failed to parse bulk response:`, error.message);
+          console.error(`❌ Failed to parse enhanced bulk response:`, error.message);
+          console.error(`❌ Response buffer preview:`, responseBuffer.substring(0, 500));
+          
           resolve({
             extensions: [],
             rawAmiResponse: responseBuffer,
+            eventCount: eventCount,
+            extensionCount: extensionCount,
+            bufferSize: responseBuffer.length,
+            completionEventDetected: completionEventDetected,
             error: error.message
           });
         }
@@ -331,45 +388,103 @@ class HybridAmiService {
         return;
       }
 
-      // Timeout after 15 seconds for bulk query
-      responseTimeout = setTimeout(() => {
+      // Enhanced timeout: wait longer for comprehensive event collection
+      responseTimeout = setTimeout(async () => {
         if (!isComplete) {
           isComplete = true;
-          socket.removeListener('data', dataHandler);
-          resolve({
-            extensions: [],
-            rawAmiResponse: responseBuffer,
-            error: 'Bulk query timeout - no response received'
-          });
+          console.log(`⏰ Enhanced bulk query timeout reached - processing ${eventCount} events received`);
+          
+          // Send Logoff action to cleanly terminate the query
+          try {
+            const logoffAction = `Action: Logoff\r\nActionID: ${actionId}-timeout\r\n\r\n`;
+            socket.write(logoffAction);
+            console.log(`🔌 [HybridAmiService] Sent Logoff action due to timeout`);
+          } catch (logoffError) {
+            console.warn(`⚠️ [HybridAmiService] Failed to send Logoff action:`, logoffError.message);
+          }
+          
+          processResponse();
         }
-      }, 15000);
+      }, 20000); // 20 seconds timeout for Events: off format
     });
   }
 
   /**
+   * Manually stop an active ExtensionStateList query using Logoff action
+   * @param {string} actionId - The action ID of the query to stop
+   */
+  async stopExtensionStateListQuery(actionId) {
+    if (!this.socket || !this.socket.writable) {
+      console.warn(`⚠️ [HybridAmiService] Cannot stop query - socket not available`);
+      return false;
+    }
+
+    try {
+      const logoffAction = `Action: Logoff\r\nActionID: ${actionId}-stop\r\n\r\n`;
+      this.socket.write(logoffAction);
+      console.log(`🔌 [HybridAmiService] Manually sent Logoff action to stop query: ${actionId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ [HybridAmiService] Failed to send Logoff action:`, error.message);
+      return false;
+    }
+  }
+
+  /**
    * Parse ExtensionStateList response to extract extension statuses
+   * Optimized for Events: off format with ExtensionStateListComplete event
    */
   parseExtensionStateListResponse(responseBuffer) {
     const extensions = [];
     const lines = responseBuffer.split('\r\n');
     
     let currentExtension = null;
-    
+    let eventCount = 0;
+    let extensionEventCount = 0;
+    let otherEventCount = 0;
+    let completionEventDetected = false;
+
+    console.log(`🔍 [HybridAmiService] Parsing Events: off ExtensionStateList response...`);
+    console.log(`📄 Raw response buffer length: ${responseBuffer.length} characters`);
+
     for (const line of lines) {
-      if (line.startsWith('Event: ExtensionStatus')) {
-        // Start of new extension entry
-        if (currentExtension) {
-          extensions.push(currentExtension);
+      // Skip empty lines
+      if (!line.trim()) continue;
+      
+      // Count all events
+      if (line.startsWith('Event: ')) {
+        eventCount++;
+        
+        if (line.includes('ExtensionStatus') || line.includes('ExtensionState')) {
+          extensionEventCount++;
+        } else if (line.includes('ExtensionStateListComplete')) {
+          // Special handling for completion event
+          completionEventDetected = true;
+          console.log(`🎯 ExtensionStateListComplete event detected during parsing`);
+        } else {
+          otherEventCount++;
         }
+      }
+
+      // Parse extension data from Events: off format
+      if (line.startsWith('Event: ExtensionStatus') || line.startsWith('Event: ExtensionState')) {
+        // Save previous extension if exists
+        if (currentExtension && currentExtension.extension) {
+          extensions.push(currentExtension);
+          console.log(`📱 Parsed extension: ${currentExtension.extension} -> ${currentExtension.status} (${currentExtension.statusCode})`);
+        }
+        
+        // Start new extension
         currentExtension = {
           extension: '',
           status: '',
           statusCode: '',
           context: '',
+          eventType: line.split(': ')[1],
           timestamp: new Date().toISOString()
         };
       } else if (currentExtension) {
-        if (line.startsWith('Exten: ')) {
+        if (line.startsWith('Exten: ') || line.startsWith('Extension: ')) {
           currentExtension.extension = line.split(': ')[1];
         } else if (line.startsWith('Status: ')) {
           currentExtension.statusCode = line.split(': ')[1];
@@ -380,9 +495,22 @@ class HybridAmiService {
       }
     }
     
-    // Add the last extension
-    if (currentExtension) {
+    // Don't forget the last extension
+    if (currentExtension && currentExtension.extension) {
       extensions.push(currentExtension);
+      console.log(`📱 Parsed extension: ${currentExtension.extension} -> ${currentExtension.status} (${currentExtension.statusCode})`);
+    }
+    
+    console.log(`📊 Events: off Parsing Summary:`);
+    console.log(`   - Total Events: ${eventCount}`);
+    console.log(`   - Extension Events: ${extensionEventCount}`);
+    console.log(`   - Other Events: ${otherEventCount}`);
+    console.log(`   - Extensions Parsed: ${extensions.length}`);
+    console.log(`   - Completion Event: ${completionEventDetected ? '✅ Detected' : '❌ Not Found'}`);
+    
+    // Debug: Show first few parsed extensions
+    if (extensions.length > 0) {
+      console.log(`🔍 First 3 parsed extensions:`, extensions.slice(0, 3));
     }
     
     return extensions;

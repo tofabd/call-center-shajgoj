@@ -1,6 +1,7 @@
 import logger from '../config/logging.js';
 import HybridAmiService from '../services/HybridAmiService.js';
 import Extension from '../models/Extension.js';
+import broadcast from '../services/BroadcastService.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -31,17 +32,23 @@ const createAmiResponseJsonFile = async (rawAmiData, connectionId) => {
         amiHost: process.env.AMI_HOST,
         amiPort: process.env.AMI_PORT,
         generatedAt: new Date().toISOString(),
-        note: "This file contains RAW AMI responses from Asterisk, not processed database data"
+        note: "This file contains RAW AMI responses from Asterisk, not processed database data",
+        queryType: "ExtensionStateList with Events: off",
+        parsingStatus: rawAmiData.bulkResponse ? "Successful" : "Failed or No Response"
       },
       // Individual extension queries with raw AMI responses
       individualResponses: rawAmiData.individualResponses || [],
       // Bulk ExtensionStateList response if available
       bulkResponse: rawAmiData.bulkResponse || null,
+      // Raw response data for debugging
+      rawResponseData: rawAmiData.rawResponseData || null,
       summary: {
         totalExtensions: rawAmiData.individualResponses?.length || 0,
         successfulQueries: rawAmiData.individualResponses?.filter(r => r.success).length || 0,
         failedQueries: rawAmiData.individualResponses?.filter(r => !r.success).length || 0,
-        hasBulkResponse: !!rawAmiData.bulkResponse
+        hasBulkResponse: !!rawAmiData.bulkResponse,
+        enhancedMetrics: rawAmiData.enhancedMetrics || null,
+        parsingSuccessful: rawAmiData.rawResponseData?.parsingSuccessful || false
       }
     };
     
@@ -95,16 +102,28 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     const dbExtensions = await Extension.find({ is_active: true }).lean();
     logger.info(`📋 [HybridAmiRefreshController] Found ${dbExtensions.length} active extensions in database`);
     
-    // Filter out non-numeric extensions (only 4-digit numbers)
-    const validExtensions = dbExtensions.filter(ext => /^\d{4}$/.test(ext.extension));
+    // Filter out non-numeric extensions (allow 3 to 5 digit numbers)
+    const validExtensions = dbExtensions.filter(ext => /^\d{3,5}$/.test(ext.extension));
     logger.info(`🔍 [HybridAmiRefreshController] Processing ${validExtensions.length} valid extensions`);
     
     // First, try to get ExtensionStateList (bulk query) for raw AMI data
     let bulkAmiResponse = null;
     try {
-      logger.info(`📊 [HybridAmiRefreshController] Attempting bulk ExtensionStateList query...`);
+      logger.info(`📊 [HybridAmiRefreshController] Attempting enhanced bulk ExtensionStateList query...`);
       bulkAmiResponse = await separateAmiService.queryExtensionStateList();
-      logger.info(`📊 [HybridAmiRefreshController] Bulk query successful: ${bulkAmiResponse.extensions?.length || 0} extensions found`);
+      
+             if (bulkAmiResponse && bulkAmiResponse.extensions) {
+         logger.info(`📊 [HybridAmiRefreshController] Events: off bulk query successful:`, {
+           extensionsFound: bulkAmiResponse.extensions.length,
+           totalEvents: bulkAmiResponse.eventCount || 0,
+           extensionEvents: bulkAmiResponse.extensionCount || 0,
+           bufferSize: bulkAmiResponse.bufferSize || 0,
+           completionEventDetected: bulkAmiResponse.completionEventDetected || false,
+           queryFormat: 'Events: off with ExtensionStateListComplete'
+         });
+       } else {
+        logger.warn(`⚠️ [HybridAmiRefreshController] Bulk query returned no extensions`);
+      }
     } catch (error) {
       logger.warn(`⚠️ [HybridAmiRefreshController] Bulk query failed, falling back to individual queries: ${error.message}`);
     }
@@ -114,6 +133,9 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     const amiResponses = []; // Store all AMI responses for JSON file
     let successfulQueries = 0;
     let failedQueries = 0;
+    let statusChanges = 0;
+    let noChanges = 0;
+    let markedOffline = 0;
     
     if (bulkAmiResponse && bulkAmiResponse.extensions && bulkAmiResponse.extensions.length > 0) {
       // Process bulk response
@@ -139,6 +161,42 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
               error: null
             };
             
+            // Check if status actually changed to avoid unnecessary database updates
+            const statusChanged = dbExtension.status !== statusResult.status || 
+                                dbExtension.status_code !== statusResult.statusCode ||
+                                dbExtension.device_state !== statusResult.statusText;
+            
+            if (statusChanged) {
+              logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → ${statusResult.status} (${dbExtension.status_code} → ${statusResult.statusCode})`);
+              
+              // Update extension status in database
+              await Extension.findByIdAndUpdate(dbExtension._id, {
+                status: statusResult.status,
+                status_code: statusResult.statusCode,
+                device_state: statusResult.statusText,
+                last_seen: new Date(),
+                last_status_change: new Date(),
+                updated_at: new Date()
+              });
+              
+              // Broadcast status change for real-time frontend updates
+              try {
+                const updatedExtension = await Extension.findById(dbExtension._id);
+                if (updatedExtension) {
+                  broadcast.extensionStatusUpdated(updatedExtension);
+                }
+              } catch (broadcastError) {
+                logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
+              }
+              
+              statusChanges++;
+              successfulQueries++;
+            } else {
+              logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: No change (${statusResult.status})`);
+              noChanges++;
+              successfulQueries++;
+            }
+            
             // Store AMI response for JSON file
             const amiResponse = {
               extension: dbExtension.extension,
@@ -146,50 +204,83 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
               database_id: dbExtension._id,
               query_timestamp: new Date().toISOString(),
               success: true,
+              statusChanged: statusChanged,
+              oldStatus: dbExtension.status,
+              newStatus: statusResult.status,
               rawAmiResponse: `Extension: ${amiExtension.extension}, Status: ${amiExtension.statusCode}, Context: ${amiExtension.context}`,
               parsedResult: statusResult
             };
             amiResponses.push(amiResponse);
             
-            logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
-            successfulQueries++;
-            
-            // Update extension status in database
-            await Extension.findByIdAndUpdate(dbExtension._id, {
-              status: statusResult.status,
-              status_code: statusResult.statusCode,
-              device_state: statusResult.statusText,
-              last_seen: new Date(),
-              last_status_change: new Date(),
-              updated_at: new Date()
-            });
-            
             results.push({
               extension: dbExtension.extension,
               status: statusResult.status,
               statusCode: statusResult.statusCode,
-              statusText: statusResult.statusText
+              statusText: statusResult.statusText,
+              statusChanged: statusChanged
             });
             
           } else {
-            // Extension not found in AMI response
-            logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${dbExtension.extension} not found in AMI response`);
-            failedQueries++;
+            // Extension not found in AMI response - mark as offline
+            logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${dbExtension.extension} not found in AMI response - marking as offline`);
             
-            // Add failed response to AMI responses
+            // Check if extension is currently online (needs to be marked offline)
+            if (dbExtension.status !== 'offline') {
+              logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → offline (not found in AMI)`);
+              
+              // Update extension status to offline
+              await Extension.findByIdAndUpdate(dbExtension._id, {
+                status: 'offline',
+                status_code: '4', // Unavailable
+                device_state: 'UNAVAILABLE',
+                last_seen: new Date(),
+                last_status_change: new Date(),
+                updated_at: new Date()
+              });
+              
+              // Broadcast status change for real-time frontend updates
+              try {
+                const updatedExtension = await Extension.findById(dbExtension._id);
+                if (updatedExtension) {
+                  broadcast.extensionStatusUpdated(updatedExtension);
+                }
+              } catch (broadcastError) {
+                logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
+              }
+              
+              markedOffline++;
+              successfulQueries++;
+            } else {
+              logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: Already offline (no change)`);
+              noChanges++;
+              successfulQueries++;
+            }
+            
+            // Add response to AMI responses
             amiResponses.push({
               extension: dbExtension.extension,
               agent_name: dbExtension.agent_name,
               database_id: dbExtension._id,
               query_timestamp: new Date().toISOString(),
-              success: false,
-              rawAmiResponse: 'Extension not found in AMI response',
+              success: true,
+              statusChanged: dbExtension.status !== 'offline',
+              oldStatus: dbExtension.status,
+              newStatus: 'offline',
+              rawAmiResponse: 'Extension not found in AMI response - marked as offline',
               parsedResult: {
-                status: 'unknown',
-                statusCode: null,
-                statusText: null,
-                error: 'Extension not found in AMI response'
+                status: 'offline',
+                statusCode: '4',
+                statusText: 'UNAVAILABLE',
+                error: null
               }
+            });
+            
+            results.push({
+              extension: dbExtension.extension,
+              status: 'offline',
+              statusCode: '4',
+              statusText: 'UNAVAILABLE',
+              statusChanged: dbExtension.status !== 'offline'
             });
           }
           
@@ -301,17 +392,44 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       connectionInfo.lastUsed = new Date();
     }
     
-    // Create JSON file with AMI responses (including bulk response if available)
+    // Create JSON file with AMI responses (including enhanced bulk response if available)
     const allAmiData = {
       individualResponses: amiResponses,
-      bulkResponse: bulkAmiResponse
+      bulkResponse: bulkAmiResponse,
+      enhancedMetrics: bulkAmiResponse ? {
+        totalEvents: bulkAmiResponse.eventCount || 0,
+        extensionEvents: bulkAmiResponse.extensionCount || 0,
+        bufferSize: bulkAmiResponse.bufferSize || 0,
+        extensionsParsed: bulkAmiResponse.extensions?.length || 0,
+        completionEventDetected: bulkAmiResponse.completionEventDetected || false
+      } : null,
+      // Always include raw response data for debugging
+      rawResponseData: {
+        responseBuffer: bulkAmiResponse?.rawAmiResponse || 'No raw response available',
+        eventCount: bulkAmiResponse?.eventCount || 0,
+        extensionCount: bulkAmiResponse?.extensionCount || 0,
+        bufferSize: bulkAmiResponse?.bufferSize || 0,
+        parsingSuccessful: !!bulkAmiResponse?.extensions,
+        parsingError: bulkAmiResponse?.error || null
+      }
     };
+    
+    // Always create JSON file, even if parsing failed
     const jsonFileInfo = await createAmiResponseJsonFile(allAmiData, connectionId);
+    
+    if (jsonFileInfo) {
+      logger.info(`📄 JSON file created successfully: ${jsonFileInfo.filename} (${jsonFileInfo.fileSize} bytes)`);
+    } else {
+      logger.warn(`⚠️ Failed to create JSON file for connection: ${connectionId}`);
+    }
     
     logger.info(`✅ [HybridAmiRefreshController] Separate connection refresh completed: ${connectionId}`, {
       extensionsChecked: validExtensions.length,
       successfulQueries,
       failedQueries,
+      statusChanges,
+      noChanges,
+      markedOffline,
       resultsCount: results.length,
       jsonFileCreated: !!jsonFileInfo,
       jsonFilename: jsonFileInfo?.filename
@@ -326,7 +444,10 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         lastQueryTime: new Date().toISOString(),
         statistics: {
           successfulQueries,
-          failedQueries
+          failedQueries,
+          statusChanges,
+          noChanges,
+          markedOffline
         },
         results: results,
         jsonFile: jsonFileInfo ? {
@@ -424,6 +545,58 @@ export const closeSeparateConnection = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to close separate connection',
+      error: error.message,
+      connectionId
+    });
+  }
+};
+
+/**
+ * Stop an active ExtensionStateList query using Logoff action
+ */
+export const stopActiveQuery = async (req, res) => {
+  const { connectionId } = req.params;
+  
+  try {
+    if (!separateConnections.has(connectionId)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Separate connection not found',
+        connectionId
+      });
+    }
+    
+    const connectionInfo = separateConnections.get(connectionId);
+    const { service } = connectionInfo;
+    
+    // Get the current action ID from the service (if available)
+    const currentActionId = service.currentActionId || 'unknown';
+    
+    // Stop the active query
+    const stopped = await service.stopExtensionStateListQuery(currentActionId);
+    
+    if (stopped) {
+      logger.info(`✅ [HybridAmiRefreshController] Query stopped via Logoff action: ${connectionId}`);
+      res.json({
+        success: true,
+        message: 'Query stopped successfully via Logoff action',
+        connectionId,
+        actionId: currentActionId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to stop query',
+        connectionId,
+        actionId: currentActionId
+      });
+    }
+    
+  } catch (error) {
+    logger.error(`❌ [HybridAmiRefreshController] Failed to stop query for connection ${connectionId}:`, error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to stop query',
       error: error.message,
       connectionId
     });

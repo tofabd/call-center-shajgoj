@@ -18,7 +18,8 @@ import {
   createSeparateConnectionAndRefresh,
   getSeparateConnectionStatus,
   closeSeparateConnection,
-  closeAllSeparateConnections
+  closeAllSeparateConnections,
+  stopActiveQuery
 } from '../controllers/hybridAmiRefreshController.js';
 
 const router = express.Router();
@@ -119,6 +120,9 @@ router.post('/hybrid-refresh', createSeparateConnectionAndRefresh);
 
 // GET /api/extensions/hybrid-refresh/status - Get separate connection status
 router.get('/hybrid-refresh/status', getSeparateConnectionStatus);
+
+// POST /api/extensions/hybrid-refresh/:connectionId/stop - Stop active query via Logoff action
+router.post('/hybrid-refresh/:connectionId/stop', stopActiveQuery);
 
 // POST /api/extensions/hybrid-refresh/close - Close all separate connections
 router.post('/hybrid-refresh/close', closeAllSeparateConnections);
