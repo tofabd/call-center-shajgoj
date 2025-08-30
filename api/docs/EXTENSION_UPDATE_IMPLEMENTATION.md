@@ -28,18 +28,21 @@ This implementation provides a comprehensive solution for managing extension sta
 
 ## Implementation Details
 
-### AmiQueryService Updates
+### HybridAmiService Implementation
 
 #### New Methods
 ```javascript
-// Query all extensions at once
+// Query all extensions at once (bulk)
 async queryExtensionStateList()
+
+// Query individual extension
+async queryExtensionStatus(extensionNumber)
 
 // Parse AMI response
 parseExtensionStateListResponse(response)
 
-// Map device states
-mapDeviceState(asteriskStatus)
+// Map extension status codes
+mapExtensionStatus(statusCode)
 ```
 
 #### Enhanced Status Check Process
@@ -53,7 +56,7 @@ mapDeviceState(asteriskStatus)
 ### Logging Structure
 
 #### Component Loggers
-- `AmiQueryService`: AMI connection and query operations
+- `HybridAmiService`: AMI connection and query operations
 - `ExtensionController`: API endpoint operations
 - `BroadcastService`: Real-time event broadcasting
 - `MainApp`: Server lifecycle and Socket.IO events
@@ -88,6 +91,9 @@ POST /api/extensions/refresh
 
 # Test script
 npm run test-extension-update
+
+# Bulk query test
+npm run test-bulk-extension-query
 ```
 
 ### Periodic Updates

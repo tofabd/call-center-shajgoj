@@ -440,15 +440,14 @@ class HybridAmiService {
   testSmartParsing() {
     console.log('🧪 [HybridAmiService] Testing smart parsing system...');
     
-    // This service doesn't have ExtensionStateList parsing,
-    // but we can test the individual ExtensionState parsing
+    // This service now handles both individual and bulk parsing
     console.log('✅ [HybridAmiService] Individual ExtensionState parsing is working');
-    console.log('📊 [HybridAmiService] ExtensionStateList parsing is handled by AmiQueryService');
+    console.log('📊 [HybridAmiService] ExtensionStateList parsing is handled internally');
     
     return {
       service: 'HybridAmiService',
-      parsingType: 'Individual ExtensionState only',
-      smartParsing: 'Handled by AmiQueryService'
+      parsingType: 'Both Individual ExtensionState and ExtensionStateList',
+      smartParsing: 'Handled internally by HybridAmiService'
     };
   }
 
