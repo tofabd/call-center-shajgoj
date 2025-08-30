@@ -41,9 +41,9 @@ class HybridAmiService {
       await this.connectionManager.establishConnection(host, port, username, password);
       this.connectionState = 'connected';
       
-      // Phase 2: Authenticate (Events: off for query-only mode)
+      // Phase 2: Authenticate (Events: on for real-time event processing)
       console.log('🔐 [HybridAmiService] Phase 2: Authenticating...');
-      await this.connectionManager.authenticate(username, password, 'off');
+      await this.connectionManager.authenticate(username, password, 'on');
       
       // Phase 3: Setup event processing (Node.js-style)
       console.log('📡 [HybridAmiService] Phase 3: Setting up event processing...');
