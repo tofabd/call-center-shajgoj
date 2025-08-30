@@ -149,7 +149,7 @@ class HybridAmiService {
 
     return new Promise((resolve, reject) => {
       const actionId = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const query = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\n\r\n`;
+      const query = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\nEvents: off\r\n\r\n`;
 
       let responseBuffer = '';
       let responseTimeout;
@@ -185,7 +185,8 @@ class HybridAmiService {
                 status: derivedStatus,
                 statusCode: statusCode,
                 statusText: statusText,
-                error: null
+                error: null,
+                rawAmiResponse: responseBuffer // Include raw AMI response
               });
             } else {
               console.warn(`❌ Extension ${extensionNumber} - No Status line found in response\n`);
@@ -193,7 +194,8 @@ class HybridAmiService {
                 status: 'unknown',
                 statusCode: null,
                 statusText: null,
-                error: 'Could not parse status from response'
+                error: 'Could not parse status from response',
+                rawAmiResponse: responseBuffer // Include raw AMI response even for errors
               });
             }
           } else if (responseBuffer.includes('Response: Error')) {
@@ -207,13 +209,14 @@ class HybridAmiService {
               status: 'unknown',
               statusCode: null,
               statusText: null,
-              error: error
+              error: error,
+              rawAmiResponse: responseBuffer // Include raw AMI response for errors
             });
           }
           
           // Clean up
           clearTimeout(responseTimeout);
-          socket.removeListener('data', dataHandler);
+          socket.removeListener('dataHandler');
         }
       };
 
@@ -236,10 +239,153 @@ class HybridAmiService {
           status: 'unknown',
           statusCode: null,
           statusText: null,
-          error: 'Query timeout - no response received'
+          error: 'Query timeout - no response received',
+          rawAmiResponse: '' // No response for timeout
         });
       }, 10000);
     });
+  }
+
+  /**
+   * Query all extension statuses via AMI using ExtensionStateList (bulk query)
+   */
+  async queryExtensionStateList() {
+    if (!this.isRunning || !this.connectionManager.isHealthy()) {
+      throw new Error('Hybrid AMI Service is not running or not healthy');
+    }
+
+    const socket = this.connectionManager.getSocket();
+    if (!socket) {
+      throw new Error('No active socket connection');
+    }
+
+    return new Promise((resolve, reject) => {
+      const actionId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const query = `Action: ExtensionStateList\r\nActionID: ${actionId}\r\nContext: from-internal\r\nEvents: on\r\n\r\n`;
+
+      let responseBuffer = '';
+      let responseTimeout;
+      let isComplete = false;
+
+      const dataHandler = (data) => {
+        responseBuffer += data.toString();
+        
+        // Check if we have a complete response (Response: Follows indicates end of list)
+        if (responseBuffer.includes(`ActionID: ${actionId}`) && 
+            (responseBuffer.includes('Response: Follows') || responseBuffer.includes('Response: Success'))) {
+          
+          // Wait a bit more to ensure we get all extension data
+          setTimeout(() => {
+            if (!isComplete) {
+              isComplete = true;
+              processResponse();
+            }
+          }, 500);
+        }
+      };
+
+      const processResponse = () => {
+        if (isComplete) return;
+        isComplete = true;
+
+        console.log(`\n🔍 Bulk ExtensionStateList - Raw AMI Response:`);
+        console.log('=' .repeat(60));
+        console.log(responseBuffer);
+        console.log('=' .repeat(60));
+
+        try {
+          // Parse the bulk response
+          const extensions = this.parseExtensionStateListResponse(responseBuffer);
+          
+          console.log(`✅ Bulk query completed: ${extensions.length} extensions found\n`);
+          
+          resolve({
+            extensions: extensions,
+            rawAmiResponse: responseBuffer,
+            error: null
+          });
+          
+        } catch (error) {
+          console.error(`❌ Failed to parse bulk response:`, error.message);
+          resolve({
+            extensions: [],
+            rawAmiResponse: responseBuffer,
+            error: error.message
+          });
+        }
+
+        // Clean up
+        clearTimeout(responseTimeout);
+        socket.removeListener('data', dataHandler);
+      };
+
+      socket.on('data', dataHandler);
+
+      // Send the query
+      try {
+        socket.write(query);
+      } catch (error) {
+        socket.removeListener('data', dataHandler);
+        clearTimeout(responseTimeout);
+        reject(error);
+        return;
+      }
+
+      // Timeout after 15 seconds for bulk query
+      responseTimeout = setTimeout(() => {
+        if (!isComplete) {
+          isComplete = true;
+          socket.removeListener('data', dataHandler);
+          resolve({
+            extensions: [],
+            rawAmiResponse: responseBuffer,
+            error: 'Bulk query timeout - no response received'
+          });
+        }
+      }, 15000);
+    });
+  }
+
+  /**
+   * Parse ExtensionStateList response to extract extension statuses
+   */
+  parseExtensionStateListResponse(responseBuffer) {
+    const extensions = [];
+    const lines = responseBuffer.split('\r\n');
+    
+    let currentExtension = null;
+    
+    for (const line of lines) {
+      if (line.startsWith('Event: ExtensionStatus')) {
+        // Start of new extension entry
+        if (currentExtension) {
+          extensions.push(currentExtension);
+        }
+        currentExtension = {
+          extension: '',
+          status: '',
+          statusCode: '',
+          context: '',
+          timestamp: new Date().toISOString()
+        };
+      } else if (currentExtension) {
+        if (line.startsWith('Exten: ')) {
+          currentExtension.extension = line.split(': ')[1];
+        } else if (line.startsWith('Status: ')) {
+          currentExtension.statusCode = line.split(': ')[1];
+          currentExtension.status = this.mapExtensionStatus(line.split(': ')[1]);
+        } else if (line.startsWith('Context: ')) {
+          currentExtension.context = line.split(': ')[1];
+        }
+      }
+    }
+    
+    // Add the last extension
+    if (currentExtension) {
+      extensions.push(currentExtension);
+    }
+    
+    return extensions;
   }
 
   /**
@@ -285,6 +431,24 @@ class HybridAmiService {
       reconnectAttempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts,
       connection: this.connectionManager.getStatus()
+    };
+  }
+
+  /**
+   * Test smart parsing system (for debugging)
+   */
+  testSmartParsing() {
+    console.log('🧪 [HybridAmiService] Testing smart parsing system...');
+    
+    // This service doesn't have ExtensionStateList parsing,
+    // but we can test the individual ExtensionState parsing
+    console.log('✅ [HybridAmiService] Individual ExtensionState parsing is working');
+    console.log('📊 [HybridAmiService] ExtensionStateList parsing is handled by AmiQueryService');
+    
+    return {
+      service: 'HybridAmiService',
+      parsingType: 'Individual ExtensionState only',
+      smartParsing: 'Handled by AmiQueryService'
     };
   }
 

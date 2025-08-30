@@ -384,9 +384,7 @@ const ExtensionsStatus: React.FC = () => {
     }
   }, [isRefreshing, isAutoRefreshing, handleRefresh]);
 
-  // Check if we're in event-driven mode or fallback mode
-  const isEventDrivenMode = realtimeStatus === 'connected' && connectionHealth === 'good';
-  const isFallbackMode = !isEventDrivenMode;
+
 
   const handleExtensionClick = useCallback(async (extension: Extension) => {
     console.log('📱 Extension clicked:', extension);
@@ -534,12 +532,7 @@ const ExtensionsStatus: React.FC = () => {
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                     <span className="text-red-600 dark:text-red-400">{offlineCount} Offline</span>
                   </div>
-                  {isFallbackMode && (
-                    <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                      <span className="text-yellow-600 dark:text-yellow-400 text-xs">Fallback Mode</span>
-                    </div>
-                  )}
+                  
                 </div>
              </div>
           </div>
@@ -560,7 +553,7 @@ const ExtensionsStatus: React.FC = () => {
                    ? 'bg-blue-100 dark:bg-blue-900/30' 
                    : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                }`}
-                               title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : `Click to refresh extensions (or use Ctrl+R, F5, double-click header, or right-click header)${isFallbackMode ? ' - Currently in fallback mode due to connection issues' : ''}`}
+                               title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh extensions (or use Ctrl+R, F5, double-click header, or right-click header)'}
                disabled={isRefreshing || isAutoRefreshing}
              >
               <RefreshCw className={`h-4 w-4 transition-all duration-200 ${

@@ -227,7 +227,7 @@ class Extension2009Tester {
     console.log('\n📱 Checking status for extension 2009 in context from-internal...');
     
     // Send ExtensionState command exactly as specified
-    const cmd = `Action: ExtensionState\r\nActionID: action-id-2009\r\nExten: 2009\r\nContext: from-internal\r\n\r\n`;
+    const cmd = `Action: ExtensionState\r\nActionID: action-id-2009\r\nExten: 2009\r\nContext: from-internal\r\nEvents: on\r\n\r\n`;
     
     console.log('📤 ExtensionState command sent:');
     console.log(cmd);

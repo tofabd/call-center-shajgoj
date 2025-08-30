@@ -281,7 +281,7 @@ class ExtensionStateListTester {
     console.log('\n📋 Getting ExtensionStateList...');
     
     // Send ExtensionStateList command exactly as specified
-    const cmd = `Action: ExtensionStateList\r\n\r\n`;
+    const cmd = `Action: ExtensionStateList\r\nEvents: on\r\n\r\n`;
     
     console.log('📤 ExtensionStateList command sent:');
     console.log(cmd);

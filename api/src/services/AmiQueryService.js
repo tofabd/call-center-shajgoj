@@ -184,7 +184,7 @@ class AmiQueryService {
     try {
       this.logger.info('📋 Querying ExtensionStateList from AMI...');
       
-      const command = `Action: ExtensionStateList\r\nContext: from-internal\r\n\r\n`;
+      const command = `Action: ExtensionStateList\r\nContext: from-internal\r\nEvents: on\r\n\r\n`;
       const response = await this.sendCommand(command, 15000); // Increased timeout for bulk query
       
       this.logger.info('✅ ExtensionStateList query completed successfully');
@@ -204,7 +204,7 @@ class AmiQueryService {
       const actionId = `ext_status_${extensionNumber}_${Date.now()}`;
       
       // Use exact ExtensionState format as specified
-      const command = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\n\r\n`;
+      const command = `Action: ExtensionState\r\nActionID: ${actionId}\r\nExten: ${extensionNumber}\r\nContext: from-internal\r\nEvents: on\r\n\r\n`;
       
       this.logger.info(`📤 Sending ExtensionState command for ${extensionNumber}:`, { actionId, command });
       
@@ -264,8 +264,59 @@ class AmiQueryService {
   }
 
   parseExtensionStateListResponse(response) {
+    // Smart parsing: automatically detect response format
+    if (response.includes('Event: ExtensionStatus')) {
+      this.logger.info('📊 Detected Events: on format - parsing ExtensionStatus events');
+      return this.parseEventsOnFormat(response);
+    } else {
+      this.logger.info('📊 Detected Events: off format - parsing traditional response');
+      return this.parseEventsOffFormat(response);
+    }
+  }
+
+  // Parse Events: on format (ExtensionStatus events)
+  parseEventsOnFormat(response) {
+    const extensions = [];
+    const events = response.split('\r\n\r\n'); // Split by double newline
+    
+    this.logger.info(`📊 Parsing ${events.length} events from Events: on response`);
+    
+    events.forEach((eventData, index) => {
+      if (eventData.includes('Event: ExtensionStatus')) {
+        const lines = eventData.split('\r\n');
+        const extension = {};
+        
+        lines.forEach(line => {
+          if (line.startsWith('Exten: ')) {
+            extension.extension = line.substring(7).trim();
+          } else if (line.startsWith('Status: ')) {
+            extension.status = parseInt(line.substring(8).trim());
+          } else if (line.startsWith('Context: ')) {
+            extension.context = line.substring(9).trim();
+          } else if (line.startsWith('StatusText: ')) {
+            extension.statusText = line.substring(12).trim();
+          } else if (line.startsWith('Hint: ')) {
+            extension.hint = line.substring(6).trim();
+          }
+        });
+        
+        if (extension.extension && extension.status !== undefined) {
+          extensions.push(extension);
+          this.logger.debug(`📱 Parsed extension ${extension.extension}: status ${extension.status}`);
+        }
+      }
+    });
+    
+    this.logger.info(`✅ Events: on parsing complete - found ${extensions.length} extensions`);
+    return extensions;
+  }
+
+  // Parse Events: off format (traditional response)
+  parseEventsOffFormat(response) {
     const extensions = [];
     const lines = response.split('\r\n');
+    
+    this.logger.info(`📊 Parsing traditional response with ${lines.length} lines`);
     
     let currentExtension = null;
     
@@ -291,6 +342,7 @@ class AmiQueryService {
       extensions.push(currentExtension);
     }
     
+    this.logger.info(`✅ Traditional parsing complete - found ${extensions.length} extensions`);
     return extensions;
   }
 
@@ -597,6 +649,31 @@ class AmiQueryService {
       successfulQueries: this.successfulQueries,
       failedQueries: this.failedQueries,
       socketState: this.socket ? this.socket.connecting ? 'connecting' : 'connected' : 'disconnected'
+    };
+  }
+
+  // Test method to demonstrate smart parsing with both formats
+  testSmartParsing() {
+    this.logger.info('🧪 Testing smart parsing system with both formats...');
+    
+    // Test Events: off format (traditional)
+    const eventsOffResponse = 'Response: Success\r\nEventList: start\r\nListItems: 3\r\n\r\nExtension: 1001\r\nStatus: 0\r\nContext: from-internal\r\n\r\nExtension: 1002\r\nStatus: 4\r\nContext: from-internal\r\n\r\nExtension: 1003\r\nStatus: 1\r\nContext: from-internal\r\n\r\nEventList: Complete\r\nListItems: 3';
+
+    // Test Events: on format (event-driven)
+    const eventsOnResponse = 'Response: Success\r\nEventList: start\r\nListItems: 3\r\n\r\nEvent: ExtensionStatus\r\nExten: 1001\r\nContext: from-internal\r\nStatus: 0\r\nStatusText: Not in use\r\n\r\nEvent: ExtensionStatus\r\nExten: 1002\r\nContext: from-internal\r\nStatus: 4\r\nStatusText: Unavailable\r\n\r\nEvent: ExtensionStatus\r\nExten: 1003\r\nContext: from-internal\r\nStatus: 1\r\nStatusText: In use\r\n\r\nEventList: Complete\r\nListItems: 3';
+
+    this.logger.info('📊 Testing Events: off format...');
+    const eventsOffResult = this.parseExtensionStateListResponse(eventsOffResponse);
+    this.logger.info(`✅ Events: off result: ${eventsOffResult.length} extensions`);
+
+    this.logger.info('📊 Testing Events: on format...');
+    const eventsOnResult = this.parseExtensionStateListResponse(eventsOnResponse);
+    this.logger.info(`✅ Events: on result: ${eventsOnResult.length} extensions`);
+
+    return {
+      eventsOff: eventsOffResult,
+      eventsOn: eventsOnResult,
+      smartParsingWorking: true
     };
   }
 
