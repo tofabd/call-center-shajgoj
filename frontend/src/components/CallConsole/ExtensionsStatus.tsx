@@ -294,10 +294,14 @@ const ExtensionsStatus: React.FC = () => {
       console.log('⏰ Periodic timer reset due to manual refresh');
     }
     
-    // Trigger AMI refresh first, then load from database
+        // Trigger AMI refresh first, then load from database
     extensionService.refreshStatus()
       .then((result) => {
         console.log('✅ AMI refresh completed, extensions updated in database:', result);
+        
+        // Stop spinning immediately when AMI refresh completes
+        // (real-time updates are already flowing via socket)
+        setIsRefreshing(false);
         
         // Add a small delay to ensure database is updated before loading
         return new Promise(resolve => setTimeout(resolve, 500));
@@ -309,15 +313,17 @@ const ExtensionsStatus: React.FC = () => {
       })
       .catch((error) => {
         console.error('❌ AMI refresh failed:', error);
+        // Stop spinning even on error
+        setIsRefreshing(false);
+        
         // Fallback to database reload if AMI refresh fails
         console.log('🔄 Fallback: Loading extensions from database due to AMI failure...');
         return loadExtensions(true);
       })
       .finally(() => {
-        setTimeout(() => {
-          setIsRefreshing(false);
+        // Restart timers immediately
           
-          // Restart the periodic timer after manual refresh
+          // Restart timers immediately
           const newInterval = setInterval(() => {
             if (isPageVisible && !isRefreshing) {
               console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
@@ -341,8 +347,7 @@ const ExtensionsStatus: React.FC = () => {
           }, 1000);
           setDurationUpdateTimer(newDurationTimer);
           console.log('⏰ Restarted duration update timer');
-        }, 1000); // Keep spinning for visual feedback
-      });
+        });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
   // Add keyboard event listener for manual refresh (Ctrl+R or F5)

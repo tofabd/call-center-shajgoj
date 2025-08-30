@@ -169,24 +169,36 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
             if (statusChanged) {
               logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → ${statusResult.status} (${dbExtension.status_code} → ${statusResult.statusCode})`);
               
-              // Update extension status in database
-              await Extension.findByIdAndUpdate(dbExtension._id, {
-                status: statusResult.status,
-                status_code: statusResult.statusCode,
-                device_state: statusResult.statusText,
-                last_seen: new Date(),
-                last_status_change: new Date(),
-                updated_at: new Date()
-              });
-              
-              // Broadcast status change for real-time frontend updates
               try {
-                const updatedExtension = await Extension.findById(dbExtension._id);
-                if (updatedExtension) {
-                  broadcast.extensionStatusUpdated(updatedExtension);
+                // Update extension status in database
+                const updateResult = await Extension.findByIdAndUpdate(
+                  dbExtension._id, 
+                  {
+                    status: statusResult.status,
+                    status_code: statusResult.statusCode,
+                    device_state: statusResult.statusText,
+                    last_seen: new Date(),
+                    last_status_change: new Date(),
+                    updated_at: new Date()
+                  },
+                  { new: true } // Return updated document
+                );
+                
+                if (updateResult) {
+                  // Broadcast status change for real-time frontend updates
+                  try {
+                    broadcast.extensionStatusUpdated(updateResult);
+                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} update`);
+                  } catch (broadcastError) {
+                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
+                  }
+                } else {
+                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${dbExtension.extension}`);
                 }
-              } catch (broadcastError) {
-                logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
+              } catch (dbError) {
+                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${dbExtension.extension}:`, dbError.message);
+                failedQueries++;
+                continue; // Skip to next extension
               }
               
               statusChanges++;
@@ -228,28 +240,40 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
             if (dbExtension.status !== 'offline') {
               logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → offline (not found in AMI)`);
               
-              // Update extension status to offline
-              await Extension.findByIdAndUpdate(dbExtension._id, {
-                status: 'offline',
-                status_code: '4', // Unavailable
-                device_state: 'UNAVAILABLE',
-                last_seen: new Date(),
-                last_status_change: new Date(),
-                updated_at: new Date()
-              });
-              
-              // Broadcast status change for real-time frontend updates
               try {
-                const updatedExtension = await Extension.findById(dbExtension._id);
-                if (updatedExtension) {
-                  broadcast.extensionStatusUpdated(updatedExtension);
+                // Update extension status to offline
+                const updateResult = await Extension.findByIdAndUpdate(
+                  dbExtension._id,
+                  {
+                    status: 'offline',
+                    status_code: '4', // Unavailable
+                    device_state: 'UNAVAILABLE',
+                    last_seen: new Date(),
+                    last_status_change: new Date(),
+                    updated_at: new Date()
+                  },
+                  { new: true } // Return updated document
+                );
+                
+                if (updateResult) {
+                  // Broadcast status change for real-time frontend updates
+                  try {
+                    broadcast.extensionStatusUpdated(updateResult);
+                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} offline status`);
+                  } catch (broadcastError) {
+                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
+                  }
+                  
+                  markedOffline++;
+                  successfulQueries++;
+                } else {
+                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${dbExtension.extension} offline status`);
+                  failedQueries++;
                 }
-              } catch (broadcastError) {
-                logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
+              } catch (dbError) {
+                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${dbExtension.extension} offline status:`, dbError.message);
+                failedQueries++;
               }
-              
-              markedOffline++;
-              successfulQueries++;
             } else {
               logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: Already offline (no change)`);
               noChanges++;
@@ -307,89 +331,143 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       }
       
     } else {
-      // Fallback to individual queries if bulk query failed
-      logger.info(`🔄 [HybridAmiRefreshController] Fallback: Using individual extension queries`);
-      
-      for (const extension of validExtensions) {
-        try {
-          logger.info(`🔍 [HybridAmiRefreshController] Querying extension ${extension.extension} via separate connection`);
-          
-          const statusResult = await separateAmiService.queryExtensionStatus(extension.extension);
-          
-          // Store RAW AMI response for JSON file
-          const amiResponse = {
-            extension: extension.extension,
-            agent_name: extension.agent_name,
-            database_id: extension._id,
-            query_timestamp: new Date().toISOString(),
-            success: !statusResult.error,
-            // Raw AMI data from Asterisk
-            rawAmiResponse: statusResult.rawAmiResponse || 'No raw response captured',
-            // Parsed result for database update
-            parsedResult: {
-              status: statusResult.status,
-              statusCode: statusResult.statusCode,
-              statusText: statusResult.statusText,
-              error: statusResult.error
-            }
-          };
-          amiResponses.push(amiResponse);
-          
-          if (statusResult.error) {
-            logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
-            failedQueries++;
-          } else {
-            logger.info(`✅ [HybridAmiRefreshController] Extension ${extension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
-            successfulQueries++;
+                      // Fallback to individual queries if bulk query failed
+        logger.info(`🔄 [HybridAmiRefreshController] Fallback: Using individual extension queries`);
+        
+        // Single timeout for entire individual query operation
+        const totalQueryTimeout = Math.min(30000, Math.max(10000, validExtensions.length * 200)); // 10-30 seconds based on extension count
+        logger.info(`⏰ Individual query timeout: ${totalQueryTimeout}ms for ${validExtensions.length} extensions`);
+        
+        // Process all individual queries with single timeout
+        const individualQueryPromises = validExtensions.map(async (extension) => {
+          try {
+            logger.info(`🔍 [HybridAmiRefreshController] Querying extension ${extension.extension} via separate connection`);
             
-            // Update extension status in database
-            await Extension.findByIdAndUpdate(extension._id, {
-              status: statusResult.status,
-              status_code: statusResult.statusCode,
-              device_state: statusResult.statusText || 'UNKNOWN',
-              last_seen: new Date(),
-              last_status_change: new Date(),
-              updated_at: new Date()
-            });
+            const statusResult = await separateAmiService.queryExtensionStatus(extension.extension);
             
-            results.push({
+            // Store RAW AMI response for JSON file
+            const amiResponse = {
               extension: extension.extension,
-              status: statusResult.status,
-              statusCode: statusResult.statusCode,
-              statusText: statusResult.statusText
-            });
-          }
-          
-          // Small delay between queries to avoid overwhelming AMI
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-        } catch (error) {
-          logger.error(`❌ [HybridAmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
-          failedQueries++;
-          
-          // Add failed response to AMI responses
-          amiResponses.push({
-            extension: extension.extension,
-            agent_name: extension.agent_name,
-            database_id: extension._id,
-            query_timestamp: new Date().toISOString(),
-            success: false,
-            rawAmiResponse: 'Query error',
-            parsedResult: {
-              status: 'unknown',
-              statusCode: null,
-              statusText: null,
-              error: error.message
+              agent_name: extension.agent_name,
+              database_id: extension._id,
+              query_timestamp: new Date().toISOString(),
+              success: !statusResult.error,
+              // Raw AMI data from Asterisk
+              rawAmiResponse: statusResult.rawAmiResponse || 'No raw response captured',
+              // Parsed result for database update
+              parsedResult: {
+                status: statusResult.status,
+                statusCode: statusResult.statusCode,
+                statusText: statusResult.statusText,
+                error: statusResult.error
+              }
+            };
+            amiResponses.push(amiResponse);
+            
+            if (statusResult.error) {
+              logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
+              return { extension: extension.extension, success: false, error: statusResult.error };
+            } else {
+              logger.info(`✅ [HybridAmiRefreshController] Extension ${extension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
+              
+              try {
+                // Update extension status in database
+                const updateResult = await Extension.findByIdAndUpdate(
+                  extension._id,
+                  {
+                    status: statusResult.status,
+                    status_code: statusResult.statusCode,
+                    device_state: statusResult.statusText || 'UNKNOWN',
+                    last_seen: new Date(),
+                    last_status_change: new Date(),
+                    updated_at: new Date()
+                  },
+                  { new: true } // Return updated document
+                );
+                
+                if (updateResult) {
+                  // Broadcast status change for real-time frontend updates
+                  try {
+                    broadcast.extensionStatusUpdated(updateResult);
+                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${extension.extension} update`);
+                  } catch (broadcastError) {
+                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${extension.extension} update:`, broadcastError.message);
+                  }
+                  
+                  return { 
+                    extension: extension.extension, 
+                    success: true, 
+                    status: statusResult.status,
+                    statusCode: statusResult.statusCode,
+                    statusText: statusResult.statusText
+                  };
+                } else {
+                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${extension.extension}`);
+                  return { extension: extension.extension, success: false, error: 'Database update failed' };
+                }
+              } catch (dbError) {
+                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${extension.extension}:`, dbError.message);
+                return { extension: extension.extension, success: false, error: dbError.message };
+              }
             }
-          });
-        }
-      }
+          } catch (error) {
+            logger.error(`❌ [HybridAmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
+            
+            // Add failed response to AMI responses
+            amiResponses.push({
+              extension: extension.extension,
+              agent_name: extension.agent_name,
+              database_id: extension._id,
+              query_timestamp: new Date().toISOString(),
+              success: false,
+              rawAmiResponse: 'Query error',
+              parsedResult: {
+                status: 'unknown',
+                statusCode: null,
+                statusText: null,
+                error: error.message
+              }
+            });
+            
+            return { extension: extension.extension, success: false, error: error.message };
+          }
+        });
+        
+        // Execute all individual queries with single timeout
+        const individualResults = await Promise.race([
+          Promise.allSettled(individualQueryPromises),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Individual queries timeout after ${totalQueryTimeout}ms`)), totalQueryTimeout)
+          )
+        ]);
+        
+        // Process results
+        individualResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            const data = result.value;
+            if (data.success) {
+              successfulQueries++;
+              results.push({
+                extension: data.extension,
+                status: data.status,
+                statusCode: data.statusCode,
+                statusText: data.statusText
+              });
+            } else {
+              failedQueries++;
+            }
+          } else {
+            failedQueries++;
+            logger.error(`❌ [HybridAmiRefreshController] Individual query failed:`, result.reason);
+          }
+        });
     }
     
-    // Update last used timestamp
+    // Update last used timestamp and ensure connection is marked for cleanup
     const connectionInfo = separateConnections.get(connectionId);
     if (connectionInfo) {
       connectionInfo.lastUsed = new Date();
+      connectionInfo.completed = true; // Mark as completed for cleanup
     }
     
     // Create JSON file with AMI responses (including enhanced bulk response if available)
@@ -434,6 +512,18 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       jsonFileCreated: !!jsonFileInfo,
       jsonFilename: jsonFileInfo?.filename
     });
+    
+    // Clean up the separate connection after successful completion
+    try {
+      if (separateConnections.has(connectionId)) {
+        const connectionInfo = separateConnections.get(connectionId);
+        await connectionInfo.service.stop();
+        separateConnections.delete(connectionId);
+        logger.info(`🔌 [HybridAmiRefreshController] Successfully closed separate connection: ${connectionId}`);
+      }
+    } catch (cleanupError) {
+      logger.warn(`⚠️ [HybridAmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
+    }
     
     res.json({
       success: true,

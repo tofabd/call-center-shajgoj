@@ -284,19 +284,16 @@ class HybridAmiService {
           extensionCount += extensionMatches.length;
         }
 
-        // Check if we have a complete response (Events: off format)
-        const hasCompletionSignal = (
-          responseBuffer.includes(`ActionID: ${actionId}`) && 
-          (
-            responseBuffer.includes('Response: Follows') || 
-            responseBuffer.includes('Response: Success')
-          )
-        );
-        
-        // Check for ExtensionStateListComplete event specifically
+        // Check for ExtensionStateListComplete event specifically (highest priority)
         if (responseBuffer.includes('Event: ExtensionStateListComplete')) {
           completionEventDetected = true;
           console.log(`🎯 ExtensionStateListComplete event detected - list is complete`);
+          
+          // Clear the timeout since we have explicit completion
+          if (responseTimeout) {
+            clearTimeout(responseTimeout);
+            console.log(`⏰ Cleared timeout due to ExtensionStateListComplete event`);
+          }
           
           // Send Logoff action to finish the query
           try {
@@ -307,23 +304,31 @@ class HybridAmiService {
             console.warn(`⚠️ [HybridAmiService] Failed to send Logoff action:`, logoffError.message);
           }
           
-          // Process response immediately after ExtensionStateListComplete
-          setTimeout(() => {
-            if (!isComplete) {
-              isComplete = true;
-              processResponse();
-            }
-          }, 500); // Shorter buffer since we have explicit completion
+          // Process response immediately - no delay needed for explicit completion
+          if (!isComplete) {
+            isComplete = true;
+            processResponse();
+          }
+          return; // Exit early to avoid conflicting completion checks
         }
         
+        // Check if we have a complete response (Events: off format) - only if no ExtensionStateListComplete
+        const hasCompletionSignal = (
+          responseBuffer.includes(`ActionID: ${actionId}`) && 
+          (
+            responseBuffer.includes('Response: Follows') || 
+            responseBuffer.includes('Response: Success')
+          )
+        );
+        
         if (hasCompletionSignal) {
-          // Enhanced waiting strategy: wait for events to stabilize
+          // Minimal buffer for events to stabilize
           setTimeout(() => {
             if (!isComplete) {
               isComplete = true;
               processResponse();
             }
-          }, 1000); // Increased buffer to 1 second for more events
+          }, 200); // Reduced buffer to 200ms for faster completion
         }
       };
 
@@ -336,6 +341,7 @@ class HybridAmiService {
         console.log(`📊 Total Events Received: ${eventCount}`);
         console.log(`📊 Extensions Found: ${extensionCount}`);
         console.log(`📊 Response Buffer Size: ${responseBuffer.length} characters`);
+        console.log(`📊 Completion Event: ${completionEventDetected ? '✅ ExtensionStateListComplete' : '❌ Timeout/Manual'}`);
         console.log('=' .repeat(70));
         console.log(responseBuffer);
         console.log('=' .repeat(70));
@@ -371,9 +377,13 @@ class HybridAmiService {
           });
         }
 
-        // Clean up
-        clearTimeout(responseTimeout);
+        // Clean up - always clear timeout and remove listener
+        if (responseTimeout) {
+          clearTimeout(responseTimeout);
+          console.log(`⏰ Cleared response timeout`);
+        }
         socket.removeListener('data', dataHandler);
+        console.log(`🔌 Removed data handler listener`);
       };
 
       socket.on('data', dataHandler);
@@ -388,11 +398,19 @@ class HybridAmiService {
         return;
       }
 
-      // Enhanced timeout: wait longer for comprehensive event collection
+      // Dynamic timeout based on expected extension count
+      const expectedExtensionCount = 50; // Default assumption
+      const baseTimeout = 8000; // 8 seconds base
+      const perExtensionTimeout = 100; // 100ms per extension
+      const maxTimeout = 15000; // 15 seconds max
+      
+      const dynamicTimeout = Math.min(maxTimeout, baseTimeout + (expectedExtensionCount * perExtensionTimeout));
+      console.log(`⏰ Dynamic bulk query timeout: ${dynamicTimeout}ms for ~${expectedExtensionCount} extensions`);
+      
       responseTimeout = setTimeout(async () => {
         if (!isComplete) {
           isComplete = true;
-          console.log(`⏰ Enhanced bulk query timeout reached - processing ${eventCount} events received`);
+          console.log(`⏰ Dynamic bulk query timeout reached - processing ${eventCount} events received`);
           
           // Send Logoff action to cleanly terminate the query
           try {
@@ -405,7 +423,7 @@ class HybridAmiService {
           
           processResponse();
         }
-      }, 20000); // 20 seconds timeout for Events: off format
+      }, dynamicTimeout);
     });
   }
 
@@ -524,9 +542,11 @@ class HybridAmiService {
       '0': 'online',    // NotInUse
       '1': 'online',    // InUse
       '2': 'online',    // Busy
+      '3': 'offline',   // Unavailable (add missing)
       '4': 'offline',   // Unavailable
       '8': 'online',    // Ringing
       '16': 'online',   // Ringinuse
+      '32': 'offline',  // Hold (add missing)
       '-1': 'unknown'   // Unknown
     };
     
