@@ -14,7 +14,7 @@ The **Managed AMI Service** has been successfully implemented and tested. It's n
 
 ### **Phase 2: Main Application Integration ✅**
 - ✅ Updated `index.js` to use managed service
-- ✅ Environment variable configuration (`USE_HYBRID_AMI=true`)
+- ✅ Environment variable configuration (`USE_AMI_SERVICE=true`)
 - ✅ Fallback to legacy service if needed
 
 ### **Phase 3: Testing & Validation ✅**
@@ -58,7 +58,7 @@ The **Managed AMI Service** has been successfully implemented and tested. It's n
 ### **1. Enable Managed Service**
 Add to your `.env` file:
 ```bash
-USE_HYBRID_AMI=true
+USE_AMI_SERVICE=true
 ```
 
 ### **2. Start the Service**
@@ -91,7 +91,7 @@ The test script successfully demonstrated:
 
 ### **From Legacy to Managed**
 1. ✅ **Backup** - Legacy service preserved
-2. ✅ **Configure** - Add `USE_HYBRID_AMI=true`
+2. ✅ **Configure** - Add `USE_AMI_SERVICE=true`
 3. ✅ **Test** - Verify with test script
 4. ✅ **Deploy** - Start using in production
 5. ✅ **Monitor** - Watch for any issues
@@ -100,7 +100,7 @@ The test script successfully demonstrated:
 ### **Rollback Plan**
 If any issues occur, simply set:
 ```bash
-USE_HYBRID_AMI=false
+USE_AMI_SERVICE=false
 ```
 System automatically falls back to legacy service.
 
@@ -167,7 +167,7 @@ The AMI Service follows a clean, layered architecture:
 ## 🚀 **Next Steps**
 
 ### **Immediate Actions**
-1. ✅ **Deploy to production** with `USE_HYBRID_AMI=true`
+1. ✅ **Deploy to production** with `USE_AMI_SERVICE=true`
 2. ✅ **Monitor performance** and connection stability
 3. ✅ **Verify event processing** in real call center environment
 4. ✅ **Train team** on new monitoring and troubleshooting

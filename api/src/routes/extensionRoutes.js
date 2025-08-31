@@ -20,7 +20,7 @@ import {
   closeSeparateConnection,
   closeAllSeparateConnections,
   stopActiveQuery
-} from '../controllers/hybridAmiRefreshController.js';
+} from '../controllers/amiRefreshController.js';
 
 const router = express.Router();
 
@@ -111,21 +111,21 @@ router.get('/ami-responses/:filename', (req, res) => {
 // POST /api/extensions - Create new extension
 router.post('/', createExtension);
 
-// POST /api/extensions/refresh - Manual refresh extension status (uses separate Hybrid AMI connection)
+// POST /api/extensions/refresh - Manual refresh extension status (uses separate AmiService connection)
 router.post('/refresh', refreshExtensionStatus);
 
-// Hybrid AMI Refresh Routes - Separate connection operations
-// POST /api/extensions/hybrid-refresh - Create separate connection and refresh
-router.post('/hybrid-refresh', createSeparateConnectionAndRefresh);
+// AmiService Refresh Routes - Separate connection operations
+// POST /api/extensions/ami-refresh - Create separate connection and refresh
+router.post('/ami-refresh', createSeparateConnectionAndRefresh);
 
-// GET /api/extensions/hybrid-refresh/status - Get separate connection status
-router.get('/hybrid-refresh/status', getSeparateConnectionStatus);
+// GET /api/extensions/ami-refresh/status - Get separate connection status
+router.get('/ami-refresh/status', getSeparateConnectionStatus);
 
-// POST /api/extensions/hybrid-refresh/:connectionId/stop - Stop active query via Logoff action
-router.post('/hybrid-refresh/:connectionId/stop', stopActiveQuery);
+// POST /api/extensions/ami-refresh/:connectionId/stop - Stop active query via Logoff action
+router.post('/ami-refresh/:connectionId/stop', stopActiveQuery);
 
-// POST /api/extensions/hybrid-refresh/close - Close all separate connections
-router.post('/hybrid-refresh/close', closeAllSeparateConnections);
+// POST /api/extensions/ami-refresh/close - Close all separate connections
+router.post('/ami-refresh/close', closeAllSeparateConnections);
 
 // PUT /api/extensions/status - Update extension status (used by AMI)
 router.put('/status', updateExtensionStatus);

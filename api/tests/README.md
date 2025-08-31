@@ -7,7 +7,7 @@ This directory contains all test files for the Call Center Shajgoj API.
 ### Core AMI Tests
 - **`test-extension-state-list.js`** - Tests ExtensionStateList functionality with full extension status events
 - **`test-extension-2009.js`** - Tests specific extension 2009 functionality
-- **`test-hybrid-ami.js`** - Tests hybrid AMI connection approach
+- **`test-ami-service.js`** - Tests AmiService connection approach
 - **`test-extension-update.js`** - Tests extension update functionality
 
 ### API Integration Tests
@@ -26,7 +26,7 @@ This directory contains all test files for the Call Center Shajgoj API.
 cd api/tests
 node test-extension-state-list.js
 node test-extension-2009.js
-node test-hybrid-ami.js
+node test-ami-service.js
 ```
 
 ### Using Scripts

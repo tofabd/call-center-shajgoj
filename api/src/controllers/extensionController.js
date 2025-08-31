@@ -1,7 +1,7 @@
 import Extension from '../models/Extension.js';
 
 import { createComponentLogger } from '../config/logging.js';
-import { createSeparateConnectionAndRefresh } from './hybridAmiRefreshController.js';
+import { createSeparateConnectionAndRefresh } from './amiRefreshController.js';
 
 // Initialize logger for this controller
 const logger = createComponentLogger('ExtensionController');
@@ -305,10 +305,10 @@ export const updateExtensionStatus = async (req, res) => {
   }
 };
 
-// Manual refresh extension status using separate Hybrid AMI connection
+// Manual refresh extension status using separate AmiService connection
 export const refreshExtensionStatus = async (req, res) => {
   try {
-    logger.info('🔄 Manual extension refresh triggered via API - using separate Hybrid AMI connection');
+    logger.info('🔄 Manual extension refresh triggered via API - using separate AmiService connection');
     
     // Use the separate connection refresh system
     const result = await createSeparateConnectionAndRefresh(req, res);
@@ -331,8 +331,8 @@ export const getQueryServiceStatus = async (req, res) => {
   try {
     logger.info('📊 AMI Query Service status requested - using separate connection system');
     
-    // Import the status function from the hybrid controller
-    const { getSeparateConnectionStatus } = await import('./hybridAmiRefreshController.js');
+    // Import the status function from the ami controller
+    const { getSeparateConnectionStatus } = await import('./amiRefreshController.js');
     
     // Get status from separate connection system
     const status = await getSeparateConnectionStatus(req, res);

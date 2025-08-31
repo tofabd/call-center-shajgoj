@@ -252,21 +252,21 @@ httpServer.listen(PORT, () => {
   
   // Start AMI services after server is running
   if (process.env.ENABLE_AMI_LISTENER !== 'false') {
-    // Use Hybrid AMI Service instead of old AmiListener
-    if (process.env.USE_HYBRID_AMI === 'true') {
-      logger.info('Starting Hybrid AMI Service (recommended)');
+    // Use AmiService instead of old AmiListener
+    if (process.env.USE_AMI_SERVICE === 'true') {
+      logger.info('Starting AmiService (recommended)');
       initializeAmiService().catch(err => {
-        logger.error('Failed to start Hybrid AMI Service', { error: err.message, stack: err.stack });
+        logger.error('Failed to start AmiService', { error: err.message, stack: err.stack });
       });
       
-      // Graceful shutdown for Hybrid AMI Service
+      // Graceful shutdown for AmiService
       process.on('SIGTERM', () => {
-        logger.info('SIGTERM received, shutting down Hybrid AMI Service gracefully');
+        logger.info('SIGTERM received, shutting down AmiService gracefully');
         stopAmiService();
       });
       
       process.on('SIGINT', () => {
-        logger.info('SIGINT received, shutting down Hybrid AMI Service gracefully');
+        logger.info('SIGINT received, shutting down AmiService gracefully');
         stopAmiService();
       });
     } else {

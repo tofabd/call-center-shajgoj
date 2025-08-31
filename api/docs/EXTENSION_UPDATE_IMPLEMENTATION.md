@@ -28,7 +28,7 @@ This implementation provides a comprehensive solution for managing extension sta
 
 ## Implementation Details
 
-### HybridAmiService Implementation
+### AmiService Implementation
 
 #### New Methods
 ```javascript
@@ -56,7 +56,7 @@ mapExtensionStatus(statusCode)
 ### Logging Structure
 
 #### Component Loggers
-- `HybridAmiService`: AMI connection and query operations
+- `AmiService`: AMI connection and query operations
 - `ExtensionController`: API endpoint operations
 - `BroadcastService`: Real-time event broadcasting
 - `MainApp`: Server lifecycle and Socket.IO events

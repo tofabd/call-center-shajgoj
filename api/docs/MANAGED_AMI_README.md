@@ -49,7 +49,7 @@ api/src/services/
 
 Add to your `.env` file:
 ```bash
-USE_HYBRID_AMI=true
+USE_AMI_SERVICE=true
 ```
 
 ### **2. Start the Service**
@@ -72,7 +72,7 @@ node tests/test-ami.js
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `USE_HYBRID_AMI` | `false` | Enable AMI service (set to `true`) |
+| `USE_AMI_SERVICE` | `false` | Enable AMI service (set to `true`) |
 | `AMI_HOST` | `103.177.125.83` | Asterisk server IP |
 | `AMI_PORT` | `5038` | Asterisk AMI port |
 | `AMI_USERNAME` | `admin` | AMI username |
@@ -88,7 +88,7 @@ The system automatically chooses between services based on your configuration:
 
 ```javascript
 // In index.js
-if (process.env.USE_HYBRID_AMI === 'true') {
+if (process.env.USE_AMI_SERVICE === 'true') {
   // Use new AMI Service (recommended)
   initializeAmiService().catch(err => {
     logger.error('Failed to start AMI Service', { error: err.message });
@@ -120,7 +120,7 @@ node tests/test-managed-ami.js
 
 ### **Manual Testing**
 
-1. **Start the service** with `USE_HYBRID_AMI=true`
+1. **Start the service** with `USE_AMI_SERVICE=true`
 2. **Check logs** for connection phases
 3. **Monitor events** in real-time
 4. **Test reconnection** by stopping Asterisk
@@ -317,7 +317,7 @@ Key log patterns to monitor:
 
 If issues occur, quickly disable the service:
 ```bash
-USE_HYBRID_AMI=false
+USE_AMI_SERVICE=false
 ```
 
 System automatically falls back to legacy service.

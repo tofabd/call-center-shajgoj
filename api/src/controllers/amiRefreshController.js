@@ -70,26 +70,26 @@ const createAmiResponseJsonFile = async (rawAmiData, connectionId) => {
 };
 
 /**
- * Create a separate Hybrid AMI connection and refresh extension statuses
+ * Create a separate AmiService connection and refresh extension statuses
  * This bypasses the project's existing connection and creates a new one
  */
 export const createSeparateConnectionAndRefresh = async (req, res) => {
   const connectionId = `separate-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   try {
-    logger.info(`🚀 [HybridAmiRefreshController] Creating separate Hybrid AMI connection: ${connectionId}`);
+    logger.info(`🚀 [AmiRefreshController] Creating separate AmiService connection: ${connectionId}`);
     
-    // Create a new Hybrid AMI Service instance (separate from project's main instance)
+    // Create a new AmiService instance (separate from project's main instance)
     const separateAmiService = new AmiService();
     
     // Start the separate service
     await separateAmiService.start();
     
     if (!separateAmiService.getHealthStatus()) {
-      throw new Error('Failed to establish separate Hybrid AMI connection');
+      throw new Error('Failed to establish separate AmiService connection');
     }
     
-    logger.info(`✅ [HybridAmiRefreshController] Separate connection established: ${connectionId}`);
+    logger.info(`✅ [AmiRefreshController] Separate connection established: ${connectionId}`);
     
     // Store the separate connection
     separateConnections.set(connectionId, {
@@ -100,20 +100,20 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     
     // Get all active extensions from database
     const dbExtensions = await Extension.find({ is_active: true }).lean();
-    logger.info(`📋 [HybridAmiRefreshController] Found ${dbExtensions.length} active extensions in database`);
+    logger.info(`📋 [AmiRefreshController] Found ${dbExtensions.length} active extensions in database`);
     
     // Filter out non-numeric extensions (allow 3 to 5 digit numbers)
     const validExtensions = dbExtensions.filter(ext => /^\d{3,5}$/.test(ext.extension));
-    logger.info(`🔍 [HybridAmiRefreshController] Processing ${validExtensions.length} valid extensions`);
+    logger.info(`🔍 [AmiRefreshController] Processing ${validExtensions.length} valid extensions`);
     
     // First, try to get ExtensionStateList (bulk query) for raw AMI data
     let bulkAmiResponse = null;
     try {
-      logger.info(`📊 [HybridAmiRefreshController] Attempting enhanced bulk ExtensionStateList query...`);
+      logger.info(`📊 [AmiRefreshController] Attempting enhanced bulk ExtensionStateList query...`);
       bulkAmiResponse = await separateAmiService.queryExtensionStateList();
       
              if (bulkAmiResponse && bulkAmiResponse.extensions) {
-         logger.info(`📊 [HybridAmiRefreshController] Events: off bulk query successful:`, {
+         logger.info(`📊 [AmiRefreshController] Events: off bulk query successful:`, {
            extensionsFound: bulkAmiResponse.extensions.length,
            totalEvents: bulkAmiResponse.eventCount || 0,
            extensionEvents: bulkAmiResponse.extensionCount || 0,
@@ -122,10 +122,10 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
            queryFormat: 'Events: off with ExtensionStateListComplete'
          });
        } else {
-        logger.warn(`⚠️ [HybridAmiRefreshController] Bulk query returned no extensions`);
+        logger.warn(`⚠️ [AmiRefreshController] Bulk query returned no extensions`);
       }
     } catch (error) {
-      logger.warn(`⚠️ [HybridAmiRefreshController] Bulk query failed, falling back to individual queries: ${error.message}`);
+      logger.warn(`⚠️ [AmiRefreshController] Bulk query failed, falling back to individual queries: ${error.message}`);
     }
     
     // Process bulk response if available, otherwise fall back to individual queries
@@ -139,7 +139,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     
     if (bulkAmiResponse && bulkAmiResponse.extensions && bulkAmiResponse.extensions.length > 0) {
       // Process bulk response
-      logger.info(`🔄 [HybridAmiRefreshController] Processing bulk response for ${bulkAmiResponse.extensions.length} extensions`);
+      logger.info(`🔄 [AmiRefreshController] Processing bulk response for ${bulkAmiResponse.extensions.length} extensions`);
       
       // Create a map of AMI extensions for quick lookup
       const amiExtensionMap = new Map();
@@ -167,7 +167,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
                                 dbExtension.device_state !== statusResult.statusText;
             
             if (statusChanged) {
-              logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → ${statusResult.status} (${dbExtension.status_code} → ${statusResult.statusCode})`);
+              logger.info(`📝 [AmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → ${statusResult.status} (${dbExtension.status_code} → ${statusResult.statusCode})`);
               
               try {
                 // Update extension status in database
@@ -188,15 +188,15 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
                   // Broadcast status change for real-time frontend updates
                   try {
                     broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} update`);
+                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} update`);
                   } catch (broadcastError) {
-                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
+                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
                   }
                 } else {
-                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${dbExtension.extension}`);
+                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${dbExtension.extension}`);
                 }
               } catch (dbError) {
-                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${dbExtension.extension}:`, dbError.message);
+                logger.error(`❌ [AmiRefreshController] Database update error for extension ${dbExtension.extension}:`, dbError.message);
                 failedQueries++;
                 continue; // Skip to next extension
               }
@@ -204,7 +204,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
               statusChanges++;
               successfulQueries++;
             } else {
-              logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: No change (${statusResult.status})`);
+              logger.info(`✅ [AmiRefreshController] Extension ${dbExtension.extension}: No change (${statusResult.status})`);
               noChanges++;
               successfulQueries++;
             }
@@ -234,11 +234,11 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
             
           } else {
             // Extension not found in AMI response - mark as offline
-            logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${dbExtension.extension} not found in AMI response - marking as offline`);
+            logger.warn(`⚠️ [AmiRefreshController] Extension ${dbExtension.extension} not found in AMI response - marking as offline`);
             
             // Check if extension is currently online (needs to be marked offline)
             if (dbExtension.status !== 'offline') {
-              logger.info(`📝 [HybridAmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → offline (not found in AMI)`);
+              logger.info(`📝 [AmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → offline (not found in AMI)`);
               
               try {
                 // Update extension status to offline
@@ -259,23 +259,23 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
                   // Broadcast status change for real-time frontend updates
                   try {
                     broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} offline status`);
+                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} offline status`);
                   } catch (broadcastError) {
-                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
+                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
                   }
                   
                   markedOffline++;
                   successfulQueries++;
                 } else {
-                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${dbExtension.extension} offline status`);
+                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${dbExtension.extension} offline status`);
                   failedQueries++;
                 }
               } catch (dbError) {
-                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${dbExtension.extension} offline status:`, dbError.message);
+                logger.error(`❌ [AmiRefreshController] Database update error for extension ${dbExtension.extension} offline status:`, dbError.message);
                 failedQueries++;
               }
             } else {
-              logger.info(`✅ [HybridAmiRefreshController] Extension ${dbExtension.extension}: Already offline (no change)`);
+              logger.info(`✅ [AmiRefreshController] Extension ${dbExtension.extension}: Already offline (no change)`);
               noChanges++;
               successfulQueries++;
             }
@@ -309,7 +309,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
           }
           
         } catch (error) {
-          logger.error(`❌ [HybridAmiRefreshController] Error processing extension ${dbExtension.extension}:`, error.message);
+          logger.error(`❌ [AmiRefreshController] Error processing extension ${dbExtension.extension}:`, error.message);
           failedQueries++;
           
           // Add error response to AMI responses
@@ -332,7 +332,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       
     } else {
                       // Fallback to individual queries if bulk query failed
-        logger.info(`🔄 [HybridAmiRefreshController] Fallback: Using individual extension queries`);
+        logger.info(`🔄 [AmiRefreshController] Fallback: Using individual extension queries`);
         
         // Single timeout for entire individual query operation
         const totalQueryTimeout = Math.min(30000, Math.max(10000, validExtensions.length * 200)); // 10-30 seconds based on extension count
@@ -341,7 +341,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         // Process all individual queries with single timeout
         const individualQueryPromises = validExtensions.map(async (extension) => {
           try {
-            logger.info(`🔍 [HybridAmiRefreshController] Querying extension ${extension.extension} via separate connection`);
+            logger.info(`🔍 [AmiRefreshController] Querying extension ${extension.extension} via separate connection`);
             
             const statusResult = await separateAmiService.queryExtensionStatus(extension.extension);
             
@@ -365,10 +365,10 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
             amiResponses.push(amiResponse);
             
             if (statusResult.error) {
-              logger.warn(`⚠️ [HybridAmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
+              logger.warn(`⚠️ [AmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
               return { extension: extension.extension, success: false, error: statusResult.error };
             } else {
-              logger.info(`✅ [HybridAmiRefreshController] Extension ${extension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
+              logger.info(`✅ [AmiRefreshController] Extension ${extension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
               
               try {
                 // Update extension status in database
@@ -389,9 +389,9 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
                   // Broadcast status change for real-time frontend updates
                   try {
                     broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [HybridAmiRefreshController] Successfully broadcasted extension ${extension.extension} update`);
+                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${extension.extension} update`);
                   } catch (broadcastError) {
-                    logger.warn(`⚠️ [HybridAmiRefreshController] Failed to broadcast extension ${extension.extension} update:`, broadcastError.message);
+                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${extension.extension} update:`, broadcastError.message);
                   }
                   
                   return { 
@@ -402,16 +402,16 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
                     statusText: statusResult.statusText
                   };
                 } else {
-                  logger.warn(`⚠️ [HybridAmiRefreshController] Database update failed for extension ${extension.extension}`);
+                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${extension.extension}`);
                   return { extension: extension.extension, success: false, error: 'Database update failed' };
                 }
               } catch (dbError) {
-                logger.error(`❌ [HybridAmiRefreshController] Database update error for extension ${extension.extension}:`, dbError.message);
+                logger.error(`❌ [AmiRefreshController] Database update error for extension ${extension.extension}:`, dbError.message);
                 return { extension: extension.extension, success: false, error: dbError.message };
               }
             }
           } catch (error) {
-            logger.error(`❌ [HybridAmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
+            logger.error(`❌ [AmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
             
             // Add failed response to AMI responses
             amiResponses.push({
@@ -458,7 +458,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
             }
           } else {
             failedQueries++;
-            logger.error(`❌ [HybridAmiRefreshController] Individual query failed:`, result.reason);
+            logger.error(`❌ [AmiRefreshController] Individual query failed:`, result.reason);
           }
         });
     }
@@ -501,7 +501,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
       logger.warn(`⚠️ Failed to create JSON file for connection: ${connectionId}`);
     }
     
-    logger.info(`✅ [HybridAmiRefreshController] Separate connection refresh completed: ${connectionId}`, {
+    logger.info(`✅ [AmiRefreshController] Separate connection refresh completed: ${connectionId}`, {
       extensionsChecked: validExtensions.length,
       successfulQueries,
       failedQueries,
@@ -519,15 +519,15 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         const connectionInfo = separateConnections.get(connectionId);
         await connectionInfo.service.stop();
         separateConnections.delete(connectionId);
-        logger.info(`🔌 [HybridAmiRefreshController] Successfully closed separate connection: ${connectionId}`);
+        logger.info(`🔌 [AmiRefreshController] Successfully closed separate connection: ${connectionId}`);
       }
     } catch (cleanupError) {
-      logger.warn(`⚠️ [HybridAmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
+      logger.warn(`⚠️ [AmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
     }
     
     res.json({
       success: true,
-      message: 'Extension status refresh completed via separate Hybrid AMI connection',
+      message: 'Extension status refresh completed via separate AmiService connection',
       data: {
         connectionId,
         extensionsChecked: validExtensions.length,
@@ -549,7 +549,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error(`❌ [HybridAmiRefreshController] Separate connection refresh failed: ${connectionId}`, { error: error.message });
+    logger.error(`❌ [AmiRefreshController] Separate connection refresh failed: ${connectionId}`, { error: error.message });
     
     // Clean up failed connection
     if (separateConnections.has(connectionId)) {
@@ -558,13 +558,13 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         await connectionInfo.service.stop();
         separateConnections.delete(connectionId);
       } catch (cleanupError) {
-        logger.error(`❌ [HybridAmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
+        logger.error(`❌ [AmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
       }
     }
     
     res.status(500).json({
       success: false,
-      message: 'Failed to create separate Hybrid AMI connection and refresh extensions',
+      message: 'Failed to create separate AmiService connection and refresh extensions',
       error: error.message,
       connectionId
     });
@@ -572,7 +572,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
 };
 
 /**
- * Get status of separate Hybrid AMI connections
+ * Get status of separate AmiService connections
  */
 export const getSeparateConnectionStatus = async (req, res) => {
   try {
@@ -594,7 +594,7 @@ export const getSeparateConnectionStatus = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('❌ [HybridAmiRefreshController] Failed to get separate connection status:', error.message);
+    logger.error('❌ [AmiRefreshController] Failed to get separate connection status:', error.message);
     res.status(500).json({
       success: false,
       message: 'Failed to get separate connection status',
@@ -604,7 +604,7 @@ export const getSeparateConnectionStatus = async (req, res) => {
 };
 
 /**
- * Close a specific separate Hybrid AMI connection
+ * Close a specific separate AmiService connection
  */
 export const closeSeparateConnection = async (req, res) => {
   const { connectionId } = req.params;
@@ -622,7 +622,7 @@ export const closeSeparateConnection = async (req, res) => {
     await connectionInfo.service.stop();
     separateConnections.delete(connectionId);
     
-    logger.info(`✅ [HybridAmiRefreshController] Separate connection closed: ${connectionId}`);
+    logger.info(`✅ [AmiRefreshController] Separate connection closed: ${connectionId}`);
     
     res.json({
       success: true,
@@ -631,7 +631,7 @@ export const closeSeparateConnection = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error(`❌ [HybridAmiRefreshController] Failed to close separate connection ${connectionId}:`, error.message);
+    logger.error(`❌ [AmiRefreshController] Failed to close separate connection ${connectionId}:`, error.message);
     res.status(500).json({
       success: false,
       message: 'Failed to close separate connection',
@@ -666,7 +666,7 @@ export const stopActiveQuery = async (req, res) => {
     const stopped = await service.stopExtensionStateListQuery(currentActionId);
     
     if (stopped) {
-      logger.info(`✅ [HybridAmiRefreshController] Query stopped via Logoff action: ${connectionId}`);
+      logger.info(`✅ [AmiRefreshController] Query stopped via Logoff action: ${connectionId}`);
       res.json({
         success: true,
         message: 'Query stopped successfully via Logoff action',
@@ -683,7 +683,7 @@ export const stopActiveQuery = async (req, res) => {
     }
     
   } catch (error) {
-    logger.error(`❌ [HybridAmiRefreshController] Failed to stop query for connection ${connectionId}:`, error.message);
+    logger.error(`❌ [AmiRefreshController] Failed to stop query for connection ${connectionId}:`, error.message);
     res.status(500).json({
       success: false,
       message: 'Failed to stop query',
@@ -694,7 +694,7 @@ export const stopActiveQuery = async (req, res) => {
 };
 
 /**
- * Close all separate Hybrid AMI connections
+ * Close all separate AmiService connections
  */
 export const closeAllSeparateConnections = async (req, res) => {
   try {
@@ -705,9 +705,9 @@ export const closeAllSeparateConnections = async (req, res) => {
         const connectionInfo = separateConnections.get(connectionId);
         await connectionInfo.service.stop();
         separateConnections.delete(connectionId);
-        logger.info(`✅ [HybridAmiRefreshController] Closed separate connection: ${connectionId}`);
+        logger.info(`✅ [AmiRefreshController] Closed separate connection: ${connectionId}`);
       } catch (error) {
-        logger.error(`❌ [HybridAmiRefreshController] Failed to close connection ${connectionId}:`, error.message);
+        logger.error(`❌ [AmiRefreshController] Failed to close connection ${connectionId}:`, error.message);
       }
     }
     
@@ -718,7 +718,7 @@ export const closeAllSeparateConnections = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('❌ [HybridAmiRefreshController] Failed to close all separate connections:', error.message);
+    logger.error('❌ [AmiRefreshController] Failed to close all separate connections:', error.message);
     res.status(500).json({
       success: false,
       message: 'Failed to close all separate connections',
@@ -745,14 +745,14 @@ export const cleanupOldConnections = async () => {
       const connectionInfo = separateConnections.get(connectionId);
       await connectionInfo.service.stop();
       separateConnections.delete(connectionId);
-      logger.info(`🧹 [HybridAmiRefreshController] Cleaned up old connection: ${connectionId}`);
+      logger.info(`🧹 [AmiRefreshController] Cleaned up old connection: ${connectionId}`);
     } catch (error) {
-      logger.error(`❌ [HybridAmiRefreshController] Failed to cleanup old connection ${connectionId}:`, error.message);
+      logger.error(`❌ [AmiRefreshController] Failed to cleanup old connection ${connectionId}:`, error.message);
     }
   }
   
   if (connectionsToRemove.length > 0) {
-    logger.info(`🧹 [HybridAmiRefreshController] Cleaned up ${connectionsToRemove.length} old connections`);
+    logger.info(`🧹 [AmiRefreshController] Cleaned up ${connectionsToRemove.length} old connections`);
   }
 };
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Test Script for Hybrid AMI Service
- * Tests the new hybrid approach: PHP-style connections + Node.js-style events
+ * Test Script for AmiService
+ * Tests the AmiService approach: robust connections + Node.js-style events
  */
 
 import dotenv from 'dotenv';
@@ -10,12 +10,12 @@ import { initializeAmiService, getAmiServiceStatus, stopAmiService } from './src
 
 dotenv.config();
 
-console.log('🧪 Testing Hybrid AMI Service');
+console.log('🧪 Testing AmiService');
 console.log('='.repeat(50));
 
 async function testAmiService() {
   try {
-    console.log('🚀 Phase 1: Initializing Hybrid AMI Service...');
+    console.log('🚀 Phase 1: Initializing AmiService...');
     
     // Initialize the service
     const service = await initializeAmiService();
@@ -50,7 +50,7 @@ async function testAmiService() {
     console.log('✅ Service stopped successfully');
     
     console.log('\n🎉 Test completed successfully!');
-    console.log('✨ Hybrid AMI Service is working correctly');
+    console.log('✨ AmiService is working correctly');
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
