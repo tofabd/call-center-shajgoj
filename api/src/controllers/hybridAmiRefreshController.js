@@ -1,5 +1,5 @@
 import logger from '../config/logging.js';
-import ManagedAmiService from '../services/ManagedAmiService.js';
+import AmiService from '../services/AmiService.js';
 import Extension from '../models/Extension.js';
 import broadcast from '../services/BroadcastService.js';
 import fs from 'fs';
@@ -80,7 +80,7 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     logger.info(`🚀 [HybridAmiRefreshController] Creating separate Hybrid AMI connection: ${connectionId}`);
     
     // Create a new Hybrid AMI Service instance (separate from project's main instance)
-    const separateAmiService = new ManagedAmiService();
+    const separateAmiService = new AmiService();
     
     // Start the separate service
     await separateAmiService.start();

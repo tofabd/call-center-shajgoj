@@ -1,8 +1,8 @@
-# 🚀 **Managed AMI Service - Complete Implementation Guide**
+# 🚀 **AMI Service - Complete Implementation Guide**
 
 ## 📋 **Overview**
 
-The **Managed AMI Service** is a robust, production-ready implementation for managing Asterisk Manager Interface (AMI) connections. It provides reliable connection management, real-time event processing, and comprehensive error handling.
+The **AMI Service** is a robust, production-ready implementation for managing Asterisk Manager Interface (AMI) connections. It provides reliable connection management, real-time event processing, and comprehensive error handling.
 
 ## 🏗️ **Architecture**
 
@@ -10,7 +10,7 @@ The service follows a layered architecture pattern with clear separation of conc
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    ManagedAmiService                       │
+│                    AmiService                             │
 │              (Main Orchestration Layer)                   │
 │                                                           │
 │ • Service lifecycle management                            │
@@ -35,8 +35,8 @@ The service follows a layered architecture pattern with clear separation of conc
 
 ```
 api/src/services/
-├── ManagedAmiService.js           # Main service orchestrator
-├── ManagedAmiServiceInstance.js   # Singleton wrapper
+├── AmiService.js                  # Main service orchestrator
+├── AmiServiceInstance.js          # Singleton wrapper
 ├── AmiConnectionManager.js        # Connection management layer
 ├── AmiEventProcessor.js           # Event processing layer
 ├── BroadcastService.js            # Real-time broadcasting
@@ -45,7 +45,7 @@ api/src/services/
 
 ## 🚀 **Quick Start**
 
-### **1. Enable Managed AMI Service**
+### **1. Enable AMI Service**
 
 Add to your `.env` file:
 ```bash
@@ -63,7 +63,7 @@ npm start
 
 Run the test script to verify everything works:
 ```bash
-node tests/test-managed-ami.js
+node tests/test-ami.js
 ```
 
 ## 🔧 **Configuration**
@@ -72,7 +72,7 @@ node tests/test-managed-ami.js
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `USE_HYBRID_AMI` | `false` | Enable managed service (set to `true`) |
+| `USE_HYBRID_AMI` | `false` | Enable AMI service (set to `true`) |
 | `AMI_HOST` | `103.177.125.83` | Asterisk server IP |
 | `AMI_PORT` | `5038` | Asterisk AMI port |
 | `AMI_USERNAME` | `admin` | AMI username |
@@ -89,9 +89,9 @@ The system automatically chooses between services based on your configuration:
 ```javascript
 // In index.js
 if (process.env.USE_HYBRID_AMI === 'true') {
-  // Use new Managed AMI Service (recommended)
-  initializeManagedAmiService().catch(err => {
-    logger.error('Failed to start Managed AMI Service', { error: err.message });
+  // Use new AMI Service (recommended)
+  initializeAmiService().catch(err => {
+    logger.error('Failed to start AMI Service', { error: err.message });
   });
 } else {
   // Fallback to legacy AmiListener
@@ -137,12 +137,12 @@ node tests/test-managed-ami.js
 🔐 [ConnectionManager] Authenticating with username: admin
 ✅ [ConnectionManager] Authentication successful
 📡 [EventProcessor] Setting up event processing...
-✅ [ManagedAmiService] AMI Service started successfully!
+✅ [AmiService] AMI Service started successfully!
 ```
 
 ## 🔍 **Service Components**
 
-### **1. ManagedAmiService**
+### **1. AmiService**
 
 The main orchestration service that coordinates all AMI operations:
 
@@ -280,9 +280,9 @@ curl http://localhost:3000/api/ami/connection
 
 Key log patterns to monitor:
 ```
-✅ [ManagedAmiService] AMI Service started successfully!
+✅ [AmiService] AMI Service started successfully!
 🔌 [ConnectionManager] Connection closed - scheduling reconnection
-🔄 [ManagedAmiService] Scheduling reconnection attempt 1/10 in 5000ms
+🔄 [AmiService] Scheduling reconnection attempt 1/10 in 5000ms
 📱 [EventProcessor] Extension status updated: 1001 -> 0 (NotInUse)
 ```
 
@@ -326,10 +326,10 @@ System automatically falls back to legacy service.
 
 ### **Service Methods**
 
-#### **ManagedAmiService**
+#### **AmiService**
 
 ```javascript
-class ManagedAmiService {
+class AmiService {
   async start()                    // Start the service
   async stop()                     // Stop the service
   async reconnect()                // Force reconnection

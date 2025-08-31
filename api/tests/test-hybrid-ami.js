@@ -6,26 +6,26 @@
  */
 
 import dotenv from 'dotenv';
-import { initializeManagedAmiService, getManagedAmiServiceStatus, stopManagedAmiService } from './src/services/ManagedAmiServiceInstance.js';
+import { initializeAmiService, getAmiServiceStatus, stopAmiService } from './src/services/AmiServiceInstance.js';
 
 dotenv.config();
 
 console.log('🧪 Testing Hybrid AMI Service');
 console.log('='.repeat(50));
 
-async function testManagedAmiService() {
+async function testAmiService() {
   try {
     console.log('🚀 Phase 1: Initializing Hybrid AMI Service...');
     
     // Initialize the service
-    const service = await initializeManagedAmiService();
+    const service = await initializeAmiService();
     console.log('✅ Service initialized successfully');
     
     // Wait a moment for connection to stabilize
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     console.log('\n📊 Phase 2: Checking service status...');
-    const status = getManagedAmiServiceStatus();
+    const status = getAmiServiceStatus();
     console.log('Service Status:', JSON.stringify(status, null, 2));
     
     // Test connection health
@@ -42,11 +42,11 @@ async function testManagedAmiService() {
     await new Promise(resolve => setTimeout(resolve, 10000));
     
     console.log('\n📊 Phase 4: Final status check...');
-    const finalStatus = getManagedAmiServiceStatus();
+    const finalStatus = getAmiServiceStatus();
     console.log('Final Status:', JSON.stringify(finalStatus, null, 2));
     
     console.log('\n🛑 Phase 5: Stopping service...');
-    await stopManagedAmiService();
+    await stopAmiService();
     console.log('✅ Service stopped successfully');
     
     console.log('\n🎉 Test completed successfully!');
@@ -58,7 +58,7 @@ async function testManagedAmiService() {
     
     // Try to stop service if it was started
     try {
-      await stopManagedAmiService();
+      await stopAmiService();
     } catch (stopError) {
       console.error('❌ Error stopping service:', stopError.message);
     }
@@ -68,7 +68,7 @@ async function testManagedAmiService() {
 }
 
 // Run the test
-testManagedAmiService().then(() => {
+testAmiService().then(() => {
   console.log('\n🏁 Test script finished');
   process.exit(0);
 }).catch((error) => {

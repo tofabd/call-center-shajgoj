@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 config();
 
 // Import services
-import { initializeManagedAmiService } from '../src/services/ManagedAmiServiceInstance.js';
+import { initializeAmiService } from '../src/services/AmiServiceInstance.js';
 
 // Parse command line arguments
 const parseArgs = () => {
@@ -112,23 +112,23 @@ const main = async () => {
   const extensionNumber = parseArgs();
   console.log(`📞 Target Extension: ${extensionNumber}`);
   console.log(`⚙️ Environment: AMI Host = ${process.env.AMI_HOST || 'DEFAULT'}`);
-      console.log(`🔌 AMI Service: Using Managed AMI Service`);
+      console.log(`🔌 AMI Service: Using AMI Service`);
   
-      console.log(`📊 Script Configuration: {extension: "${extensionNumber}", amiHost: "${process.env.AMI_HOST || 'DEFAULT'}", amiService: "ManagedAmiService", startTime: "${new Date().toISOString()}"}`);
+      console.log(`📊 Script Configuration: {extension: "${extensionNumber}", amiHost: "${process.env.AMI_HOST || 'DEFAULT'}", amiService: "AmiService", startTime: "${new Date().toISOString()}"}`);
   
   let managedAmiService = null;
   const scriptStartTime = Date.now();
   
   try {
-    // Initialize Hybrid AMI Service
-    console.log('\n🔌 Initializing Hybrid AMI Service...');
+    // Initialize AMI Service
+    console.log('\n🔌 Initializing AMI Service...');
     console.log('⚠️ Attempting AMI connection - script will exit if this fails');
     const connectionStartTime = Date.now();
     
-          managedAmiService = await initializeManagedAmiService();
+          managedAmiService = await initializeAmiService();
     
           if (!managedAmiService.getHealthStatus()) {
-              const errorMessage = 'Failed to connect to Managed AMI Service';
+              const errorMessage = 'Failed to connect to AMI Service';
       console.log(`❌ ${errorMessage}`);
       console.error('AMI connection failed - script cannot proceed');
       console.error(`   Connection Details: {amiHost: '${process.env.AMI_HOST || 'NOT SET'}', amiPort: '${process.env.AMI_PORT || 'NOT SET'}', amiUsername: '${process.env.AMI_USERNAME || 'NOT SET'}', amiPassword: '${process.env.AMI_PASSWORD ? '[SET]' : 'NOT SET'}'}`);
@@ -145,7 +145,7 @@ const main = async () => {
     }
     
     const connectionTime = Date.now() - connectionStartTime;
-          console.log(`✅ Managed AMI Service connected successfully in ${connectionTime}ms`);
+          console.log(`✅ AMI Service connected successfully in ${connectionTime}ms`);
           console.log(`🎯 Service Status: ${managedAmiService.getStatus().connectionState}`);
       console.log(`   Connection Stats: {connectionTime: ${connectionTime}, serviceStatus: '${managedAmiService.getStatus().connectionState}'}`);
     
@@ -199,7 +199,7 @@ const main = async () => {
   } finally {
     // Cleanup
     if (managedAmiService) {
-      console.log('\n🛑 Stopping Managed AMI Service...');
+      console.log('\n🛑 Stopping AMI Service...');
       await managedAmiService.stop();
     }
     

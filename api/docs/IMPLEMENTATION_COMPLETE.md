@@ -9,8 +9,8 @@ The **Managed AMI Service** has been successfully implemented and tested. It's n
 ### **Phase 1: Service Architecture ✅**
 - ✅ `AmiConnectionManager.js` - Reliable connection management layer
 - ✅ `AmiEventProcessor.js` - Efficient event processing layer  
-- ✅ `ManagedAmiService.js` - Main orchestration service
-- ✅ `ManagedAmiServiceInstance.js` - Singleton wrapper
+- ✅ `AmiService.js` - Main orchestration service
+- ✅ `AmiServiceInstance.js` - Singleton wrapper
 
 ### **Phase 2: Main Application Integration ✅**
 - ✅ Updated `index.js` to use managed service
@@ -69,13 +69,13 @@ npm start
 ### **3. Monitor Logs**
 Look for:
 ```
-🚀 [ManagedAmiService] Starting AMI Service...
+🚀 [AmiService] Starting AMI Service...
 🔌 [ConnectionManager] Connecting to 103.177.125.83:5038...
 🔗 [ConnectionManager] Socket connected successfully
 🔐 [ConnectionManager] Authenticating with username: admin
 ✅ [ConnectionManager] Authentication successful
 📡 [EventProcessor] Setting up event processing...
-✅ [ManagedAmiService] AMI Service started successfully!
+✅ [AmiService] AMI Service started successfully!
 ```
 
 ## 🧪 **Testing Results**
@@ -109,21 +109,21 @@ System automatically falls back to legacy service.
 ```
 api/src/services/
 ├── AmiListener.js (DEPRECATED - Keep for fallback)
-├── ManagedAmiService.js (NEW - Main managed service) ✅
+├── AmiService.js (NEW - Main AMI service) ✅
 ├── AmiConnectionManager.js (NEW - Connection layer) ✅
 ├── AmiEventProcessor.js (NEW - Event processing layer) ✅
-├── ManagedAmiServiceInstance.js (NEW - Singleton wrapper) ✅
+├── AmiServiceInstance.js (NEW - Singleton wrapper) ✅
 ├── BroadcastService.js (Keep existing)
 └── LogService.js (Keep existing)
 ```
 
 ## 🎯 **Service Architecture**
 
-The Managed AMI Service follows a clean, layered architecture:
+The AMI Service follows a clean, layered architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    ManagedAmiService                       │
+│                    AmiService                             │
 │              (Main Orchestration Layer)                   │
 │                                                           │
 │ • Service lifecycle management                            │
@@ -180,7 +180,7 @@ The Managed AMI Service follows a clean, layered architecture:
 
 ## 🎉 **Conclusion**
 
-The **Managed AMI Service** implementation is **COMPLETE and SUCCESSFUL**. It provides:
+The **AMI Service** implementation is **COMPLETE and SUCCESSFUL**. It provides:
 
 - **60%+ faster** connection establishment
 - **99%+ success rate** for AMI operations

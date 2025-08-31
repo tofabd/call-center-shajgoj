@@ -1,10 +1,10 @@
-import ManagedAmiService from './ManagedAmiService.js';
+import AmiService from './AmiService.js';
 
 /**
- * ManagedAmiServiceInstance - Singleton wrapper for ManagedAmiService
+ * AmiServiceInstance - Singleton wrapper for AmiService
  * Ensures only one service instance runs at a time and manages lifecycle
  */
-class ManagedAmiServiceInstance {
+class AmiServiceInstance {
   constructor() {
     // Singleton instance reference
     this.instance = null;
@@ -20,13 +20,13 @@ class ManagedAmiServiceInstance {
   async initialize() {
     // Return existing healthy instance if available
     if (this.instance && this.instance.getHealthStatus()) {
-      console.log('⚠️ [ManagedAmiServiceInstance] Service already initialized and healthy');
+      console.log('⚠️ [AmiServiceInstance] Service already initialized and healthy');
       return this.instance;
     }
 
     // Prevent multiple simultaneous initializations
     if (this.isInitializing) {
-      console.log('⏳ [ManagedAmiServiceInstance] Service initialization already in progress...');
+      console.log('⏳ [AmiServiceInstance] Service initialization already in progress...');
       while (this.isInitializing) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -35,24 +35,24 @@ class ManagedAmiServiceInstance {
 
     try {
       this.isInitializing = true;
-      console.log('🚀 [ManagedAmiServiceInstance] Initializing Managed AMI Service...');
+      console.log('🚀 [AmiServiceInstance] Initializing AMI Service...');
       
       // Clean up old instance if it exists
       if (this.instance) {
-        console.log('🧹 [ManagedAmiServiceInstance] Cleaning up old instance...');
+        console.log('🧹 [AmiServiceInstance] Cleaning up old instance...');
         await this.instance.stop();
         this.instance = null;
       }
 
       // Create and start new instance
-      this.instance = new ManagedAmiService();
+      this.instance = new AmiService();
       await this.instance.start();
       
-      console.log('✅ [ManagedAmiServiceInstance] Managed AMI Service initialized successfully');
+      console.log('✅ [AmiServiceInstance] AMI Service initialized successfully');
       return this.instance;
       
     } catch (error) {
-      console.error('❌ [ManagedAmiServiceInstance] Failed to initialize service:', error.message);
+      console.error('❌ [AmiServiceInstance] Failed to initialize service:', error.message);
       this.instance = null;
       throw error;
     } finally {
@@ -87,15 +87,15 @@ class ManagedAmiServiceInstance {
   getStatus() {
     if (!this.instance) {
       return {
-        service: 'ManagedAmiServiceInstance',
+        service: 'AmiServiceInstance',
         status: 'not_initialized',
         instance: null,
         message: 'Service has not been initialized yet'
       };
     }
     
-    return {
-      service: 'ManagedAmiServiceInstance',
+          return {
+        service: 'AmiServiceInstance',
       status: 'running',
       instance: this.instance.getStatus(),
       message: 'Service is running and healthy'
@@ -107,10 +107,10 @@ class ManagedAmiServiceInstance {
    */
   async stop() {
     if (this.instance) {
-      console.log('🛑 [ManagedAmiServiceInstance] Stopping service...');
+      console.log('🛑 [AmiServiceInstance] Stopping service...');
       await this.instance.stop();
       this.instance = null;
-      console.log('✅ [ManagedAmiServiceInstance] Service stopped');
+      console.log('✅ [AmiServiceInstance] Service stopped');
     }
   }
 
@@ -118,7 +118,7 @@ class ManagedAmiServiceInstance {
    * Restarts the service with full cleanup and reinitialization
    */
   async restart() {
-    console.log('🔄 [ManagedAmiServiceInstance] Restarting service...');
+          console.log('🔄 [AmiServiceInstance] Restarting service...');
     await this.stop();
     await new Promise(resolve => setTimeout(resolve, 1000));
     return await this.initialize();
@@ -129,16 +129,16 @@ class ManagedAmiServiceInstance {
    */
   async reconnect() {
     if (this.instance) {
-      console.log('🔄 [ManagedAmiServiceInstance] Force reconnection requested...');
+      console.log('🔄 [AmiServiceInstance] Force reconnection requested...');
       await this.instance.reconnect();
     } else {
-      console.log('⚠️ [ManagedAmiServiceInstance] No instance to reconnect');
+              console.log('⚠️ [AmiServiceInstance] No instance to reconnect');
     }
   }
 }
 
 // Create singleton instance
-const managedAmiServiceInstance = new ManagedAmiServiceInstance();
+const amiServiceInstance = new AmiServiceInstance();
 
 /**
  * Public API Functions
@@ -147,58 +147,58 @@ const managedAmiServiceInstance = new ManagedAmiServiceInstance();
 /**
  * Initializes the Managed AMI Service
  */
-export const initializeManagedAmiService = async () => {
-  return await managedAmiServiceInstance.initialize();
+export const initializeAmiService = async () => {
+  return await amiServiceInstance.initialize();
 };
 
 /**
  * Returns the current service instance
  */
-export const getManagedAmiService = () => {
-  return managedAmiServiceInstance.getInstance();
+export const getAmiService = () => {
+  return amiServiceInstance.getInstance();
 };
 
 /**
  * Checks if the service is currently running
  */
-export const isManagedAmiServiceRunning = () => {
-  return managedAmiServiceInstance.isRunning();
+export const isAmiServiceRunning = () => {
+  return amiServiceInstance.isRunning();
 };
 
 /**
  * Checks if the service is healthy
  */
-export const isManagedAmiServiceHealthy = () => {
-  return managedAmiServiceInstance.getHealthStatus();
+export const isAmiServiceHealthy = () => {
+  return amiServiceInstance.getHealthStatus();
 };
 
 /**
  * Returns comprehensive service status
  */
-export const getManagedAmiServiceStatus = () => {
-  return managedAmiServiceInstance.getStatus();
+export const getAmiServiceStatus = () => {
+  return amiServiceInstance.getStatus();
 };
 
 /**
  * Stops the service gracefully
  */
-export const stopManagedAmiService = async () => {
-  return await managedAmiServiceInstance.stop();
+export const stopAmiService = async () => {
+  return await amiServiceInstance.stop();
 };
 
 /**
  * Restarts the service completely
  */
-export const restartManagedAmiService = async () => {
-  return await managedAmiServiceInstance.restart();
+export const restartAmiService = async () => {
+  return await amiServiceInstance.restart();
 };
 
 /**
  * Forces service reconnection
  */
-export const reconnectManagedAmiService = async () => {
-  return await managedAmiServiceInstance.reconnect();
+export const reconnectAmiService = async () => {
+  return await amiServiceInstance.reconnect();
 };
 
 // Export singleton instance for direct access
-export default managedAmiServiceInstance;
+export default amiServiceInstance;

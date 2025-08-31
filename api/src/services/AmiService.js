@@ -5,7 +5,7 @@ import AmiEventProcessor from './AmiEventProcessor.js';
 dotenv.config();
 
 /**
- * ManagedAmiService - Core orchestration service for AMI (Asterisk Manager Interface) operations
+ * AmiService - Core orchestration service for AMI (Asterisk Manager Interface) operations
  * 
  * This service coordinates the complete lifecycle of AMI connections including:
  * - Connection establishment and authentication
@@ -18,7 +18,7 @@ dotenv.config();
  * - EventProcessor manages event parsing and business logic
  * - This service orchestrates the overall flow and recovery
  */
-class ManagedAmiService {
+class AmiService {
   constructor() {
     // Core service components
     this.connectionManager = new AmiConnectionManager();
@@ -49,11 +49,11 @@ class ManagedAmiService {
    */
   async start() {
     if (this.isRunning) {
-      console.log('⚠️ [ManagedAmiService] Service already running');
+      console.log('⚠️ [AmiService] Service already running');
       return;
     }
 
-    console.log('🚀 [ManagedAmiService] Starting AMI Service...');
+          console.log('🚀 [AmiService] Starting AMI Service...');
     
     // Extract configuration from environment
     const host = process.env.AMI_HOST;
@@ -68,16 +68,16 @@ class ManagedAmiService {
 
     try {
       // Phase 1: Establish TCP connection
-      console.log('🔌 [ManagedAmiService] Phase 1: Establishing connection...');
+      console.log('🔌 [AmiService] Phase 1: Establishing connection...');
       await this.connectionManager.establishConnection(host, port, username, password);
       this.connectionState = 'connected';
       
       // Phase 2: Authenticate with AMI
-      console.log('🔐 [ManagedAmiService] Phase 2: Authenticating...');
+      console.log('🔐 [AmiService] Phase 2: Authenticating...');
       await this.connectionManager.authenticate(username, password, 'on');
       
       // Phase 3: Setup real-time event processing
-      console.log('📡 [ManagedAmiService] Phase 3: Setting up event processing...');
+      console.log('📡 [AmiService] Phase 3: Setting up event processing...');
       const amiSocket = this.connectionManager.getSocket();
       this.eventProcessor.setupEventProcessing(amiSocket);
       
@@ -85,15 +85,15 @@ class ManagedAmiService {
       this.isRunning = true;
       this.reconnectAttempts = 0;
       
-      console.log('✅ [ManagedAmiService] AMI Service started successfully!');
-      console.log('🎯 [ManagedAmiService] Connection: Robust TCP reliability');
-      console.log('⚡ [ManagedAmiService] Events: Real-time streaming enabled');
+      console.log('✅ [AmiService] AMI Service started successfully!');
+      console.log('🎯 [AmiService] Connection: Robust TCP reliability');
+      console.log('⚡ [AmiService] Events: Real-time streaming enabled');
       
       // Setup connection monitoring for automatic recovery
       this.setupConnectionMonitoring();
       
     } catch (error) {
-      console.error('❌ [ManagedAmiService] Failed to start service:', error.message);
+      console.error('❌ [AmiService] Failed to start service:', error.message);
       this.connectionState = 'failed';
       this.scheduleReconnect();
     }
@@ -113,7 +113,7 @@ class ManagedAmiService {
     
     // Monitor connection closure events
     amiSocket.on('close', () => {
-      console.log('🔌 [ManagedAmiService] Connection closed - scheduling reconnection');
+      console.log('🔌 [AmiService] Connection closed - scheduling reconnection');
       this.connectionState = 'disconnected';
       this.isRunning = false;
       this.scheduleReconnect();
@@ -121,7 +121,7 @@ class ManagedAmiService {
     
     // Monitor connection error events
     amiSocket.on('error', (error) => {
-      console.error('❌ [ManagedAmiService] Connection error:', error.message);
+      console.error('❌ [AmiService] Connection error:', error.message);
       this.connectionState = 'failed';
       this.isRunning = false;
       this.scheduleReconnect();
@@ -137,12 +137,12 @@ class ManagedAmiService {
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ [ManagedAmiService] Max reconnection attempts reached. Stopping service.');
+      console.error('❌ [AmiService] Max reconnection attempts reached. Stopping service.');
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`🔄 [ManagedAmiService] Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${this.reconnectDelay}ms`);
+          console.log(`🔄 [AmiService] Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${this.reconnectDelay}ms`);
     
     setTimeout(() => {
       this.start();
@@ -157,14 +157,14 @@ class ManagedAmiService {
    * and restarts it after a brief delay.
    */
   async reconnect() {
-    console.log('🔄 [ManagedAmiService] Force reconnection requested...');
+          console.log('🔄 [AmiService] Force reconnection requested...');
     
     try {
       await this.stop();
       await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
       await this.start();
     } catch (error) {
-      console.error('❌ [ManagedAmiService] Force reconnection failed:', error.message);
+      console.error('❌ [AmiService] Force reconnection failed:', error.message);
     }
   }
 
@@ -233,11 +233,11 @@ class ManagedAmiService {
    */
   async stop() {
     if (!this.isRunning) {
-      console.log('⚠️ [ManagedAmiService] Service is not running');
+      console.log('⚠️ [AmiService] Service is not running');
       return;
     }
 
-    console.log('🛑 [ManagedAmiService] Stopping AMI Service...');
+          console.log('🛑 [AmiService] Stopping AMI Service...');
     
     try {
       // Stop event processing first to prevent new events
@@ -254,13 +254,13 @@ class ManagedAmiService {
       this.isRunning = false;
       this.connectionState = 'disconnected';
       
-      console.log('✅ [ManagedAmiService] AMI Service stopped successfully');
+      console.log('✅ [AmiService] AMI Service stopped successfully');
       
     } catch (error) {
-      console.error('❌ [ManagedAmiService] Error stopping service:', error.message);
+      console.error('❌ [AmiService] Error stopping service:', error.message);
       throw error;
     }
   }
 }
 
-export default ManagedAmiService;
+export default AmiService;

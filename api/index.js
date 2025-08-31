@@ -11,7 +11,7 @@ import extensionRoutes from './src/routes/extensionRoutes.js';
 import { errorHandler, notFound } from './src/middleware/errorHandler.js';
 import AmiListener from './src/services/AmiListener.js';
 
-import { initializeManagedAmiService, stopManagedAmiService } from './src/services/ManagedAmiServiceInstance.js';
+import { initializeAmiService, stopAmiService } from './src/services/AmiServiceInstance.js';
 import broadcast from './src/services/BroadcastService.js';
 import { createComponentLogger } from './src/config/logging.js';
 import { createLoggingMiddleware } from './src/middleware/loggingMiddleware.js';
@@ -255,19 +255,19 @@ httpServer.listen(PORT, () => {
     // Use Hybrid AMI Service instead of old AmiListener
     if (process.env.USE_HYBRID_AMI === 'true') {
       logger.info('Starting Hybrid AMI Service (recommended)');
-      initializeManagedAmiService().catch(err => {
+      initializeAmiService().catch(err => {
         logger.error('Failed to start Hybrid AMI Service', { error: err.message, stack: err.stack });
       });
       
       // Graceful shutdown for Hybrid AMI Service
       process.on('SIGTERM', () => {
         logger.info('SIGTERM received, shutting down Hybrid AMI Service gracefully');
-        stopManagedAmiService();
+        stopAmiService();
       });
       
       process.on('SIGINT', () => {
         logger.info('SIGINT received, shutting down Hybrid AMI Service gracefully');
-        stopManagedAmiService();
+        stopAmiService();
       });
     } else {
       // Fallback to old AmiListener
