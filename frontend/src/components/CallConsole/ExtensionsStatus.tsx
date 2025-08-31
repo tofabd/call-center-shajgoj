@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { StatusTooltip } from '../common/StatusTooltip';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
-import socketService from '../../services/socketService';
-import type { ExtensionStatusEvent } from '../../services/socketService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
-import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 
 // Utility function to calculate duration since status change
 const getDurationSinceStatusChange = (lastStatusChange?: string): string => {
@@ -53,9 +49,6 @@ const ExtensionsStatus: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
-
-  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
 
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -67,7 +60,6 @@ const ExtensionsStatus: React.FC = () => {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
   const [extensionStats, setExtensionStats] = useState<ExtensionCallStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -117,7 +109,7 @@ const ExtensionsStatus: React.FC = () => {
     // Initial load from database
     loadExtensions();
     
-    // Set up 30-second automatic refresh from database
+    // Set up 30-second automatic database refresh
     const startAutoRefresh = () => {
       const interval = setInterval(() => {
         if (isPageVisible && !isRefreshing) {
@@ -138,26 +130,6 @@ const ExtensionsStatus: React.FC = () => {
 
     startAutoRefresh();
     
-    // Subscribe to real-time extension status updates (for immediate updates)
-    const handleExtensionUpdate = (update: ExtensionStatusEvent) => {
-      console.log('📱 Real-time extension update received:', update);
-      
-      setExtensions(prevExtensions => 
-        prevExtensions.map(ext => 
-          ext.extension === update.extension 
-            ? { 
-                ...ext, 
-                status: update.status,
-                agent_name: update.agent_name || ext.agent_name,
-                last_seen: update.last_seen || ext.last_seen
-              } as Extension
-            : ext
-        )
-      );
-    };
-    
-    socketService.onExtensionStatusUpdated(handleExtensionUpdate);
-    
     // Handle page visibility changes
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
@@ -175,11 +147,6 @@ const ExtensionsStatus: React.FC = () => {
           setExtensions(prevExtensions => [...prevExtensions]);
         }, 1000);
         setDurationUpdateTimer(newTimer);
-        
-        // Reconnect socket if needed
-        if (!socketService.isConnected()) {
-          socketService.reconnect();
-        }
       } else {
         // Clear duration timer when page becomes hidden to save resources
         if (durationUpdateTimer) {
@@ -201,26 +168,14 @@ const ExtensionsStatus: React.FC = () => {
         clearInterval(durationUpdateTimer);
         console.log('⏹️ Stopped duration update timer');
       }
-      socketService.removeAllListeners();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isPageVisible, isRefreshing]);
 
   // Subscribe to unified connection health service
   useEffect(() => {
-    console.log('📡 ExtensionsStatus: Subscribing to unified connection health service');
-    
-    const unsubscribe = connectionHealthService.subscribe((health: ConnectionHealth) => {
-      console.log('📡 ExtensionsStatus: Received connection health update:', health);
-      
-      setRealtimeStatus(health.status);
-      setConnectionHealth(health.health);
-    });
-    
-    return () => {
-      console.log('📡 ExtensionsStatus: Unsubscribing from connection health service');
-      unsubscribe();
-    };
+    // No WebSocket or real-time connections needed
+    // Only database polling every 30 seconds
   }, []);
 
   const loadExtensions = async (isRefresh = false, retryCount = 0) => {
@@ -294,13 +249,10 @@ const ExtensionsStatus: React.FC = () => {
       console.log('⏰ Periodic timer reset due to manual refresh');
     }
     
-        // Trigger AMI refresh first, then load from database
+    // Trigger AMI refresh first, then load from database
     extensionService.refreshStatus()
       .then((result) => {
         console.log('✅ AMI refresh completed, extensions updated in database:', result);
-        
-        // Stop spinning immediately when AMI refresh completes
-        // (real-time updates are already flowing via socket)
         setIsRefreshing(false);
         
         // Add a small delay to ensure database is updated before loading
@@ -313,7 +265,6 @@ const ExtensionsStatus: React.FC = () => {
       })
       .catch((error) => {
         console.error('❌ AMI refresh failed:', error);
-        // Stop spinning even on error
         setIsRefreshing(false);
         
         // Fallback to database reload if AMI refresh fails
@@ -321,33 +272,31 @@ const ExtensionsStatus: React.FC = () => {
         return loadExtensions(true);
       })
       .finally(() => {
-        // Restart timers immediately
-          
-          // Restart timers immediately
-          const newInterval = setInterval(() => {
-            if (isPageVisible && !isRefreshing) {
-              console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
-              setIsAutoRefreshing(true);
-              loadExtensions(true).finally(() => {
-                setTimeout(() => {
-                  setIsAutoRefreshing(false);
-                }, 1000);
-              });
-            }
-          }, 30000);
-          setAutoRefreshInterval(newInterval);
-          console.log('⏰ Restarted automatic database refresh timer');
-          
-          // Restart duration update timer
-          if (durationUpdateTimer) {
-            clearInterval(durationUpdateTimer);
+        // Restart the 30-second database polling timer
+        const newInterval = setInterval(() => {
+          if (isPageVisible && !isRefreshing) {
+            console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
+            setIsAutoRefreshing(true);
+            loadExtensions(true).finally(() => {
+              setTimeout(() => {
+                setIsAutoRefreshing(false);
+              }, 1000);
+            });
           }
-          const newDurationTimer = setInterval(() => {
-            setExtensions(prevExtensions => [...prevExtensions]);
-          }, 1000);
-          setDurationUpdateTimer(newDurationTimer);
-          console.log('⏰ Restarted duration update timer');
-        });
+        }, 30000);
+        setAutoRefreshInterval(newInterval);
+        console.log('⏰ Restarted automatic database refresh timer');
+        
+        // Restart duration update timer
+        if (durationUpdateTimer) {
+          clearInterval(durationUpdateTimer);
+        }
+        const newDurationTimer = setInterval(() => {
+          setExtensions(prevExtensions => [...prevExtensions]);
+        }, 1000);
+        setDurationUpdateTimer(newDurationTimer);
+        console.log('⏰ Restarted duration update timer');
+      });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
   // Add keyboard event listener for manual refresh (Ctrl+R or F5)
@@ -393,7 +342,6 @@ const ExtensionsStatus: React.FC = () => {
 
   const handleExtensionClick = useCallback(async (extension: Extension) => {
     console.log('📱 Extension clicked:', extension);
-    setSelectedExtension(extension);
     setIsModalOpen(true);
     setStatsLoading(true);
     setStatsError(null);
@@ -413,7 +361,6 @@ const ExtensionsStatus: React.FC = () => {
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
-    setSelectedExtension(null);
     setExtensionStats(null);
     setStatsError(null);
   }, []);
@@ -492,7 +439,7 @@ const ExtensionsStatus: React.FC = () => {
          className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex-shrink-0 cursor-pointer"
          onDoubleClick={handleHeaderDoubleClick}
          onContextMenu={handleContextMenu}
-         title="Double-click or right-click to refresh extensions"
+          title="Double-click or right-click to refresh extensions. Auto-refreshes from database every 30s"
        >
          <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -501,45 +448,21 @@ const ExtensionsStatus: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-                         <div>
-               <div className="flex items-center space-x-3">
-                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
-                 {/* Real-time status indicator with reusable StatusTooltip */}
-                 <div className="flex items-center">
-                   <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                     <span className="relative flex size-3 cursor-help group">
-                       {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                       )}
-                       <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                         realtimeStatus === 'connected'
-                           ? connectionHealth === 'good'
-                             ? 'bg-green-500 group-hover:bg-green-600'
-                             : connectionHealth === 'poor'
-                             ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                             : 'bg-orange-500 group-hover:bg-orange-600'
-                           : realtimeStatus === 'reconnecting'
-                             ? 'bg-blue-500 group-hover:bg-blue-600'
-                             : realtimeStatus === 'checking'
-                             ? 'bg-gray-500 group-hover:bg-gray-600'
-                             : 'bg-red-500 group-hover:bg-red-600'
-                       }`}></span>
-                     </span>
-                   </StatusTooltip>
-                 </div>
-               </div>
-                               <div className="flex items-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-green-600 dark:text-green-400">{onlineCount} Online</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span className="text-red-600 dark:text-red-400">{offlineCount} Offline</span>
-                  </div>
-                  
+              <div>
+                <div className="flex items-center space-x-3">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
                 </div>
-             </div>
+                <div className="flex items-center space-x-4 text-sm">
+                   <div className="flex items-center space-x-1">
+                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                     <span className="text-green-600 dark:text-green-400">{onlineCount} Online</span>
+                   </div>
+                   <div className="flex items-center space-x-1">
+                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                     <span className="text-red-600 dark:text-red-400">{offlineCount} Offline</span>
+                   </div>
+                 </div>
+              </div>
           </div>
           
           {/* Refresh Button and Connection Status */}
@@ -558,7 +481,7 @@ const ExtensionsStatus: React.FC = () => {
                    ? 'bg-blue-100 dark:bg-blue-900/30' 
                    : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                }`}
-                               title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh extensions (or use Ctrl+R, F5, double-click header, or right-click header)'}
+                title={isRefreshing || isAutoRefreshing ? 'Refreshing...' : 'Manual refresh (queries AMI + updates database). Auto-refresh polls database every 30s'}
                disabled={isRefreshing || isAutoRefreshing}
              >
               <RefreshCw className={`h-4 w-4 transition-all duration-200 ${

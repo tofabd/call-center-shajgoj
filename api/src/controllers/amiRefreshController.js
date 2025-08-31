@@ -1,12 +1,44 @@
 import logger from '../config/logging.js';
-import AmiService from '../services/AmiService.js';
 import Extension from '../models/Extension.js';
 import broadcast from '../services/BroadcastService.js';
 import fs from 'fs';
 import path from 'path';
+import { performExtensionRefresh } from '../../scripts/standaloneRefresh.js';
 
-// Store separate connection instances
-const separateConnections = new Map();
+
+
+/**
+ * Create JSON file with refresh results for debugging
+ */
+const createRefreshResultsJsonFile = async (refreshResults, connectionId) => {
+  try {
+    // Create debug directory if it doesn't exist
+    const debugDir = path.join(process.cwd(), 'debug', 'refresh-results');
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    // Create filename with timestamp and connection ID
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `refresh-results-${timestamp}-${connectionId}.json`;
+    const filepath = path.join(debugDir, filename);
+    
+    // Write JSON file
+    fs.writeFileSync(filepath, JSON.stringify(refreshResults, null, 2));
+    
+    logger.info(`📄 Refresh results JSON file created: ${filepath}`);
+    
+    return {
+      filename: filename,
+      filepath: filepath,
+      fileSize: fs.statSync(filepath).size
+    };
+    
+  } catch (error) {
+    logger.error('❌ Failed to create refresh results JSON file:', error.message);
+    return null;
+  }
+};
 
 /**
  * Create JSON file with raw AMI response data for manual refresh
@@ -70,501 +102,64 @@ const createAmiResponseJsonFile = async (rawAmiData, connectionId) => {
 };
 
 /**
- * Create a separate AmiService connection and refresh extension statuses
- * This bypasses the project's existing connection and creates a new one
+ * Create a separate AMI connection and refresh extension statuses
+ * This bypasses the project's existing connection and uses the standalone refresh script
  */
 export const createSeparateConnectionAndRefresh = async (req, res) => {
   const connectionId = `separate-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   try {
-    logger.info(`🚀 [AmiRefreshController] Creating separate AmiService connection: ${connectionId}`);
+    logger.info(`🚀 [AmiRefreshController] Starting extension refresh via standalone script: ${connectionId}`);
     
-    // Create a new AmiService instance (separate from project's main instance)
-    const separateAmiService = new AmiService();
+    // Use the standalone refresh script
+    const refreshResults = await performExtensionRefresh();
     
-    // Start the separate service
-    await separateAmiService.start();
-    
-    if (!separateAmiService.getHealthStatus()) {
-      throw new Error('Failed to establish separate AmiService connection');
+    if (!refreshResults.success) {
+      throw new Error(refreshResults.error || 'Refresh failed with unknown error');
     }
     
-    logger.info(`✅ [AmiRefreshController] Separate connection established: ${connectionId}`);
-    
-    // Store the separate connection
-    separateConnections.set(connectionId, {
-      service: separateAmiService,
-      createdAt: new Date(),
-      lastUsed: new Date()
+    logger.info(`✅ [AmiRefreshController] Extension refresh completed successfully: ${connectionId}`, {
+      duration: refreshResults.duration,
+      amiExtensions: refreshResults.amiExtensions,
+      updated: refreshResults.updated,
+      unchanged: refreshResults.unchanged,
+      markedOffline: refreshResults.markedOffline,
+      errors: refreshResults.errors
     });
     
-    // Get all active extensions from database
-    const dbExtensions = await Extension.find({ is_active: true }).lean();
-    logger.info(`📋 [AmiRefreshController] Found ${dbExtensions.length} active extensions in database`);
-    
-    // Filter out non-numeric extensions (allow 3 to 5 digit numbers)
-    const validExtensions = dbExtensions.filter(ext => /^\d{3,5}$/.test(ext.extension));
-    logger.info(`🔍 [AmiRefreshController] Processing ${validExtensions.length} valid extensions`);
-    
-    // First, try to get ExtensionStateList (bulk query) for raw AMI data
-    let bulkAmiResponse = null;
-    try {
-      logger.info(`📊 [AmiRefreshController] Attempting enhanced bulk ExtensionStateList query...`);
-      bulkAmiResponse = await separateAmiService.queryExtensionStateList();
-      
-             if (bulkAmiResponse && bulkAmiResponse.extensions) {
-         logger.info(`📊 [AmiRefreshController] Events: off bulk query successful:`, {
-           extensionsFound: bulkAmiResponse.extensions.length,
-           totalEvents: bulkAmiResponse.eventCount || 0,
-           extensionEvents: bulkAmiResponse.extensionCount || 0,
-           bufferSize: bulkAmiResponse.bufferSize || 0,
-           completionEventDetected: bulkAmiResponse.completionEventDetected || false,
-           queryFormat: 'Events: off with ExtensionStateListComplete'
-         });
-       } else {
-        logger.warn(`⚠️ [AmiRefreshController] Bulk query returned no extensions`);
-      }
-    } catch (error) {
-      logger.warn(`⚠️ [AmiRefreshController] Bulk query failed, falling back to individual queries: ${error.message}`);
-    }
-    
-    // Process bulk response if available, otherwise fall back to individual queries
-    const results = [];
-    const amiResponses = []; // Store all AMI responses for JSON file
-    let successfulQueries = 0;
-    let failedQueries = 0;
-    let statusChanges = 0;
-    let noChanges = 0;
-    let markedOffline = 0;
-    
-    if (bulkAmiResponse && bulkAmiResponse.extensions && bulkAmiResponse.extensions.length > 0) {
-      // Process bulk response
-      logger.info(`🔄 [AmiRefreshController] Processing bulk response for ${bulkAmiResponse.extensions.length} extensions`);
-      
-      // Create a map of AMI extensions for quick lookup
-      const amiExtensionMap = new Map();
-      bulkAmiResponse.extensions.forEach(amiExt => {
-        amiExtensionMap.set(amiExt.extension, amiExt);
-      });
-      
-      // Process each database extension against AMI data
-      for (const dbExtension of validExtensions) {
-        try {
-          const amiExtension = amiExtensionMap.get(dbExtension.extension);
-          
-          if (amiExtension) {
-            // Extension found in AMI response
-            const statusResult = {
-              status: amiExtension.status,
-              statusCode: amiExtension.statusCode,
-              statusText: amiExtension.context || 'UNKNOWN',
-              error: null
-            };
-            
-            // Check if status actually changed to avoid unnecessary database updates
-            const statusChanged = dbExtension.status !== statusResult.status || 
-                                dbExtension.status_code !== statusResult.statusCode ||
-                                dbExtension.device_state !== statusResult.statusText;
-            
-            if (statusChanged) {
-              logger.info(`📝 [AmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → ${statusResult.status} (${dbExtension.status_code} → ${statusResult.statusCode})`);
-              
-              try {
-                // Update extension status in database
-                const updateResult = await Extension.findByIdAndUpdate(
-                  dbExtension._id, 
-                  {
-                    status: statusResult.status,
-                    status_code: statusResult.statusCode,
-                    device_state: statusResult.statusText,
-                    last_seen: new Date(),
-                    last_status_change: new Date(),
-                    updated_at: new Date()
-                  },
-                  { new: true } // Return updated document
-                );
-                
-                if (updateResult) {
-                  // Broadcast status change for real-time frontend updates
-                  try {
-                    broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} update`);
-                  } catch (broadcastError) {
-                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${dbExtension.extension} update:`, broadcastError.message);
-                  }
-                } else {
-                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${dbExtension.extension}`);
-                }
-              } catch (dbError) {
-                logger.error(`❌ [AmiRefreshController] Database update error for extension ${dbExtension.extension}:`, dbError.message);
-                failedQueries++;
-                continue; // Skip to next extension
-              }
-              
-              statusChanges++;
-              successfulQueries++;
-            } else {
-              logger.info(`✅ [AmiRefreshController] Extension ${dbExtension.extension}: No change (${statusResult.status})`);
-              noChanges++;
-              successfulQueries++;
-            }
-            
-            // Store AMI response for JSON file
-            const amiResponse = {
-              extension: dbExtension.extension,
-              agent_name: dbExtension.agent_name,
-              database_id: dbExtension._id,
-              query_timestamp: new Date().toISOString(),
-              success: true,
-              statusChanged: statusChanged,
-              oldStatus: dbExtension.status,
-              newStatus: statusResult.status,
-              rawAmiResponse: `Extension: ${amiExtension.extension}, Status: ${amiExtension.statusCode}, Context: ${amiExtension.context}`,
-              parsedResult: statusResult
-            };
-            amiResponses.push(amiResponse);
-            
-            results.push({
-              extension: dbExtension.extension,
-              status: statusResult.status,
-              statusCode: statusResult.statusCode,
-              statusText: statusResult.statusText,
-              statusChanged: statusChanged
-            });
-            
-          } else {
-            // Extension not found in AMI response - mark as offline
-            logger.warn(`⚠️ [AmiRefreshController] Extension ${dbExtension.extension} not found in AMI response - marking as offline`);
-            
-            // Check if extension is currently online (needs to be marked offline)
-            if (dbExtension.status !== 'offline') {
-              logger.info(`📝 [AmiRefreshController] Extension ${dbExtension.extension}: ${dbExtension.status} → offline (not found in AMI)`);
-              
-              try {
-                // Update extension status to offline
-                const updateResult = await Extension.findByIdAndUpdate(
-                  dbExtension._id,
-                  {
-                    status: 'offline',
-                    status_code: '4', // Unavailable
-                    device_state: 'UNAVAILABLE',
-                    last_seen: new Date(),
-                    last_status_change: new Date(),
-                    updated_at: new Date()
-                  },
-                  { new: true } // Return updated document
-                );
-                
-                if (updateResult) {
-                  // Broadcast status change for real-time frontend updates
-                  try {
-                    broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${dbExtension.extension} offline status`);
-                  } catch (broadcastError) {
-                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${dbExtension.extension} offline status:`, broadcastError.message);
-                  }
-                  
-                  markedOffline++;
-                  successfulQueries++;
-                } else {
-                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${dbExtension.extension} offline status`);
-                  failedQueries++;
-                }
-              } catch (dbError) {
-                logger.error(`❌ [AmiRefreshController] Database update error for extension ${dbExtension.extension} offline status:`, dbError.message);
-                failedQueries++;
-              }
-            } else {
-              logger.info(`✅ [AmiRefreshController] Extension ${dbExtension.extension}: Already offline (no change)`);
-              noChanges++;
-              successfulQueries++;
-            }
-            
-            // Add response to AMI responses
-            amiResponses.push({
-              extension: dbExtension.extension,
-              agent_name: dbExtension.agent_name,
-              database_id: dbExtension._id,
-              query_timestamp: new Date().toISOString(),
-              success: true,
-              statusChanged: dbExtension.status !== 'offline',
-              oldStatus: dbExtension.status,
-              newStatus: 'offline',
-              rawAmiResponse: 'Extension not found in AMI response - marked as offline',
-              parsedResult: {
-                status: 'offline',
-                statusCode: '4',
-                statusText: 'UNAVAILABLE',
-                error: null
-              }
-            });
-            
-            results.push({
-              extension: dbExtension.extension,
-              status: 'offline',
-              statusCode: '4',
-              statusText: 'UNAVAILABLE',
-              statusChanged: dbExtension.status !== 'offline'
-            });
-          }
-          
-        } catch (error) {
-          logger.error(`❌ [AmiRefreshController] Error processing extension ${dbExtension.extension}:`, error.message);
-          failedQueries++;
-          
-          // Add error response to AMI responses
-          amiResponses.push({
-            extension: dbExtension.extension,
-            agent_name: dbExtension.agent_name,
-            database_id: dbExtension._id,
-            query_timestamp: new Date().toISOString(),
-            success: false,
-            rawAmiResponse: 'Processing error',
-            parsedResult: {
-              status: 'unknown',
-              statusCode: null,
-              statusText: null,
-              error: error.message
-            }
-          });
-        }
-      }
-      
-    } else {
-                      // Fallback to individual queries if bulk query failed
-        logger.info(`🔄 [AmiRefreshController] Fallback: Using individual extension queries`);
-        
-        // Single timeout for entire individual query operation
-        const totalQueryTimeout = Math.min(30000, Math.max(10000, validExtensions.length * 200)); // 10-30 seconds based on extension count
-        logger.info(`⏰ Individual query timeout: ${totalQueryTimeout}ms for ${validExtensions.length} extensions`);
-        
-        // Process all individual queries with single timeout
-        const individualQueryPromises = validExtensions.map(async (extension) => {
-          try {
-            logger.info(`🔍 [AmiRefreshController] Querying extension ${extension.extension} via separate connection`);
-            
-            const statusResult = await separateAmiService.queryExtensionStatus(extension.extension);
-            
-            // Store RAW AMI response for JSON file
-            const amiResponse = {
-              extension: extension.extension,
-              agent_name: extension.agent_name,
-              database_id: extension._id,
-              query_timestamp: new Date().toISOString(),
-              success: !statusResult.error,
-              // Raw AMI data from Asterisk
-              rawAmiResponse: statusResult.rawAmiResponse || 'No raw response captured',
-              // Parsed result for database update
-              parsedResult: {
-                status: statusResult.status,
-                statusCode: statusResult.statusCode,
-                statusText: statusResult.statusText,
-                error: statusResult.error
-              }
-            };
-            amiResponses.push(amiResponse);
-            
-            if (statusResult.error) {
-              logger.warn(`⚠️ [AmiRefreshController] Extension ${extension.extension} query failed: ${statusResult.error}`);
-              return { extension: extension.extension, success: false, error: statusResult.error };
-            } else {
-              logger.info(`✅ [AmiRefreshController] Extension ${extension.extension}: ${statusResult.status} (${statusResult.statusCode})`);
-              
-              try {
-                // Update extension status in database
-                const updateResult = await Extension.findByIdAndUpdate(
-                  extension._id,
-                  {
-                    status: statusResult.status,
-                    status_code: statusResult.statusCode,
-                    device_state: statusResult.statusText || 'UNKNOWN',
-                    last_seen: new Date(),
-                    last_status_change: new Date(),
-                    updated_at: new Date()
-                  },
-                  { new: true } // Return updated document
-                );
-                
-                if (updateResult) {
-                  // Broadcast status change for real-time frontend updates
-                  try {
-                    broadcast.extensionStatusUpdated(updateResult);
-                    logger.info(`📡 [AmiRefreshController] Successfully broadcasted extension ${extension.extension} update`);
-                  } catch (broadcastError) {
-                    logger.warn(`⚠️ [AmiRefreshController] Failed to broadcast extension ${extension.extension} update:`, broadcastError.message);
-                  }
-                  
-                  return { 
-                    extension: extension.extension, 
-                    success: true, 
-                    status: statusResult.status,
-                    statusCode: statusResult.statusCode,
-                    statusText: statusResult.statusText
-                  };
-                } else {
-                  logger.warn(`⚠️ [AmiRefreshController] Database update failed for extension ${extension.extension}`);
-                  return { extension: extension.extension, success: false, error: 'Database update failed' };
-                }
-              } catch (dbError) {
-                logger.error(`❌ [AmiRefreshController] Database update error for extension ${extension.extension}:`, dbError.message);
-                return { extension: extension.extension, success: false, error: dbError.message };
-              }
-            }
-          } catch (error) {
-            logger.error(`❌ [AmiRefreshController] Error querying extension ${extension.extension}:`, error.message);
-            
-            // Add failed response to AMI responses
-            amiResponses.push({
-              extension: extension.extension,
-              agent_name: extension.agent_name,
-              database_id: extension._id,
-              query_timestamp: new Date().toISOString(),
-              success: false,
-              rawAmiResponse: 'Query error',
-              parsedResult: {
-                status: 'unknown',
-                statusCode: null,
-                statusText: null,
-                error: error.message
-              }
-            });
-            
-            return { extension: extension.extension, success: false, error: error.message };
-          }
-        });
-        
-        // Execute all individual queries with single timeout
-        const individualResults = await Promise.race([
-          Promise.allSettled(individualQueryPromises),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error(`Individual queries timeout after ${totalQueryTimeout}ms`)), totalQueryTimeout)
-          )
-        ]);
-        
-        // Process results
-        individualResults.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            const data = result.value;
-            if (data.success) {
-              successfulQueries++;
-              results.push({
-                extension: data.extension,
-                status: data.status,
-                statusCode: data.statusCode,
-                statusText: data.statusText
-              });
-            } else {
-              failedQueries++;
-            }
-          } else {
-            failedQueries++;
-            logger.error(`❌ [AmiRefreshController] Individual query failed:`, result.reason);
-          }
-        });
-    }
-    
-    // Update last used timestamp and ensure connection is marked for cleanup
-    const connectionInfo = separateConnections.get(connectionId);
-    if (connectionInfo) {
-      connectionInfo.lastUsed = new Date();
-      connectionInfo.completed = true; // Mark as completed for cleanup
-    }
-    
-    // Create JSON file with AMI responses (including enhanced bulk response if available)
-    const allAmiData = {
-      individualResponses: amiResponses,
-      bulkResponse: bulkAmiResponse,
-      enhancedMetrics: bulkAmiResponse ? {
-        totalEvents: bulkAmiResponse.eventCount || 0,
-        extensionEvents: bulkAmiResponse.extensionCount || 0,
-        bufferSize: bulkAmiResponse.bufferSize || 0,
-        extensionsParsed: bulkAmiResponse.extensions?.length || 0,
-        completionEventDetected: bulkAmiResponse.completionEventDetected || false
-      } : null,
-      // Always include raw response data for debugging
-      rawResponseData: {
-        responseBuffer: bulkAmiResponse?.rawAmiResponse || 'No raw response available',
-        eventCount: bulkAmiResponse?.eventCount || 0,
-        extensionCount: bulkAmiResponse?.extensionCount || 0,
-        bufferSize: bulkAmiResponse?.bufferSize || 0,
-        parsingSuccessful: !!bulkAmiResponse?.extensions,
-        parsingError: bulkAmiResponse?.error || null
-      }
-    };
-    
-    // Always create JSON file, even if parsing failed
-    const jsonFileInfo = await createAmiResponseJsonFile(allAmiData, connectionId);
-    
-    if (jsonFileInfo) {
-      logger.info(`📄 JSON file created successfully: ${jsonFileInfo.filename} (${jsonFileInfo.fileSize} bytes)`);
-    } else {
-      logger.warn(`⚠️ Failed to create JSON file for connection: ${connectionId}`);
-    }
-    
-    logger.info(`✅ [AmiRefreshController] Separate connection refresh completed: ${connectionId}`, {
-      extensionsChecked: validExtensions.length,
-      successfulQueries,
-      failedQueries,
-      statusChanges,
-      noChanges,
-      markedOffline,
-      resultsCount: results.length,
-      jsonFileCreated: !!jsonFileInfo,
-      jsonFilename: jsonFileInfo?.filename
-    });
-    
-    // Clean up the separate connection after successful completion
-    try {
-      if (separateConnections.has(connectionId)) {
-        const connectionInfo = separateConnections.get(connectionId);
-        await connectionInfo.service.stop();
-        separateConnections.delete(connectionId);
-        logger.info(`🔌 [AmiRefreshController] Successfully closed separate connection: ${connectionId}`);
-      }
-    } catch (cleanupError) {
-      logger.warn(`⚠️ [AmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
-    }
+    // Create JSON file with refresh results for debugging
+    const jsonFileInfo = await createRefreshResultsJsonFile(refreshResults, connectionId);
     
     res.json({
       success: true,
-      message: 'Extension status refresh completed via separate AmiService connection',
+      message: 'Extension status refresh completed via standalone script',
       data: {
         connectionId,
-        extensionsChecked: validExtensions.length,
-        lastQueryTime: new Date().toISOString(),
+        extensionsChecked: refreshResults.totalProcessed,
+        lastQueryTime: refreshResults.timestamp,
+        duration: refreshResults.duration,
         statistics: {
-          successfulQueries,
-          failedQueries,
-          statusChanges,
-          noChanges,
-          markedOffline
+          successfulQueries: refreshResults.updated + refreshResults.unchanged + refreshResults.markedOffline,
+          failedQueries: refreshResults.errors,
+          statusChanges: refreshResults.updated + refreshResults.markedOffline,
+          noChanges: refreshResults.unchanged,
+          markedOffline: refreshResults.markedOffline
         },
-        results: results,
+        results: refreshResults,
         jsonFile: jsonFileInfo ? {
           filename: jsonFileInfo.filename,
           fileSize: jsonFileInfo.fileSize,
-          message: 'AMI response data saved to JSON file'
+          message: 'Refresh results saved to JSON file'
         } : null
       }
     });
     
   } catch (error) {
-    logger.error(`❌ [AmiRefreshController] Separate connection refresh failed: ${connectionId}`, { error: error.message });
-    
-    // Clean up failed connection
-    if (separateConnections.has(connectionId)) {
-      try {
-        const connectionInfo = separateConnections.get(connectionId);
-        await connectionInfo.service.stop();
-        separateConnections.delete(connectionId);
-      } catch (cleanupError) {
-        logger.error(`❌ [AmiRefreshController] Failed to cleanup connection ${connectionId}:`, cleanupError.message);
-      }
-    }
+    logger.error(`❌ [AmiRefreshController] Extension refresh failed: ${connectionId}`, { error: error.message });
     
     res.status(500).json({
       success: false,
-      message: 'Failed to create separate AmiService connection and refresh extensions',
+      message: 'Failed to refresh extension statuses',
       error: error.message,
       connectionId
     });
@@ -572,189 +167,55 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
 };
 
 /**
- * Get status of separate AmiService connections
+ * Get status of extension refresh operations
  */
 export const getSeparateConnectionStatus = async (req, res) => {
   try {
-    const connections = Array.from(separateConnections.entries()).map(([id, info]) => ({
-      connectionId: id,
-      createdAt: info.createdAt,
-      lastUsed: info.lastUsed,
-              isHealthy: info.service.getHealthStatus(),
-      connectionState: info.service.connectionState
-    }));
-    
     res.json({
       success: true,
-      message: 'Separate connection status retrieved successfully',
+      message: 'Extension refresh status retrieved successfully',
       data: {
-        activeConnections: connections.length,
-        connections: connections
+        message: 'Using standalone refresh script - no persistent connections'
       }
     });
     
   } catch (error) {
-    logger.error('❌ [AmiRefreshController] Failed to get separate connection status:', error.message);
+    logger.error('❌ [AmiRefreshController] Failed to get refresh status:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to get separate connection status',
+      message: 'Failed to get refresh status',
       error: error.message
     });
   }
 };
 
 /**
- * Close a specific separate AmiService connection
+ * Close specific connection (not applicable for standalone script)
  */
 export const closeSeparateConnection = async (req, res) => {
-  const { connectionId } = req.params;
-  
-  try {
-    if (!separateConnections.has(connectionId)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Separate connection not found',
-        connectionId
-      });
-    }
-    
-    const connectionInfo = separateConnections.get(connectionId);
-    await connectionInfo.service.stop();
-    separateConnections.delete(connectionId);
-    
-    logger.info(`✅ [AmiRefreshController] Separate connection closed: ${connectionId}`);
-    
-    res.json({
-      success: true,
-      message: 'Separate connection closed successfully',
-      connectionId
-    });
-    
-  } catch (error) {
-    logger.error(`❌ [AmiRefreshController] Failed to close separate connection ${connectionId}:`, error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to close separate connection',
-      error: error.message,
-      connectionId
-    });
-  }
+  res.json({
+    success: true,
+    message: 'Using standalone refresh script - no persistent connections to close'
+  });
 };
 
 /**
- * Stop an active ExtensionStateList query using Logoff action
+ * Stop active query (not applicable for standalone script)
  */
 export const stopActiveQuery = async (req, res) => {
-  const { connectionId } = req.params;
-  
-  try {
-    if (!separateConnections.has(connectionId)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Separate connection not found',
-        connectionId
-      });
-    }
-    
-    const connectionInfo = separateConnections.get(connectionId);
-    const { service } = connectionInfo;
-    
-    // Get the current action ID from the service (if available)
-    const currentActionId = service.currentActionId || 'unknown';
-    
-    // Stop the active query
-    const stopped = await service.stopExtensionStateListQuery(currentActionId);
-    
-    if (stopped) {
-      logger.info(`✅ [AmiRefreshController] Query stopped via Logoff action: ${connectionId}`);
-      res.json({
-        success: true,
-        message: 'Query stopped successfully via Logoff action',
-        connectionId,
-        actionId: currentActionId
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to stop query',
-        connectionId,
-        actionId: currentActionId
-      });
-    }
-    
-  } catch (error) {
-    logger.error(`❌ [AmiRefreshController] Failed to stop query for connection ${connectionId}:`, error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to stop query',
-      error: error.message,
-      connectionId
-    });
-  }
+  res.json({
+    success: true,
+    message: 'Using standalone refresh script - no persistent queries to stop'
+  });
 };
 
 /**
- * Close all separate AmiService connections
+ * Close all connections (not applicable for standalone script)
  */
 export const closeAllSeparateConnections = async (req, res) => {
-  try {
-    const connectionIds = Array.from(separateConnections.keys());
-    
-    for (const connectionId of connectionIds) {
-      try {
-        const connectionInfo = separateConnections.get(connectionId);
-        await connectionInfo.service.stop();
-        separateConnections.delete(connectionId);
-        logger.info(`✅ [AmiRefreshController] Closed separate connection: ${connectionId}`);
-      } catch (error) {
-        logger.error(`❌ [AmiRefreshController] Failed to close connection ${connectionId}:`, error.message);
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: 'All separate connections closed successfully',
-      closedConnections: connectionIds.length
-    });
-    
-  } catch (error) {
-    logger.error('❌ [AmiRefreshController] Failed to close all separate connections:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to close all separate connections',
-      error: error.message
-    });
-  }
+  res.json({
+    success: true,
+    message: 'Using standalone refresh script - no persistent connections to close'
+  });
 };
 
-/**
- * Cleanup old connections (older than 5 minutes)
- */
-export const cleanupOldConnections = async () => {
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const connectionsToRemove = [];
-  
-  for (const [connectionId, info] of separateConnections.entries()) {
-    if (info.lastUsed < fiveMinutesAgo) {
-      connectionsToRemove.push(connectionId);
-    }
-  }
-  
-  for (const connectionId of connectionsToRemove) {
-    try {
-      const connectionInfo = separateConnections.get(connectionId);
-      await connectionInfo.service.stop();
-      separateConnections.delete(connectionId);
-      logger.info(`🧹 [AmiRefreshController] Cleaned up old connection: ${connectionId}`);
-    } catch (error) {
-      logger.error(`❌ [AmiRefreshController] Failed to cleanup old connection ${connectionId}:`, error.message);
-    }
-  }
-  
-  if (connectionsToRemove.length > 0) {
-    logger.info(`🧹 [AmiRefreshController] Cleaned up ${connectionsToRemove.length} old connections`);
-  }
-};
-
-// Setup periodic cleanup every 2 minutes
-setInterval(cleanupOldConnections, 2 * 60 * 1000);

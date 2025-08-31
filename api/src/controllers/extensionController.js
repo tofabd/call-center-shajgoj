@@ -308,21 +308,24 @@ export const updateExtensionStatus = async (req, res) => {
 // Manual refresh extension status using separate AmiService connection
 export const refreshExtensionStatus = async (req, res) => {
   try {
-    logger.info('🔄 Manual extension refresh triggered via API - using separate AmiService connection');
+    logger.info('🔄 Manual extension refresh triggered via API - using standalone refresh script');
     
-    // Use the separate connection refresh system
-    const result = await createSeparateConnectionAndRefresh(req, res);
+    // Call the refresh controller directly (it handles the response)
+    await createSeparateConnectionAndRefresh(req, res);
     
     // The response is already handled by createSeparateConnectionAndRefresh
     // This function just serves as a wrapper/alias for backward compatibility
     
   } catch (error) {
-    logger.error('❌ Manual refresh failed', { error: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Failed to refresh extension status',
-      error: error.message
-    });
+    // Only send error response if response hasn't been sent yet
+    if (!res.headersSent) {
+      logger.error('❌ Manual refresh failed', { error: error.message });
+      res.status(500).json({
+        success: false,
+        message: 'Failed to refresh extension status',
+        error: error.message
+      });
+    }
   }
 };
 

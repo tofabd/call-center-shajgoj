@@ -33,6 +33,81 @@ router.get('/statistics', getExtensionStatistics);
 // GET /api/extensions/query-service/status - Get AMI Query Service status (uses separate connection)
 router.get('/query-service/status', getQueryServiceStatus);
 
+// GET /api/extensions/parsed-extensions - List available parsed extension JSON files
+router.get('/parsed-extensions', (req, res) => {
+  try {
+    const debugDir = path.join(process.cwd(), 'debug', 'parsed-extensions');
+    if (!fs.existsSync(debugDir)) {
+      return res.json({
+        success: true,
+        data: {
+          files: [],
+          message: 'No parsed extension files found'
+        }
+      });
+    }
+    
+    const files = fs.readdirSync(debugDir)
+      .filter(file => file.endsWith('.json'))
+      .map(file => {
+        const filepath = path.join(debugDir, file);
+        const stats = fs.statSync(filepath);
+        return {
+          filename: file,
+          fileSize: stats.size,
+          createdAt: stats.birthtime,
+          modifiedAt: stats.mtime
+        };
+      })
+      .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
+    
+    res.json({
+      success: true,
+      data: {
+        files: files,
+        totalFiles: files.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to list parsed extension files',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/extensions/parsed-extensions/:filename - Download specific parsed extension JSON file
+router.get('/parsed-extensions/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const debugDir = path.join(process.cwd(), 'debug', 'parsed-extensions');
+    const filepath = path.join(debugDir, filename);
+    
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Parsed extension file not found'
+      });
+    }
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filepath);
+    fileStream.pipe(res);
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download parsed extension file',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/extensions/ami-responses - List available AMI response JSON files
 router.get('/ami-responses', (req, res) => {
   try {
