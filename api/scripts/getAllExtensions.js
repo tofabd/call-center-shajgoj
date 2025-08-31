@@ -192,6 +192,15 @@ const queryAllExtensions = () => {
             console.log('✅ ExtensionStateListComplete received - Query completed');
             queryCompleted = true;
             
+            // Send logoff before closing
+            console.log('👋 Sending AMI Logoff...');
+            const logoffAction = [
+              'Action: Logoff',
+              '', // Empty line to end the action
+              ''  // Double CRLF
+            ].join('\r\n');
+            socket.write(logoffAction);
+            
             // Process final results
             const endTime = Date.now();
             const duration = endTime - startTime;
@@ -218,9 +227,12 @@ const queryAllExtensions = () => {
               rawEvents: allEvents
             };
             
-            clearTimeout(timeout);
-            socket.destroy();
-            resolve(results);
+            // Small delay to ensure logoff is sent before closing
+            setTimeout(() => {
+              clearTimeout(timeout);
+              socket.destroy();
+              resolve(results);
+            }, 100);
             return;
           }
         }
