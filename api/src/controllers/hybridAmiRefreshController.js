@@ -1,5 +1,5 @@
 import logger from '../config/logging.js';
-import HybridAmiService from '../services/HybridAmiService.js';
+import ManagedAmiService from '../services/ManagedAmiService.js';
 import Extension from '../models/Extension.js';
 import broadcast from '../services/BroadcastService.js';
 import fs from 'fs';
@@ -80,12 +80,12 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
     logger.info(`🚀 [HybridAmiRefreshController] Creating separate Hybrid AMI connection: ${connectionId}`);
     
     // Create a new Hybrid AMI Service instance (separate from project's main instance)
-    const separateAmiService = new HybridAmiService();
+    const separateAmiService = new ManagedAmiService();
     
     // Start the separate service
     await separateAmiService.start();
     
-    if (!separateAmiService.isHealthy()) {
+    if (!separateAmiService.getHealthStatus()) {
       throw new Error('Failed to establish separate Hybrid AMI connection');
     }
     
@@ -580,7 +580,7 @@ export const getSeparateConnectionStatus = async (req, res) => {
       connectionId: id,
       createdAt: info.createdAt,
       lastUsed: info.lastUsed,
-      isHealthy: info.service.isHealthy(),
+              isHealthy: info.service.getHealthStatus(),
       connectionState: info.service.connectionState
     }));
     

@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 config();
 
 // Import services
-import { initializeHybridAmiService } from '../src/services/HybridAmiServiceInstance.js';
+import { initializeManagedAmiService } from '../src/services/ManagedAmiServiceInstance.js';
 
 // Parse command line arguments
 const parseArgs = () => {
@@ -112,11 +112,11 @@ const main = async () => {
   const extensionNumber = parseArgs();
   console.log(`📞 Target Extension: ${extensionNumber}`);
   console.log(`⚙️ Environment: AMI Host = ${process.env.AMI_HOST || 'DEFAULT'}`);
-  console.log(`🔌 AMI Service: Using Hybrid AMI Service`);
+      console.log(`🔌 AMI Service: Using Managed AMI Service`);
   
-  console.log(`📊 Script Configuration: {extension: "${extensionNumber}", amiHost: "${process.env.AMI_HOST || 'DEFAULT'}", amiService: "HybridAmiService", startTime: "${new Date().toISOString()}"}`);
+      console.log(`📊 Script Configuration: {extension: "${extensionNumber}", amiHost: "${process.env.AMI_HOST || 'DEFAULT'}", amiService: "ManagedAmiService", startTime: "${new Date().toISOString()}"}`);
   
-  let hybridAmiService = null;
+  let managedAmiService = null;
   const scriptStartTime = Date.now();
   
   try {
@@ -125,10 +125,10 @@ const main = async () => {
     console.log('⚠️ Attempting AMI connection - script will exit if this fails');
     const connectionStartTime = Date.now();
     
-    hybridAmiService = await initializeHybridAmiService();
+          managedAmiService = await initializeManagedAmiService();
     
-    if (!hybridAmiService.isHealthy()) {
-      const errorMessage = 'Failed to connect to Hybrid AMI Service';
+          if (!managedAmiService.getHealthStatus()) {
+              const errorMessage = 'Failed to connect to Managed AMI Service';
       console.log(`❌ ${errorMessage}`);
       console.error('AMI connection failed - script cannot proceed');
       console.error(`   Connection Details: {amiHost: '${process.env.AMI_HOST || 'NOT SET'}', amiPort: '${process.env.AMI_PORT || 'NOT SET'}', amiUsername: '${process.env.AMI_USERNAME || 'NOT SET'}', amiPassword: '${process.env.AMI_PASSWORD ? '[SET]' : 'NOT SET'}'}`);
@@ -145,13 +145,13 @@ const main = async () => {
     }
     
     const connectionTime = Date.now() - connectionStartTime;
-    console.log(`✅ Hybrid AMI Service connected successfully in ${connectionTime}ms`);
-    console.log(`🎯 Service Status: ${hybridAmiService.getStatus().connectionState}`);
-    console.log(`   Connection Stats: {connectionTime: ${connectionTime}, serviceStatus: '${hybridAmiService.getStatus().connectionState}'}`);
+          console.log(`✅ Managed AMI Service connected successfully in ${connectionTime}ms`);
+          console.log(`🎯 Service Status: ${managedAmiService.getStatus().connectionState}`);
+      console.log(`   Connection Stats: {connectionTime: ${connectionTime}, serviceStatus: '${managedAmiService.getStatus().connectionState}'}`);
     
     // Query the single extension
     console.log(`\n🔍 Querying Extension ${extensionNumber}...`);
-    const result = await queryExtensionStatus(hybridAmiService, extensionNumber);
+          const result = await queryExtensionStatus(managedAmiService, extensionNumber);
     
     // Display results
     displayExtensionResult(result);
@@ -198,9 +198,9 @@ const main = async () => {
     process.exit(1);
   } finally {
     // Cleanup
-    if (hybridAmiService) {
-      console.log('\n🛑 Stopping Hybrid AMI Service...');
-      await hybridAmiService.stop();
+    if (managedAmiService) {
+      console.log('\n🛑 Stopping Managed AMI Service...');
+      await managedAmiService.stop();
     }
     
     const completionTime = new Date().toLocaleString();

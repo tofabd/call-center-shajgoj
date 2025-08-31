@@ -324,6 +324,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles Newstate events - call state changes
+   * 
+   * Processes channel state change events, updating call
+   * status and tracking call progression through various
+   * states including ringing and answered.
+   * 
+   * @param {Object} fields - Newstate event fields
+   */
   async handleNewstate(fields) {
     if (!fields.Uniqueid || !fields.Linkedid) return;
 
@@ -353,6 +362,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles Hangup events - call termination
+   * 
+   * Processes call hangup events, updating call leg status
+   * and determining when the complete call has ended.
+   * Calculates talk time and updates call disposition.
+   * 
+   * @param {Object} fields - Hangup event fields
+   */
   async handleHangup(fields) {
     if (!fields.Uniqueid || !fields.Linkedid) return;
 
@@ -393,6 +411,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles DialBegin events - outgoing call initiation
+   * 
+   * Processes outgoing call dialing events, determining
+   * call direction and extracting destination numbers.
+   * Updates call records with outgoing call information.
+   * 
+   * @param {Object} fields - DialBegin event fields
+   */
   async handleDialBegin(fields) {
     const dialedFromDialString = this.extractNumberFromDialString(fields.DialString);
     const ctx = fields.Context || '';
@@ -418,6 +445,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles DialEnd events - dialing completion
+   * 
+   * Processes dialing result events, updating call
+   * disposition based on dial status (answered, busy,
+   * no answer, etc.) and broadcasting updates.
+   * 
+   * @param {Object} fields - DialEnd event fields
+   */
   async handleDialEnd(fields) {
     const status = fields.DialStatus || '';
     const linkedid = fields.Linkedid;
@@ -448,6 +484,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles BridgeEnter events - call bridging
+   * 
+   * Processes call bridge entry events, marking calls
+   * as answered and creating bridge segment records
+   * for call flow tracking.
+   * 
+   * @param {Object} fields - BridgeEnter event fields
+   */
   async handleBridgeEnter(fields) {
     let linkedid = fields.Linkedid;
     if (!linkedid && fields.Uniqueid) {
@@ -495,6 +540,14 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles BridgeLeave events - call bridge exit
+   * 
+   * Processes call bridge exit events, updating bridge
+   * segment records to track when parties leave bridges.
+   * 
+   * @param {Object} fields - BridgeLeave event fields
+   */
   async handleBridgeLeave(fields) {
     let linkedid = fields.Linkedid;
     if (!linkedid && fields.Uniqueid) {
@@ -521,6 +574,15 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Handles ExtensionStatus events - extension state changes
+   * 
+   * Processes extension status updates, filtering out AMI-generated
+   * status codes and updating only valid extension records.
+   * Broadcasts status changes for real-time UI updates.
+   * 
+   * @param {Object} fields - ExtensionStatus event fields
+   */
   async handleExtensionStatus(fields) {
     const extension = fields.Exten;
     const statusCode = fields.Status;
@@ -557,6 +619,16 @@ class AmiEventProcessor {
     }
   }
 
+  /**
+   * Maps AMI status codes to human-readable device states
+   * 
+   * Converts numeric AMI status codes to descriptive state names
+   * for easier understanding and processing.
+   * 
+   * @param {string|number} statusCode - AMI status code
+   * @param {string} statusText - AMI status text description
+   * @returns {string} Human-readable device state
+   */
   mapDeviceState(statusCode, statusText) {
     const deviceStateMap = {
       0: 'NOT_INUSE',      // NotInUse
@@ -571,6 +643,15 @@ class AmiEventProcessor {
     return deviceStateMap[statusCode] || 'UNKNOWN';
   }
 
+  /**
+   * Maps AMI extension status to application status values
+   * 
+   * Converts both numeric and text-based AMI status values
+   * to standardized application status values (online/offline/unknown).
+   * 
+   * @param {string|number} asteriskStatus - AMI status value
+   * @returns {string} Standardized application status
+   */
   mapExtensionStatus(asteriskStatus) {
     const numericStatusMap = {
       '0': 'online',    // NotInUse
@@ -609,7 +690,10 @@ class AmiEventProcessor {
   }
 
   /**
-   * Stop event processing
+   * Stops event processing and cleans up resources
+   * 
+   * Clears event handler registrations and performs
+   * cleanup operations when the service is stopped.
    */
   stop() {
     console.log('🛑 [EventProcessor] Stopping event processing...');
