@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getCalls,
   getCallById,
+  getCallDetails,
   getCallStatistics,
   getLiveCalls
 } from '../controllers/callController.js';
@@ -16,6 +17,9 @@ router.get('/statistics', getCallStatistics);
 
 // GET /api/calls/live - Get live/active calls
 router.get('/live', getLiveCalls);
+
+// GET /api/calls/:id/details - Get detailed call information (NEW)
+router.get('/:id/details', getCallDetails);
 
 // GET /api/calls/:id - Get call by ID with details
 router.get('/:id', getCallById);

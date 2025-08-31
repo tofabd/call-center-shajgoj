@@ -82,7 +82,7 @@ export const getCalls = async (req, res) => {
       }
       
       return {
-        id: parseInt(call._id.toString().slice(-6), 16), // Convert ObjectId to number
+        id: call._id.toString(), // Use ObjectId as string directly
         callerNumber: call.caller_number || call.other_party || call.linkedid,
         callerName: call.caller_name,
         startTime: call.started_at,
@@ -315,6 +315,97 @@ export const getLiveCalls = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching live calls',
+      error: error.message
+    });
+  }
+};
+
+// Get call details for modal
+export const getCallDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const call = await Call.findById(id);
+    if (!call) {
+      return res.status(404).json({
+        success: false,
+        message: 'Call not found'
+      });
+    }
+
+    // Get related call legs and bridge segments
+    const [callLegs, bridgeSegments] = await Promise.all([
+      CallLeg.find({ linkedid: call.linkedid }).sort({ start_time: 1 }),
+      BridgeSegment.find({ linkedid: call.linkedid }).sort({ entered_at: 1 })
+    ]);
+
+    // Get the master/first call leg to extract additional details
+    const masterCallLeg = callLegs.find(leg => leg.uniqueid === call.linkedid) || callLegs[0];
+
+    // Transform call legs to match frontend CallFlowStep interface
+    const callFlow = callLegs.map(leg => ({
+      uniqueid: leg.uniqueid,
+      channel: leg.channel,
+      exten: leg.exten,
+      context: leg.context,
+      channel_state: leg.channel_state,
+      channel_state_desc: leg.channel_state_desc,
+      state: leg.state,
+      callerid_num: leg.callerid_num,
+      callerid_name: leg.callerid_name,
+      connected_line_num: leg.connected_line_num,
+      connected_line_name: leg.connected_line_name,
+      start_time: leg.start_time,
+      answer_at: leg.answer_at,
+      hangup_at: leg.hangup_at,
+      hangup_cause: leg.hangup_cause,
+      agent_exten_if_leg: null, // This would need to be derived based on business logic
+      other_party_if_leg: null,  // This would need to be derived based on business logic
+      step_type: leg.channel?.includes('SIP') ? 'trunk_connection' : 'master_channel',
+      step_description: `Call leg ${leg.channel || 'Unknown'}`
+    }));
+
+    // Calculate duration if not available
+    const calculatedDuration = call.talk_seconds || 
+      (call.ended_at && call.started_at ? 
+        Math.floor((new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000) : 
+        null);
+
+    res.json({
+      success: true,
+      data: {
+        // Basic call information
+        id: call._id.toString(),
+        uniqueid: call.linkedid, // Using linkedid as uniqueid for the main call
+        linkedid: call.linkedid,
+        channel: masterCallLeg?.channel || null,
+        callerNumber: call.caller_number || call.other_party,
+        callerName: call.caller_name,
+        extension: call.agent_exten,
+        context: masterCallLeg?.context || null,
+        channelState: masterCallLeg?.channel_state || null,
+        channelStateDesc: masterCallLeg?.channel_state_desc || null,
+        connectedLineNum: masterCallLeg?.connected_line_num || null,
+        connectedLineName: masterCallLeg?.connected_line_name || null,
+        state: masterCallLeg?.state || null,
+        startTime: call.started_at,
+        endTime: call.ended_at,
+        status: call.ended_at ? (call.disposition || 'ended') : (call.answered_at ? 'answered' : 'ringing'),
+        duration: calculatedDuration,
+        callInstanceId: null, // Not available in current schema
+        createdAt: call.createdAt,
+        updatedAt: call.updatedAt,
+        direction: call.direction,
+        agentExten: call.agent_exten,
+        otherParty: call.other_party,
+        callFlow: callFlow,
+        extensionChanges: [] // This would need to be implemented based on business logic
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching call details',
       error: error.message
     });
   }

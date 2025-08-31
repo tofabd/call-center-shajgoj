@@ -34,7 +34,7 @@ import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 
 const CallConsole: React.FC = () => {
   const [callLogs, setCallLogs] = useState<CallLog[]>([]); // Changed to CallLog[] for individual calls
-  const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
+  const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [isCallDetailsModalOpen, setIsCallDetailsModalOpen] = useState(false);
   const [isManualSelection, setIsManualSelection] = useState(false);
   
@@ -100,7 +100,7 @@ const CallConsole: React.FC = () => {
       
       // Update the specific call in the list or add new one
       setCallLogs(prevLogs => {
-        const callId = parseInt(callUpdate.id);
+        const callId = callUpdate.id; // Keep as string
         const existingIndex = prevLogs.findIndex(call => call.id === callId);
         
         if (existingIndex >= 0) {
@@ -271,7 +271,7 @@ const CallConsole: React.FC = () => {
   }, [fetchData]);
 
   // Function to handle call selection
-  const handleCallSelect = async (callId: number) => {
+  const handleCallSelect = async (callId: string) => {
     if (selectedCallId === callId) {
       // If same call is clicked, deselect it
       setSelectedCallId(null);
@@ -321,8 +321,8 @@ const CallConsole: React.FC = () => {
         {/* Center Column - Live Calls */}
         <div className="flex-1 min-w-0">
           <LiveCalls
-            selectedCallId={selectedCallId ? selectedCallId.toString() : null}
-            onCallSelect={(callId: string) => handleCallSelect(parseInt(callId))}
+            selectedCallId={selectedCallId}
+            onCallSelect={handleCallSelect}
           />
         </div>
 

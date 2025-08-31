@@ -3,7 +3,7 @@ import api from '@services/api';
 
 
 export interface CallLog {
-  id: number;
+  id: string;
   callerNumber: string;
   callerName: string | null;
   startTime: string;
@@ -47,7 +47,7 @@ export interface ExtensionChange {
 }
 
 export interface CallDetails {
-  id: number;
+  id: string;
   uniqueid: string;
   linkedid: string | null;
   channel: string | null;
@@ -144,9 +144,22 @@ class CallLogService {
     return response.data;
   }
 
-  async getCallDetails(id: number): Promise<CallDetails> {
-    const response = await api.get<CallDetails>(`/calls/${id}/details`);
-    return response.data;
+  async getCallDetails(id: string): Promise<CallDetails> {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: CallDetails;
+      }>(`/calls/${id}/details`);
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('API returned error');
+      }
+    } catch (error) {
+      console.error('Error fetching call details:', error);
+      throw error;
+    }
   }
 
  

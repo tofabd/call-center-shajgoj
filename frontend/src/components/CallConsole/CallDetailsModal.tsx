@@ -3,7 +3,7 @@ import { ShoppingBag, Clock, User, Hash, X, PhoneOutgoing, PhoneIncoming } from 
 import { callLogService, type CallDetails as ApiCallDetails } from '@services/callLogService';
 
 interface CallDetailsProps {
-  selectedCallId: number | null;
+  selectedCallId: string | null;
   isOpen: boolean;
   onClose: () => void;
   isManualSelection: boolean; // New prop to distinguish manual vs auto selection
@@ -113,15 +113,17 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
     }
   }, [selectedCallId, isOpen, isManualSelection]);
 
-  // Listen for real-time call status updates - ONLY for manually selected calls
+  // Listen for real-time call status updates via Socket.IO
   useEffect(() => {
-    if (!selectedCallId || !window.Echo || !isManualSelection) return;
+    if (!selectedCallId || !isManualSelection) return;
 
-    console.log('🔔 CallDetails: Setting up Echo listener for manually selected call ID:', selectedCallId);
+    // Get socket instance (assuming it's available globally or through context)
+    const socket = (window as any).socket;
+    if (!socket) return;
+
+    console.log('🔔 CallDetails: Setting up Socket.IO listener for manually selected call ID:', selectedCallId);
     
-    const channel = window.Echo.channel('call-console');
-    
-    const handleCallUpdate = (data: { id: number; status: string; duration?: number; [key: string]: unknown }) => {
+    const handleCallUpdate = (data: { id: string; status: string; duration?: number; [key: string]: unknown }) => {
       console.log('🔔 CallDetails: Received real-time update:', data);
       
       // Only update if this update is for the currently selected call
@@ -141,11 +143,11 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
       }
     };
 
-    channel.listen('.call-updated', handleCallUpdate);
+    socket.on('call-updated', handleCallUpdate);
 
     return () => {
-      console.log('🧹 CallDetails: Cleaning up Echo listener');
-      // Note: We don't leave the channel as other components might be using it
+      console.log('🧹 CallDetails: Cleaning up Socket.IO listener');
+      socket.off('call-updated', handleCallUpdate);
     };
   }, [selectedCallId, isManualSelection]);
 

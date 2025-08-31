@@ -22,10 +22,10 @@ interface IndividualCall {
 
 interface CallHistoryProps {
   callLogs: IndividualCall[];
-  selectedCallId: number | null;
+  selectedCallId: string | null;
   loading: boolean;
   error: string | null;
-  onCallSelect: (callId: number) => void;
+  onCallSelect: (callId: string) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
