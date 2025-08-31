@@ -161,7 +161,7 @@ Support: 20
 ## 🔄 Integration with AMI
 
 ### Real-time Status Updates
-Extensions integrate seamlessly with the AMI listener system:
+Extensions integrate seamlessly with the managed AMI service:
 
 1. **Initial State**: All extensions start as "offline"
 2. **AMI Detection**: When agents register SIP extensions, AMI detects them
@@ -172,7 +172,7 @@ Extensions integrate seamlessly with the AMI listener system:
 ```mermaid
 graph TD
     A[Agent Registers SIP Extension] --> B[Asterisk Generates ExtensionStatus Event]
-    B --> C[AMI Listener Processes Event]
+  B --> C[Managed AMI Service Processes Event]
     C --> D[Extension Status Updated in MongoDB]
     D --> E[Broadcast Event Sent to Frontend]
     E --> F[Frontend Updates Extension Display]
@@ -331,7 +331,7 @@ After running the extension seeder, verify:
 - ✅ Random agent names assigned
 - ✅ Proper department categorization
 - ✅ Extensions appear in frontend
-- ✅ AMI listener can update statuses
+- ✅ Managed AMI service can update statuses
 - ✅ Real-time updates work in browser
 
 Your call center extension system is now ready for use! 🚀

@@ -35,6 +35,6 @@ echo
 echo "Extension seeding completed!"
 echo "You can now:"
 echo "- Start the API server: npm start"
-echo "- Start the AMI listener: npm run ami-process"
+echo "- Start the Managed AMI Service: npm run managed-ami (alias: npm run ami-process)"
 echo "- View extensions in the frontend Extension Management page"
 echo

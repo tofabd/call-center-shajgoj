@@ -8,7 +8,7 @@ set ENABLE_AMI_QUERY_SERVICE=true
 
 :: Display configuration
 echo Configuration:
-echo - AMI Listener: %ENABLE_AMI_LISTENER%
+echo - AMI functionality enabled: %ENABLE_AMI_LISTENER%
 echo - AMI Query Service: %ENABLE_AMI_QUERY_SERVICE%
 echo - Query Interval: 30 seconds
 echo.

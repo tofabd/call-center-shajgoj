@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import mongoose from 'mongoose';
-import AmiListener from '../src/services/AmiListener.js';
+import { initializeAmiService, stopAmiService, isAmiServiceRunning } from '../src/services/AmiServiceInstance.js';
 import broadcast from '../src/services/BroadcastService.js';
 import Log from '../src/services/LogService.js';
 import dotenv from 'dotenv';
@@ -18,27 +18,26 @@ class AmiProcess {
 
   async start() {
     try {
-      Log.info('🚀 Starting AMI Listener Process...');
+  Log.info('🚀 Starting Managed AMI Service process...');
       
       // Connect to MongoDB
       const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/call_center_shajgoj';
       this.mongoConnection = await mongoose.connect(MONGODB_URI);
       Log.info('✅ Connected to MongoDB', { uri: MONGODB_URI });
 
-      // Start AMI listener
-      this.amiListener = new AmiListener();
-      await this.amiListener.start();
-      Log.info('✅ AMI Listener started successfully');
+  // Initialize managed AMI service
+  await initializeAmiService();
+  Log.info('✅ Managed AMI Service initialized successfully');
 
       // Setup process monitoring
       this.setupProcessMonitoring();
       this.setupEventLogging();
       this.setupGracefulShutdown();
 
-      Log.info('🎧 AMI Listener is running. Process monitoring active.');
+  Log.info('🎧 Managed AMI Service is running. Process monitoring active.');
 
     } catch (error) {
-      Log.error('❌ Failed to start AMI listener process', { 
+  Log.error('❌ Failed to start managed AMI service process', { 
         error: error.message, 
         stack: error.stack 
       });
@@ -54,7 +53,7 @@ class AmiProcess {
           pid: process.pid,
           uptime: Math.floor(process.uptime()),
           memory: process.memoryUsage(),
-          connected: this.amiListener?.connected || false
+    connected: isAmiServiceRunning() || false
         });
       }
     }, 30000); // Every 30 seconds
@@ -122,10 +121,13 @@ class AmiProcess {
         clearInterval(this.heartbeatInterval);
       }
 
-      // Stop AMI listener
-      if (this.amiListener) {
-        Log.info('🔌 Stopping AMI listener...');
-        this.amiListener.stop();
+  // Stop managed AMI service
+      try {
+        Log.info('🔌 Stopping managed AMI service...');
+        await stopAmiService();
+        Log.info('🔌 Managed AMI service stopped');
+      } catch (err) {
+        Log.error('Error stopping managed AMI service', { error: err.message });
       }
 
       // Cleanup broadcast service
@@ -155,8 +157,7 @@ class AmiProcess {
       pid: process.pid,
       memory: process.memoryUsage(),
       ami: {
-        connected: this.amiListener?.connected || false,
-        reconnectAttempts: this.amiListener?.reconnectAttempts || 0
+        connected: isAmiServiceRunning() || false
       },
       mongodb: {
         connected: mongoose.connection.readyState === 1
@@ -172,3 +173,32 @@ amiProcess.start();
 
 // Export for potential monitoring integrations
 export default amiProcess;
+
+// Ensure top-level signals await the instance shutdown (avoid double-handling)
+let topLevelShuttingDown = false;
+const topLevelSignals = ['SIGINT', 'SIGTERM', 'SIGQUIT'];
+topLevelSignals.forEach((sig) => {
+  process.on(sig, async () => {
+    if (topLevelShuttingDown) {
+      Log.warn('Top-level shutdown already in progress...');
+      return;
+    }
+
+    topLevelShuttingDown = true;
+    Log.info(`Top-level received ${sig}, delegating to AmiProcess.gracefulShutdown()`);
+    try {
+      // Wait for gracefulShutdown to finish if available
+      if (typeof amiProcess.gracefulShutdown === 'function') {
+        await amiProcess.gracefulShutdown(0);
+      } else {
+        // Fallback: attempt to stop the managed service
+        await stopAmiService();
+      }
+    } catch (err) {
+      Log.error('Error during top-level shutdown', { error: err?.message || err });
+    } finally {
+      // Ensure process exits if gracefulShutdown didn't
+      setTimeout(() => process.exit(0), 5000).unref();
+    }
+  });
+});

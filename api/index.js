@@ -9,8 +9,8 @@ import authRoutes from './src/routes/authRoutes.js';
 import callRoutes from './src/routes/callRoutes.js';
 import extensionRoutes from './src/routes/extensionRoutes.js';
 import { errorHandler, notFound } from './src/middleware/errorHandler.js';
-import AmiListener from './src/services/AmiListener.js';
 
+import mongoose from 'mongoose';
 import { initializeAmiService, stopAmiService } from './src/services/AmiServiceInstance.js';
 import broadcast from './src/services/BroadcastService.js';
 import { createComponentLogger } from './src/config/logging.js';
@@ -258,50 +258,84 @@ httpServer.listen(PORT, () => {
       initializeAmiService().catch(err => {
         logger.error('Failed to start AmiService', { error: err.message, stack: err.stack });
       });
-      
-      // Graceful shutdown for AmiService
-      process.on('SIGTERM', () => {
-        logger.info('SIGTERM received, shutting down AmiService gracefully');
-        stopAmiService();
-      });
-      
-      process.on('SIGINT', () => {
-        logger.info('SIGINT received, shutting down AmiService gracefully');
-        stopAmiService();
-      });
-    } else {
-      // Fallback to old AmiListener
-      logger.info('Starting legacy AMI Listener service');
-      const amiListener = new AmiListener();
-      amiListener.start().catch(err => {
-        logger.error('Failed to start AMI Listener', { error: err.message, stack: err.stack });
-      });
-      
-      // Graceful shutdown for AMI listener
-      process.on('SIGTERM', () => {
-        logger.info('SIGTERM received, shutting down AMI listener gracefully');
-        amiListener.stop();
-      });
-      
-      process.on('SIGINT', () => {
-        logger.info('SIGINT received, shutting down AMI listener gracefully');
-        amiListener.stop();
-      });
     }
   } else {
-    logger.info('AMI Listener is disabled via environment variable');
+    logger.info('AMI functionality is disabled via environment variable');
   }
 
 
 });
 
-// Graceful shutdown
+// Centralized graceful shutdown that awaits async cleanup
+let isShuttingDown = false;
+async function gracefulShutdown(exitCode = 0) {
+  if (isShuttingDown) {
+    logger.warn('Shutdown already in progress');
+    return;
+  }
+
+  isShuttingDown = true;
+  logger.info('Initiating graceful shutdown...');
+
+  try {
+    // Stop AMI service if running
+    try {
+      logger.info('Stopping AmiService (if running)...');
+      await stopAmiService();
+      logger.info('AmiService stopped');
+    } catch (err) {
+      logger.error('Error stopping AmiService', { error: err?.message || err });
+    }
+
+    // Clean up broadcast service if available
+    try {
+      broadcast.cleanup();
+      logger.info('Broadcast service cleaned up');
+    } catch (err) {
+      logger.debug('Broadcast cleanup not available or failed', { error: err?.message || err });
+    }
+
+    // Close Socket.IO server (stop accepting new connections)
+    try {
+      await new Promise((resolve) => io.close(() => resolve()));
+      logger.info('Socket.IO closed');
+    } catch (err) {
+      logger.warn('Error closing Socket.IO', { error: err?.message || err });
+    }
+
+    // Close HTTP server
+    try {
+      await new Promise((resolve, reject) => httpServer.close((err) => (err ? reject(err) : resolve())));
+      logger.info('HTTP server closed');
+    } catch (err) {
+      logger.warn('Error closing HTTP server', { error: err?.message || err });
+    }
+
+    // Close MongoDB connection if present
+    try {
+      if (mongoose && mongoose.connection && mongoose.connection.readyState === 1) {
+        logger.info('Closing MongoDB connection...');
+        await mongoose.connection.close();
+        logger.info('MongoDB connection closed');
+      }
+    } catch (err) {
+      logger.warn('Error closing MongoDB connection', { error: err?.message || err });
+    }
+
+    logger.info('Graceful shutdown complete');
+    process.exit(exitCode);
+  } catch (err) {
+    logger.error('Unexpected error during graceful shutdown', { error: err?.message || err });
+    process.exit(1);
+  }
+}
+
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
+  logger.info('SIGTERM received');
+  gracefulShutdown(0);
 });
 
 process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
+  logger.info('SIGINT received');
+  gracefulShutdown(0);
 });

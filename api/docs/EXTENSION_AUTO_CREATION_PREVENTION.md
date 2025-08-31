@@ -56,7 +56,7 @@ extensionSchema.statics.updateStatus = async function(extension, statusCode, dev
 };
 ```
 
-### 2. Enhanced AMI Listener (`src/services/AmiListener.js`)
+### 2. Managed AMI Service (`src/services/AmiService.js`)
 
 #### Added Validation:
 ```javascript

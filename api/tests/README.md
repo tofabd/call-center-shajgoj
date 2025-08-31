@@ -16,7 +16,7 @@ This directory contains all test files for the Call Center Shajgoj API.
 - **`test-database-driven.js`** - Tests database-driven functionality
 - **`test-cleanup-debug.js`** - Tests cleanup and debug operations
 
-### AMI Listener Tests
+### Managed AMI Service Tests
 - **`listen-to-ami.js`** - Tests AMI event listening functionality
 
 ## Running Tests

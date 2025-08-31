@@ -108,7 +108,7 @@ System automatically falls back to legacy service.
 
 ```
 api/src/services/
-├── AmiListener.js (DEPRECATED - Keep for fallback)
+├── AmiListener.js (DEPRECATED - removed; use AmiServiceInstance.js)
 ├── AmiService.js (NEW - Main AMI service) ✅
 ├── AmiConnectionManager.js (NEW - Connection layer) ✅
 ├── AmiEventProcessor.js (NEW - Event processing layer) ✅

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting Call Center AMI Listener..."
+echo "Starting Call Center Managed AMI Service..."
 echo "====================================="
 
 # Get script directory
@@ -26,8 +26,8 @@ if [ ! -f ".env" ]; then
     echo "WARNING: .env file not found. Using default values."
 fi
 
-# Start the AMI listener
-echo "Starting AMI Listener Process..."
+# Start the managed AMI service
+echo "Starting Managed AMI Service process..."
 echo "Press Ctrl+C to stop"
 echo
 
@@ -46,4 +46,4 @@ else
 fi
 
 echo
-echo "AMI Listener stopped."
+echo "Managed AMI Service stopped."

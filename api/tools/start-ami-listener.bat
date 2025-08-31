@@ -1,5 +1,5 @@
 @echo off
-echo Starting Call Center AMI Listener...
+echo Starting Call Center Managed AMI Service...
 echo =====================================
 
 cd /d "%~dp0"
@@ -23,13 +23,13 @@ if not exist ".env" (
     echo WARNING: .env file not found. Using default values.
 )
 
-REM Start the AMI listener
-echo Starting AMI Listener Process...
+REM Start the managed AMI service
+echo Starting Managed AMI Service process...
 echo Press Ctrl+C to stop
 echo.
 
 node ami-listener-process.js
 
 echo.
-echo AMI Listener stopped.
+echo Managed AMI Service stopped.
 pause

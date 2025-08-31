@@ -170,7 +170,7 @@ async function seedExtensions() {
 
     console.log('\n🎉 Extension seeding completed successfully!');
     console.log('\n💡 Next steps:');
-    console.log('- Use the AMI listener to update extension status in real-time');
+  console.log('- Use the Managed AMI Service to update extension status in real-time');
     console.log('- Extensions will automatically update when agents register/unregister');
     console.log('- Check the frontend Extension Management page to view all extensions');
 

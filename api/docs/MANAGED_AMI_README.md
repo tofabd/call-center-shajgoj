@@ -94,14 +94,13 @@ if (process.env.USE_AMI_SERVICE === 'true') {
     logger.error('Failed to start AMI Service', { error: err.message });
   });
 } else {
-  // Fallback to legacy AmiListener
-  const amiListener = new AmiListener();
+  // Legacy AmiListener has been removed. Use the managed AmiService via AmiServiceInstance.
 }
 ```
 
 ## 📊 **Performance Metrics**
 
-| Metric | Legacy AmiListener | Managed AMI Service | Improvement |
+| Metric | Legacy Implementation | Managed AMI Service | Improvement |
 |--------|-------------------|-------------------|-------------|
 | **Connection Time** | 5-30 seconds | <2 seconds | **60%+ faster** |
 | **Success Rate** | ~70% | 99%+ | **30%+ better** |

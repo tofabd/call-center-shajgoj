@@ -60,13 +60,13 @@ ENABLE_AMI_LISTENER=true
 
 ## Usage
 
-### 1. Start API Server with AMI Listener
+### 1. Start API Server with Managed AMI Service
 ```bash
 cd /path/to/api
 npm run dev
 ```
 
-### 2. Start AMI Listener Only (for testing)
+### 2. Start Managed AMI Service Only (for testing)
 ```bash
 cd /path/to/api
 npm run listen-ami
@@ -120,7 +120,7 @@ curl http://localhost:3000/api/extensions/statistics
 
 ### Monitor AMI Events
 ```bash
-# Terminal 1: Start AMI listener
+# Terminal 1: Start managed AMI service
 npm run listen-ami
 
 # Terminal 2: Make a test call through Asterisk
@@ -156,7 +156,7 @@ curl http://localhost:3000/api/extensions | jq
 # Enable detailed logging
 NODE_ENV=development npm run dev
 
-# Or start AMI listener separately for focused debugging
+# Or start the managed AMI service separately for focused debugging
 npm run listen-ami
 ```
 
@@ -176,7 +176,7 @@ npm run listen-ami
 ## Architecture
 
 ```
-Asterisk AMI → AmiListener → MongoDB Models → REST API → Frontend
+Asterisk AMI → AmiService → MongoDB Models → REST API → Frontend
      ↓              ↓              ↓            ↓         ↓
    Events      Parse & Map    Store Data   Expose API   Poll Data
 ```

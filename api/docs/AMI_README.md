@@ -48,7 +48,7 @@ AMI_PORT=5038
 AMI_USERNAME=admin
 AMI_PASSWORD=Tractor@0152
 
-# Enable AMI Listener
+# Enable Managed AMI Service
 ENABLE_AMI_LISTENER=true
 
 # Logging Level (error, warn, info, debug)
@@ -77,7 +77,7 @@ nano .env
 npm run seed
 ```
 
-### 4. Start AMI Listener
+### 4. Start the Managed AMI Service
 
 #### Option 1: Simple Start
 ```bash
@@ -140,7 +140,7 @@ chmod +x start-ami-listener.sh
 ## 🔧 API Integration
 
 ### Real-time Events
-The AMI listener broadcasts real-time events that can be consumed by your application:
+The managed AMI service broadcasts real-time events that can be consumed by your application:
 
 ```javascript
 import broadcast from './services/BroadcastService.js';
@@ -159,7 +159,7 @@ broadcast.onExtensionStatusUpdated((extension) => {
 ```
 
 ### REST API Integration
-The AMI listener works alongside the main API server. Calls and extensions can be queried via REST endpoints while AMI provides real-time updates.
+The managed AMI service works alongside the main API server. Calls and extensions can be queried via REST endpoints while AMI provides real-time updates.
 
 ## 🔍 Monitoring & Logging
 
@@ -213,7 +213,7 @@ Output:
 
 #### Successful Connection
 ```
-[2024-08-25T10:30:00.000Z] INFO: 🚀 Starting AMI Listener Process...
+[2024-08-25T10:30:00.000Z] INFO: 🚀 Starting Managed AMI Service process...
 [2024-08-25T10:30:01.000Z] INFO: ✅ Connected to MongoDB
 [2024-08-25T10:30:02.000Z] INFO: 🔌 Connecting to Asterisk AMI at 103.177.125.83:5038...
 [2024-08-25T10:30:03.000Z] INFO: ✅ AMI Authentication successful
@@ -248,7 +248,7 @@ For production deployment, consider using a process manager like PM2:
 # Install PM2
 npm install -g pm2
 
-# Start AMI listener with PM2
+# Start Managed AMI Service with PM2
 pm2 start ami-listener-process.js --name "ami-listener"
 
 # Monitor
@@ -290,7 +290,7 @@ The application automatically creates optimized indexes:
 
 ## 🤝 Integration with Frontend
 
-The AMI listener provides real-time data that can be consumed by WebSocket connections in your frontend application. See the existing `extensionRealtimeService.ts` for implementation patterns.
+The managed AMI service provides real-time data that can be consumed by WebSocket connections in your frontend application. See the existing `extensionRealtimeService.ts` for implementation patterns.
 
 ## 📞 Supported Call Flows
 
@@ -310,9 +310,9 @@ The AMI listener provides real-time data that can be consumed by WebSocket conne
 3. Real-time status broadcasting to frontend
 
 ## 🔗 Related Files
-- `services/AmiListener.js` - Main AMI event processor
+-- `services/AmiService.js` - Managed AMI event processor (recommended)
 - `services/BroadcastService.js` - Real-time event broadcasting
 - `services/LogService.js` - Comprehensive logging
 - `models/` - Database schema definitions
-- `listen-to-ami.js` - Simple AMI listener (legacy)
+- `tests/listen-to-ami.js` - Test helper that initializes the managed AMI service
 - `ami-listener-process.js` - Production-ready process manager
