@@ -16,6 +16,7 @@ export interface Extension {
   updatedAt: string;
   created_at: string; // For backward compatibility
   updated_at: string; // For backward compatibility
+  statusLabel?: string; // Human-readable status label
 }
 
 export interface ExtensionStats {
@@ -110,6 +111,41 @@ export const extensionService = {
     const response = await api.get('/extensions');
     const extensions = response.data.data;
     
+    // Status label mapping based on device state
+    const getStatusLabel = (deviceState: string, statusCode: number): string => {
+      const deviceStateMap: Record<string, string> = {
+        'NOT_INUSE': 'Free',
+        'INUSE': 'On Call',
+        'BUSY': 'Busy',
+        'UNAVAILABLE': 'Offline',
+        'INVALID': 'Offline',
+        'RINGING': 'Ringing',
+        'RING*INUSE': 'Call Waiting',
+        'ONHOLD': 'On Hold',
+        'UNKNOWN': 'Unknown'
+      };
+
+      // Use device state if available
+      if (deviceState && deviceStateMap[deviceState]) {
+        return deviceStateMap[deviceState];
+      }
+
+      // Fallback to status code mapping
+      const statusCodeMap: Record<number, string> = {
+        0: 'Free',
+        1: 'On Call',
+        2: 'Busy',
+        3: 'Offline',
+        4: 'Ringing',
+        5: 'Call Waiting',
+        6: 'On Hold',
+        7: 'On Call + On Hold',
+        8: 'Ringing + On Hold'
+      };
+
+      return statusCodeMap[statusCode] || 'Unknown';
+    };
+
     // Map MongoDB response to frontend interface for backward compatibility
     const mappedExtensions = extensions.map((ext: Record<string, unknown>) => ({
       ...ext,
@@ -120,7 +156,9 @@ export const extensionService = {
       status_code: ext.status_code || 0,
       device_state: ext.device_state || 'NOT_INUSE',
       last_status_change: ext.last_status_change || null,
-      department: ext.department || null
+      department: ext.department || null,
+      // Add human-readable status label
+      statusLabel: getStatusLabel(ext.device_state as string || 'NOT_INUSE', ext.status_code as number || 0)
     }));
     
     return mappedExtensions;

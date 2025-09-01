@@ -494,26 +494,36 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 {sortedCalls.map((call) => (
                   <div
                     key={`${call.id || call._id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
-                    className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
-                      selectedCallId === call.id
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
-                        : (() => {
-                            const callStatus = call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing';
-                            const direction = call.direction;
-                            
-                            if (['answered', 'in_progress'].includes(callStatus)) {
-                              return direction === 'outgoing'
-                                ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
-                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
-                            }
-                            if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(callStatus)) {
-                              return direction === 'outgoing'
-                                ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
-                                : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
-                            }
-                            return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
-                          })()
-                    }`}
+                     className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
+                       selectedCallId === call.id
+                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                         : (() => {
+                             const callStatus = call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing';
+                             const direction = call.direction;
+
+                             if (['answered', 'in_progress'].includes(callStatus)) {
+                               return direction === 'outgoing'
+                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
+                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
+                             }
+                             if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(callStatus)) {
+                               return direction === 'outgoing'
+                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
+                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
+                             }
+                             return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
+                           })()
+                     } ${
+                       (() => {
+                         const callStatus = call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing';
+                         const direction = call.direction;
+                         // Add ring effect for answered incoming calls (similar to online extensions)
+                         if (['answered', 'in_progress'].includes(callStatus) && direction === 'incoming') {
+                           return 'ring-1 ring-green-200 dark:ring-green-800/30';
+                         }
+                         return '';
+                       })()
+                     }`}
                     onClick={() => onCallSelect(call.id)}
                   >
                     {/* Main call info */}

@@ -311,19 +311,51 @@ const saveResultsToFile = (results) => {
         context: ext.context
       }))
     };
-    
+
     // Save parsed data
     const parsedFilename = `extensions-parsed-${timestamp}.json`;
     const parsedFilepath = path.join(OUTPUT_DIR, parsedFilename);
     const parsedJsonContent = JSON.stringify(parsedData, null, 2);
     fs.writeFileSync(parsedFilepath, parsedJsonContent, 'utf8');
+
+    // 3. Create sorted by status data
+    const sortedByStatus = [...realExtensions].sort((a, b) => {
+      if (a.statusCode !== b.statusCode) {
+        return a.statusCode - b.statusCode;
+      }
+      return parseInt(a.extension) - parseInt(b.extension);
+    });
+
+    const sortedData = {
+      metadata: {
+        extractedAt: new Date().toISOString(),
+        totalRealExtensions: sortedByStatus.length,
+        sortCriteria: "By status code, then by extension number",
+        sourceQuery: results.metadata.queryType,
+        sourceTimestamp: results.metadata.queryEndTime
+      },
+      extensions: sortedByStatus.map(ext => ({
+        extension: ext.extension,
+        status: ext.statusText,
+        statusCode: parseInt(ext.statusCode),
+        context: ext.context
+      }))
+    };
+
+    // Save sorted data
+    const sortedFilename = `extensions-sorted-by-status-${timestamp}.json`;
+    const sortedFilepath = path.join(OUTPUT_DIR, sortedFilename);
+    const sortedJsonContent = JSON.stringify(sortedData, null, 2);
+    fs.writeFileSync(sortedFilepath, sortedJsonContent, 'utf8');
     
     console.log('📄 Results saved to files:');
     console.log(`📁 Raw Data: ${rawFilepath}`);
     console.log(`📊 Raw Size: ${fs.statSync(rawFilepath).size} bytes`);
     console.log(`📁 Parsed Data: ${parsedFilepath}`);
     console.log(`📊 Parsed Size: ${fs.statSync(parsedFilepath).size} bytes`);
-    
+    console.log(`📁 Sorted Data: ${sortedFilepath}`);
+    console.log(`📊 Sorted Size: ${fs.statSync(sortedFilepath).size} bytes`);
+
     return {
       rawFile: {
         filename: rawFilename,
@@ -334,6 +366,11 @@ const saveResultsToFile = (results) => {
         filename: parsedFilename,
         filepath: parsedFilepath,
         fileSize: fs.statSync(parsedFilepath).size
+      },
+      sortedFile: {
+        filename: sortedFilename,
+        filepath: sortedFilepath,
+        fileSize: fs.statSync(sortedFilepath).size
       }
     };
     
@@ -367,14 +404,14 @@ const printSummary = (results) => {
   console.log(`📞 Total Extensions: ${results.summary.totalExtensions}`);
   console.log(`✅ Query Successful: ${results.summary.querySuccessful}`);
   console.log(`🏁 Completion Event: ${results.summary.completionEventReceived}`);
-  
+
   // Filter and show real extensions only
   const realExtensions = filterRealExtensions(results.extensions);
-  
+
   if (realExtensions.length > 0) {
     console.log('\n📞 REAL USER EXTENSIONS (3-5 digits):');
     console.log('====================================');
-    
+
     realExtensions.forEach((ext, index) => {
       console.log(`${index + 1}. Extension: ${ext.extension}`);
       console.log(`   Status: ${ext.statusText}`);
@@ -383,20 +420,35 @@ const printSummary = (results) => {
       console.log('');
     });
   }
-  
+
   // Show status distribution for real extensions only
   const realStatusCounts = {};
   realExtensions.forEach(ext => {
     const status = ext.statusText;
     realStatusCounts[status] = (realStatusCounts[status] || 0) + 1;
   });
-  
+
   console.log('📊 REAL EXTENSION STATUS DISTRIBUTION:');
   console.log('=====================================');
   Object.entries(realStatusCounts).forEach(([status, count]) => {
     console.log(`${status}: ${count}`);
   });
-  
+
+  // Sort extensions by status and display
+  const sortedByStatus = [...realExtensions].sort((a, b) => {
+    // Sort by status code first, then by extension number
+    if (a.statusCode !== b.statusCode) {
+      return a.statusCode - b.statusCode;
+    }
+    return parseInt(a.extension) - parseInt(b.extension);
+  });
+
+  console.log('\n📞 EXTENSIONS SORTED BY STATUS:');
+  console.log('===============================');
+  sortedByStatus.forEach((ext, index) => {
+    console.log(`${index + 1}. Extension: ${ext.extension} - Status: ${ext.statusText} (${ext.statusCode})`);
+  });
+
   console.log('\n📋 ALL EXTENSIONS BY CONTEXT:');
   console.log('=============================');
   const contextCounts = {};
@@ -404,7 +456,7 @@ const printSummary = (results) => {
     const context = ext.context;
     contextCounts[context] = (contextCounts[context] || 0) + 1;
   });
-  
+
   Object.entries(contextCounts).forEach(([context, count]) => {
     console.log(`${context}: ${count} extensions`);
   });
@@ -444,6 +496,7 @@ const main = async () => {
       console.log('\n✅ Script completed successfully!');
       console.log(`📄 Raw data saved to: ${fileInfo.rawFile.filename}`);
       console.log(`📄 Parsed data saved to: ${fileInfo.parsedFile.filename}`);
+      console.log(`📄 Sorted data saved to: ${fileInfo.sortedFile.filename}`);
     } else {
       console.log('\n⚠️  Script completed but failed to save results to files');
     }

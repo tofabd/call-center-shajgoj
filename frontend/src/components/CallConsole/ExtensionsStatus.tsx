@@ -393,6 +393,66 @@ const ExtensionsStatus: React.FC = () => {
     }
   };
 
+  const getCircleColor = (status: string) => {
+    switch (status) {
+      case 'online':
+        return 'bg-green-300';
+      case 'offline':
+        return 'bg-red-300';
+      case 'unknown':
+        return 'bg-yellow-300';
+      default:
+        return 'bg-gray-300';
+    }
+  };
+
+  const getBackgroundColor = (status: string) => {
+    switch (status) {
+      case 'online':
+        return 'bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-green-300 dark:border-green-700';
+      case 'offline':
+        return 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700';
+      case 'unknown':
+        return 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-300 dark:border-yellow-700';
+      default:
+        return 'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 border-gray-200 dark:border-gray-600';
+    }
+  };
+
+  const getDeviceStateLabel = (deviceState: string, statusCode: number): string => {
+    // First try to map by device state
+    const deviceStateMap: Record<string, string> = {
+      'NOT_INUSE': 'Free',
+      'INUSE': 'On Call',
+      'BUSY': 'Busy',
+      'UNAVAILABLE': 'Offline',
+      'INVALID': 'Offline',
+      'RINGING': 'Ringing',
+      'RING*INUSE': 'Call Waiting',
+      'ONHOLD': 'On Hold',
+      'UNKNOWN': 'Unknown'
+    };
+
+    if (deviceState && deviceStateMap[deviceState]) {
+      return deviceStateMap[deviceState];
+    }
+
+    // Fallback to status code mapping
+    const statusCodeMap: Record<number, string> = {
+      0: 'Free',
+      1: 'On Call',
+      2: 'Busy',
+      3: 'Offline',
+      4: 'Ringing',
+      5: 'Call Waiting',
+      6: 'On Hold',
+      7: 'On Call + On Hold',
+      8: 'Ringing + On Hold'
+    };
+
+    return statusCodeMap[statusCode] || 'Unknown';
+  };
+
   // Sort extensions and filter out AMI-generated codes and unknown status
   const sortedExtensions = [...extensions]
     .filter(extension => {
@@ -540,51 +600,61 @@ const ExtensionsStatus: React.FC = () => {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
             <div className="p-4 space-y-3">
-              {sortedExtensions.map((extension) => (
-                <div 
-                  key={extension.id} 
-                  className={`flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-300 min-h-[80px] cursor-pointer ${
-                    extension.status === 'online' ? 'ring-2 ring-green-200 dark:ring-green-800/30' : ''
-                  }`}
-                  onClick={() => handleExtensionClick(extension)}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
-                          {extension.extension}
-                        </span>
+               {sortedExtensions.map((extension) => (
+                 <div
+                   key={extension.id}
+                   className={`flex items-center justify-between p-4 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] cursor-pointer ${getBackgroundColor(extension.status)} ${
+                     extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 ? 'ring-1 ring-green-200 dark:ring-green-800/30' : ''
+                   }`}
+                   onClick={() => handleExtensionClick(extension)}
+                 >
+                   <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0 relative">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-105 shadow-md ${
+                          extension.status === 'online'
+                            ? 'bg-gradient-to-br from-emerald-400 to-green-500 shadow-emerald-200/50'
+                            : extension.status === 'offline'
+                            ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
+                            : extension.status === 'unknown'
+                            ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
+                            : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
+                        }`}>
+                          <span className="text-white font-bold text-sm drop-shadow-md">
+                            {extension.extension}
+                          </span>
+                        </div>
+
+                        {/* Subtle pulse effect for online (not free) */}
+                        {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
+                          <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-15"></div>
+                        )}
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {extension.agent_name || `Extension ${extension.extension}`}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Extension {extension.extension}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                      {getStatusIcon(extension.status)} {extension.status}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {extension.device_state}
-                    </div>
-                    {extension.last_status_change && (
-                      <div className={`text-xs font-medium ${
-                        extension.status === 'online' 
-                          ? 'text-green-600 dark:text-green-400' 
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {getDurationDisplay(extension)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                     <div className="flex flex-col">
+                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                         {extension.agent_name || `Extension ${extension.extension}`}
+                       </div>
+                        <div className={`text-xs font-medium ${getStatusColor(extension.status)}`}>
+                          {getDeviceStateLabel(extension.device_state, extension.status_code)}
+                        </div>
+                     </div>
+                   </div>
+
+                   <div className="text-right flex flex-col">
+                     <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                       {getStatusIcon(extension.status)} {extension.status}
+                     </div>
+                     {extension.last_status_change && (
+                       <div className={`text-xs font-medium ${
+                         extension.status === 'online'
+                           ? 'text-blue-600 dark:text-blue-400'
+                           : 'text-orange-600 dark:text-orange-400'
+                       }`}>
+                         {getDurationDisplay(extension)}
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               ))}
             </div>
           </div>
         )}
