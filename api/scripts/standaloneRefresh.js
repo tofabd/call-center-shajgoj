@@ -331,30 +331,46 @@ const connectDatabase = async () => {
 };
 
 /**
- * Update database extensions with AMI data
+ * Update database extensions with AMI data - Creates missing extensions automatically
  */
 const updateDatabaseExtensions = async (amiExtensions) => {
   const stats = {
     updated: 0,
     unchanged: 0,
-    notFound: 0,
+    created: 0,
     errors: 0,
     markedOffline: 0
   };
   
-  console.log('\n📊 Starting database updates...');
+  console.log('\n📊 Starting database updates with auto-creation...');
   
-  // 1. Update extensions found in AMI
+  // 1. Update or create extensions found in AMI
   for (const amiExt of amiExtensions) {
     try {
       const dbExtension = await Extension.findOne({ 
-        extension: amiExt.extension, 
-        is_active: true 
+        extension: amiExt.extension
       });
       
       if (!dbExtension) {
-        console.log(`⚠️ Extension ${amiExt.extension} not found in database or inactive`);
-        stats.notFound++;
+        // Extension not found - create new one
+        const newExt = await Extension.createOrUpdateFromAMI(
+          amiExt.extension,
+          amiExt.statusCode,
+          amiExt.deviceState
+        );
+        
+        if (newExt) {
+          console.log(`✨ Created new extension ${amiExt.extension}: ${amiExt.statusCode}/${amiExt.deviceState}`);
+          stats.created++;
+        } else {
+          stats.errors++;
+        }
+        continue;
+      }
+      
+      // Extension exists - check if active
+      if (!dbExtension.is_active) {
+        console.log(`🚫 Extension ${amiExt.extension} is inactive - skipping update`);
         continue;
       }
       
@@ -390,7 +406,7 @@ const updateDatabaseExtensions = async (amiExtensions) => {
       }
       
     } catch (error) {
-      console.error(`❌ Error updating extension ${amiExt.extension}:`, error.message);
+      console.error(`❌ Error processing extension ${amiExt.extension}:`, error.message);
       stats.errors++;
     }
   }
@@ -461,9 +477,9 @@ export const performExtensionRefresh = async () => {
       timestamp: new Date().toISOString(),
       duration: `${duration}ms`,
       amiExtensions: amiExtensions.length,
+      created: updateStats.created,
       updated: updateStats.updated,
       unchanged: updateStats.unchanged,
-      notFound: updateStats.notFound,
       markedOffline: updateStats.markedOffline,
       errors: updateStats.errors,
       totalProcessed: amiExtensions.length + updateStats.markedOffline,
@@ -479,9 +495,9 @@ export const performExtensionRefresh = async () => {
     console.log('==================');
     console.log(`⏱️  Duration: ${results.duration}`);
     console.log(`📞 AMI Extensions Found: ${results.amiExtensions}`);
+    console.log(`✨ Created: ${results.created}`);
     console.log(`✅ Updated: ${results.updated}`);
     console.log(`📝 Unchanged: ${results.unchanged}`);
-    console.log(`⚠️  Not Found in DB: ${results.notFound}`);
     console.log(`🔴 Marked Offline: ${results.markedOffline}`);
     console.log(`❌ Errors: ${results.errors}`);
     console.log(`📊 Total Processed: ${results.totalProcessed}`);

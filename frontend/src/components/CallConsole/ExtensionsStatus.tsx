@@ -610,9 +610,9 @@ const ExtensionsStatus: React.FC = () => {
                  >
                    <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0 relative">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-md ${
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
                           extension.status === 'online'
-                            ? 'bg-gradient-to-br from-emerald-400 to-green-500 shadow-emerald-200/50'
+                            ? 'bg-gradient-to-br from-emerald-400 to-green-600 shadow-emerald-200/50'
                             : extension.status === 'offline'
                             ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
                             : extension.status === 'unknown'

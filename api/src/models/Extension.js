@@ -93,16 +93,16 @@ extensionSchema.index({ department: 1, is_active: 1 });
 extensionSchema.index({ last_status_change: -1 });
 extensionSchema.index({ last_seen: -1 });
 
-// STATUS UPDATE METHOD - ONLY UPDATES EXISTING ACTIVE EXTENSIONS
+// STATUS UPDATE METHOD - UPDATES EXISTING OR CREATES NEW EXTENSIONS
 extensionSchema.statics.updateStatus = async function(extension, statusCode, deviceState) {
   const now = new Date();
   
-  // Only update existing active extensions, never create new ones
+  // Check if extension exists
   const existingExtension = await this.findOne({ extension });
   
   if (!existingExtension) {
-    console.log(`⚠️ Extension ${extension} not found in database - skipping update`);
-    return null;
+    console.log(`📝 Extension ${extension} not found in database - creating new entry`);
+    return await this.createOrUpdateFromAMI(extension, statusCode, deviceState);
   }
   
   // Check if extension is active - don't update inactive extensions
@@ -111,7 +111,7 @@ extensionSchema.statics.updateStatus = async function(extension, statusCode, dev
     return null;
   }
   
-  // Update existing active extension only
+  // Update existing active extension
   return this.findOneAndUpdate(
     { extension },
     { 
@@ -125,6 +125,70 @@ extensionSchema.statics.updateStatus = async function(extension, statusCode, dev
       new: true
     }
   );
+};
+
+// AUTO-CREATE OR UPDATE METHOD - for AMI refresh process
+extensionSchema.statics.createOrUpdateFromAMI = async function(extension, statusCode, deviceState) {
+  const now = new Date();
+  
+  // Validate extension format
+  if (!/^\d{3,5}$/.test(extension)) {
+    console.log(`⚠️ Invalid extension format: ${extension} - skipping`);
+    return null;
+  }
+  
+  // Try to update existing extension first
+  const updated = await this.findOneAndUpdate(
+    { extension },
+    {
+      status_code: statusCode,
+      device_state: deviceState,
+      status: this.mapStatus(statusCode),
+      last_status_change: now,
+      last_seen: now,
+      is_active: true // Ensure AMI-found extensions are active
+    },
+    { 
+      new: true,
+      upsert: false // Don't create if not exists, handle manually
+    }
+  );
+  
+  if (updated) {
+    return updated;
+  }
+  
+  // Create new extension if not exists
+  try {
+    const newExtension = new this({
+      extension: extension,
+      agent_name: `Agent ${extension}`, // Default name
+      department: this.getDepartmentByExtension(extension),
+      status_code: statusCode,
+      device_state: deviceState,
+      status: this.mapStatus(statusCode),
+      is_active: true,
+      last_status_change: now,
+      last_seen: now
+    });
+    
+    const saved = await newExtension.save();
+    console.log(`✅ Created new extension: ${extension} with status ${deviceState}`);
+    return saved;
+    
+  } catch (error) {
+    console.error(`❌ Error creating extension ${extension}:`, error.message);
+    return null;
+  }
+};
+
+// DEPARTMENT ASSIGNMENT HELPER
+extensionSchema.statics.getDepartmentByExtension = function(extension) {
+  const ext = parseInt(extension);
+  if (ext >= 2000 && ext < 3000) return 'Sales';
+  if (ext >= 1000 && ext < 2000) return 'Support';
+  if (ext >= 5000) return 'Administration';
+  return 'General';
 };
 
 // STATUS MAPPING

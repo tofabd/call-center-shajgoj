@@ -139,10 +139,12 @@ export const createSeparateConnectionAndRefresh = async (req, res) => {
         lastQueryTime: refreshResults.timestamp,
         duration: refreshResults.duration,
         statistics: {
-          successfulQueries: refreshResults.updated + refreshResults.unchanged + refreshResults.markedOffline,
+          successfulQueries: (refreshResults.created || 0) + (refreshResults.updated || 0) + (refreshResults.unchanged || 0) + (refreshResults.markedOffline || 0),
           failedQueries: refreshResults.errors,
-          statusChanges: refreshResults.updated + refreshResults.markedOffline,
+          statusChanges: (refreshResults.created || 0) + (refreshResults.updated || 0) + (refreshResults.markedOffline || 0),
           noChanges: refreshResults.unchanged,
+          created: refreshResults.created || 0,
+          updated: refreshResults.updated || 0,
           markedOffline: refreshResults.markedOffline
         },
         results: refreshResults,
