@@ -610,7 +610,7 @@ const ExtensionsStatus: React.FC = () => {
                  >
                    <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0 relative">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-105 shadow-md ${
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-md ${
                           extension.status === 'online'
                             ? 'bg-gradient-to-br from-emerald-400 to-green-500 shadow-emerald-200/50'
                             : extension.status === 'offline'
@@ -629,7 +629,7 @@ const ExtensionsStatus: React.FC = () => {
                           <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-15"></div>
                         )}
                       </div>
-                     <div className="flex flex-col">
+                      <div className="flex flex-col">
                        <div className="text-sm font-medium text-gray-900 dark:text-white">
                          {extension.agent_name || `Extension ${extension.extension}`}
                        </div>
