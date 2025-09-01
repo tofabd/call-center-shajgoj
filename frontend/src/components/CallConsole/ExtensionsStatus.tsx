@@ -599,16 +599,20 @@ const ExtensionsStatus: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
-            <div className="p-4 space-y-3">
-               {sortedExtensions.map((extension) => (
-                 <div
-                   key={extension.id}
-                   className={`flex items-center justify-between p-4 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] cursor-pointer ${getBackgroundColor(extension.status)} ${
-                     extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 ? 'ring-1 ring-green-200 dark:ring-green-800/30' : ''
-                   }`}
-                   onClick={() => handleExtensionClick(extension)}
-                 >
-                   <div className="flex items-center space-x-3">
+             <div className="p-4 space-y-3">
+                {sortedExtensions.map((extension) => (
+                  <div
+                    key={extension.id}
+                     className={`flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow duration-200 ${
+                       extension.status === 'online'
+                         ? 'bg-green-50'
+                         : extension.status === 'offline'
+                         ? 'bg-red-50'
+                         : 'bg-white'
+                     }`}
+                    onClick={() => handleExtensionClick(extension)}
+                  >
+                    <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0 relative">
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
                           extension.status === 'online'
@@ -629,33 +633,33 @@ const ExtensionsStatus: React.FC = () => {
                           <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-15"></div>
                         )}
                       </div>
-                      <div className="flex flex-col">
-                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                         {extension.agent_name || `Extension ${extension.extension}`}
-                       </div>
-                        <div className={`text-xs font-medium ${getStatusColor(extension.status)}`}>
+                      <div>
+                        <h3 className="text-gray-800 font-semibold">
+                          {extension.agent_name || `Extension ${extension.extension}`}
+                        </h3>
+                        <p className="text-sm text-gray-500">
                           {getDeviceStateLabel(extension.device_state, extension.status_code)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right flex flex-col">
+                      <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                        {getStatusIcon(extension.status)} {extension.status}
+                      </div>
+                      {extension.last_status_change && (
+                        <div className={`text-xs font-medium ${
+                          extension.status === 'online'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-orange-600 dark:text-orange-400'
+                        }`}>
+                          {getDurationDisplay(extension)}
                         </div>
-                     </div>
-                   </div>
-
-                   <div className="text-right flex flex-col">
-                     <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                       {getStatusIcon(extension.status)} {extension.status}
-                     </div>
-                     {extension.last_status_change && (
-                       <div className={`text-xs font-medium ${
-                         extension.status === 'online'
-                           ? 'text-blue-600 dark:text-blue-400'
-                           : 'text-orange-600 dark:text-orange-400'
-                       }`}>
-                         {getDurationDisplay(extension)}
-                       </div>
-                     )}
-                   </div>
-                 </div>
-               ))}
-            </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+             </div>
           </div>
         )}
         
