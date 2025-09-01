@@ -59,14 +59,14 @@ const parseAmiEvent = (eventText) => {
 const createParsedExtensionsJsonFile = async (parsedExtensions, connectionId) => {
   try {
     // Create debug directory if it doesn't exist
-    const debugDir = path.join(process.cwd(), 'debug', 'parsed-extensions');
+    const debugDir = path.join(process.cwd(), 'debug', 'standaloneRefresh');
     if (!fs.existsSync(debugDir)) {
       fs.mkdirSync(debugDir, { recursive: true });
     }
     
     // Create filename with timestamp and connection ID
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `parsed-extensions-${timestamp}-${connectionId}.json`;
+    const filename = `standaloneRefresh-parsed-${timestamp}-${connectionId}.json`;
     const filepath = path.join(debugDir, filename);
     
     // Prepare JSON data with parsed extensions and metadata

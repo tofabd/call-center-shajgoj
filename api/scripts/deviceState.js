@@ -158,9 +158,14 @@ manager.on('devicestatelistcomplete', function(evt) {
         extensions: extensions
     };
     
-    // Save to JSON file
-    const fileName = `device-states-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    const filePath = path.join(__dirname, fileName);
+    // Save to JSON file in organized debug folder
+    const debugDir = path.join(__dirname, '../debug/deviceState');
+    if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    const fileName = `deviceState-raw-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    const filePath = path.join(debugDir, fileName);
     
     try {
         fs.writeFileSync(filePath, JSON.stringify(outputData, null, 2));

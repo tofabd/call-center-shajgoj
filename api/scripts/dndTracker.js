@@ -221,9 +221,14 @@ function generateReport() {
         console.log('✅ No extensions showing strong DND patterns');
     }
     
-    // Save report
-    const fileName = `dnd-analysis-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    const filePath = path.join(__dirname, fileName);
+    // Save report to organized debug folder
+    const debugDir = path.join(__dirname, '../debug/dndTracker');
+    if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    const fileName = `dndTracker-report-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    const filePath = path.join(debugDir, fileName);
     
     try {
         fs.writeFileSync(filePath, JSON.stringify(report, null, 2));

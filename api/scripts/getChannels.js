@@ -270,8 +270,79 @@ const queryActiveChannels = () => {
 };
 
 /**
- * Display active channels in console
+ * Save results to JSON files
  */
+const saveResultsToFile = (results) => {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    // Create channels debug directory
+    const debugDir = path.join(projectRoot, 'debug', 'getChannels');
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    // Create raw data
+    const rawData = {
+      metadata: results.metadata,
+      summary: results.summary,
+      channels: results.channels,
+      rawEvents: results.rawEvents
+    };
+    
+    const rawFilename = `getChannels-raw-${timestamp}.json`;
+    const rawFilepath = path.join(debugDir, rawFilename);
+    const rawJsonContent = JSON.stringify(rawData, null, 2);
+    fs.writeFileSync(rawFilepath, rawJsonContent, 'utf8');
+    
+    // Create parsed channels data
+    const parsedData = {
+      metadata: {
+        extractedAt: new Date().toISOString(),
+        totalChannels: results.channels.length,
+        sourceQuery: results.metadata.queryType,
+        sourceTimestamp: results.metadata.queryEndTime
+      },
+      channels: results.channels.map(ch => ({
+        channel: ch.channel,
+        state: ch.stateText,
+        context: ch.context,
+        extension: ch.extension,
+        callerIdNum: ch.callerIdNum,
+        uniqueId: ch.uniqueId,
+        duration: ch.duration
+      }))
+    };
+    
+    const parsedFilename = `getChannels-parsed-${timestamp}.json`;
+    const parsedFilepath = path.join(debugDir, parsedFilename);
+    const parsedJsonContent = JSON.stringify(parsedData, null, 2);
+    fs.writeFileSync(parsedFilepath, parsedJsonContent, 'utf8');
+    
+    console.log('📄 Results saved to files:');
+    console.log(`📁 Raw Data: ${rawFilepath}`);
+    console.log(`📊 Raw Size: ${fs.statSync(rawFilepath).size} bytes`);
+    console.log(`📁 Parsed Data: ${parsedFilepath}`);
+    console.log(`📊 Parsed Size: ${fs.statSync(parsedFilepath).size} bytes`);
+    
+    return {
+      rawFile: {
+        filename: rawFilename,
+        filepath: rawFilepath,
+        fileSize: fs.statSync(rawFilepath).size
+      },
+      parsedFile: {
+        filename: parsedFilename,
+        filepath: parsedFilepath,
+        fileSize: fs.statSync(parsedFilepath).size
+      }
+    };
+    
+  } catch (error) {
+    console.error('❌ Failed to save results to file:', error.message);
+    return null;
+  }
+};
 const displayActiveChannels = (results) => {
   console.log('\n📊 ACTIVE CHANNELS SUMMARY');
   console.log('==========================');
@@ -372,6 +443,15 @@ const main = async () => {
     
     // Display results in console
     displayActiveChannels(results);
+    
+    // Save results to files
+    const fileInfo = saveResultsToFile(results);
+    
+    if (fileInfo) {
+      console.log('\n📄 Data files created:');
+      console.log(`   Raw: ${fileInfo.rawFile.filename}`);
+      console.log(`   Parsed: ${fileInfo.parsedFile.filename}`);
+    }
     
     console.log('\n✅ Active channels query completed successfully!');
     console.log('\n🏆 BENEFITS:');

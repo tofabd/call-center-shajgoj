@@ -31,7 +31,7 @@ const AMI_CONFIG = {
 
 // Script configuration
 const QUERY_TIMEOUT = 30000; // 30 seconds timeout
-const OUTPUT_DIR = path.join(projectRoot, 'output', 'extensions');
+const OUTPUT_DIR = path.join(projectRoot, 'debug', 'getAllExtensions');
 
 /**
  * Create output directory if it doesn't exist
@@ -289,7 +289,12 @@ const saveResultsToFile = (results) => {
       rawEvents: results.rawEvents
     };
     
-    const rawFilename = `extensions-raw-${timestamp}.json`;
+    // Create directory
+    if (!fs.existsSync(OUTPUT_DIR)) {
+      fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    }
+    
+    const rawFilename = `getAllExtensions-raw-${timestamp}.json`;
     const rawFilepath = path.join(OUTPUT_DIR, rawFilename);
     const rawJsonContent = JSON.stringify(rawData, null, 2);
     fs.writeFileSync(rawFilepath, rawJsonContent, 'utf8');
@@ -313,7 +318,7 @@ const saveResultsToFile = (results) => {
     };
 
     // Save parsed data
-    const parsedFilename = `extensions-parsed-${timestamp}.json`;
+    const parsedFilename = `getAllExtensions-parsed-${timestamp}.json`;
     const parsedFilepath = path.join(OUTPUT_DIR, parsedFilename);
     const parsedJsonContent = JSON.stringify(parsedData, null, 2);
     fs.writeFileSync(parsedFilepath, parsedJsonContent, 'utf8');
@@ -343,7 +348,7 @@ const saveResultsToFile = (results) => {
     };
 
     // Save sorted data
-    const sortedFilename = `extensions-sorted-by-status-${timestamp}.json`;
+    const sortedFilename = `getAllExtensions-sorted-${timestamp}.json`;
     const sortedFilepath = path.join(OUTPUT_DIR, sortedFilename);
     const sortedJsonContent = JSON.stringify(sortedData, null, 2);
     fs.writeFileSync(sortedFilepath, sortedJsonContent, 'utf8');
