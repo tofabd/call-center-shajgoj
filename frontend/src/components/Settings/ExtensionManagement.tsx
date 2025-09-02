@@ -25,6 +25,7 @@ const ExtensionManagement: React.FC = () => {
   const [deletingExtension, setDeletingExtension] = useState<ExtensionWithActive | null>(null);
   const [deletingExtensionId, setDeletingExtensionId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [showSyncConfirmation, setShowSyncConfirmation] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -62,6 +63,15 @@ const ExtensionManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSyncClick = () => {
+    setShowSyncConfirmation(true);
+  };
+
+  const handleSyncConfirm = async () => {
+    setShowSyncConfirmation(false);
+    await handleSync();
   };
 
   const handleSync = async () => {
@@ -360,11 +370,11 @@ const ExtensionManagement: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+           <button
+             onClick={handleSyncClick}
+             disabled={syncing}
+             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             <span>Refresh from Asterisk</span>
           </button>
@@ -505,7 +515,55 @@ const ExtensionManagement: React.FC = () => {
                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                                 ({extension.device_state})
                               </span>
-                            )}
+      )}
+
+      {/* Sync Confirmation Modal */}
+      {showSyncConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Refresh from Asterisk</h3>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <p className="text-gray-700 dark:text-gray-300">
+                This will query Asterisk AMI to update extension status information.
+              </p>
+              
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-800 dark:text-yellow-300">Will update:</p>
+                    <p className="text-yellow-700 dark:text-yellow-400">Extension status, device states, and timestamps</p>
+                    <p className="font-medium text-yellow-800 dark:text-yellow-300 mt-2">Will NOT affect:</p>
+                    <p className="text-yellow-700 dark:text-yellow-400">Agent names, departments, or call history</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowSyncConfirmation(false)}
+                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSyncConfirm}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Confirm Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
                           </div>
                         )}
                       </div>
