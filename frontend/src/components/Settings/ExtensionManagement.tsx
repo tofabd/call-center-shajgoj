@@ -361,27 +361,27 @@ const ExtensionManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Extension Management</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Manage extensions, add/remove users, and control visibility
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
            <button
              onClick={handleRefreshClick}
              disabled={syncing}
-             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+             className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
            >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             <span>Refresh from Asterisk</span>
           </button>
           <button
             onClick={openAddModal}
-            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             <span>Add Extension</span>
@@ -424,96 +424,96 @@ const ExtensionManagement: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Extension
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Agent Details
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
                     Department
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
                     Last Status Change
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
                     Active
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-4 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                {filteredExtensions.map((extension) => (
-                  <tr 
-                    key={extension.id} 
-                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
-                      deletingExtensionId === extension.id 
-                        ? 'bg-red-50 dark:bg-red-900/20 opacity-80' 
-                        : 'bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    {/* Extension Number */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-lg font-mono font-bold text-gray-900 dark:text-white">
-                        {extension.extension}
-                      </span>
-                    </td>
+                 {filteredExtensions.map((extension) => (
+                   <tr 
+                     key={extension.id} 
+                     className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
+                       deletingExtensionId === extension.id 
+                         ? 'bg-red-50 dark:bg-red-900/20 opacity-80' 
+                         : 'bg-white dark:bg-gray-800'
+                     }`}
+                   >
+                     {/* Extension Number */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                       <span className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                         {extension.extension}
+                       </span>
+                     </td>
 
-                    {/* Agent Details */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {extension.agent_name || 'Unnamed Agent'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Last seen: {formatDateTime(extension.last_seen)}
-                        </div>
-                      </div>
-                    </td>
+                     {/* Agent Details */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                       <div>
+                         <div className="text-sm font-medium text-gray-900 dark:text-white">
+                           {extension.agent_name || 'Unnamed Agent'}
+                         </div>
+                         <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                           Last seen: {formatDateTime(extension.last_seen)}
+                         </div>
+                       </div>
+                     </td>
 
-                    {/* Department */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {extension.department ? (
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getDepartmentColor(extension.department)}`}>
-                          {extension.department}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400 dark:text-gray-500 italic">No department</span>
-                      )}
-                    </td>
+                     {/* Department */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                       {extension.department ? (
+                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getDepartmentColor(extension.department)}`}>
+                           {extension.department}
+                         </span>
+                       ) : (
+                         <span className="text-sm text-gray-400 dark:text-gray-500 italic">No department</span>
+                       )}
+                     </td>
 
-                    {/* Status */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {!extension.is_active ? (
-                          <div className="flex items-center">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-                            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                              Disabled
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${
-                              extension.status === 'online' 
-                                ? 'bg-green-500' 
-                                : extension.status === 'offline' 
-                                ? 'bg-red-500' 
-                                : 'bg-yellow-500'
-                            }`}></div>
-                            <span className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                              {extension.status}
-                            </span>
+                     {/* Status */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                       <div className="flex items-center">
+                         {!extension.is_active ? (
+                           <div className="flex items-center">
+                             <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                               Disabled
+                             </span>
+                           </div>
+                         ) : (
+                           <div className="flex items-center">
+                             <div className={`w-2 h-2 rounded-full mr-2 ${
+                               extension.status === 'online' 
+                                 ? 'bg-green-500' 
+                                 : extension.status === 'offline' 
+                                 ? 'bg-red-500' 
+                                 : 'bg-yellow-500'
+                             }`}></div>
+                             <span className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                               {extension.status}
+                             </span>
                              {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
-                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 hidden lg:inline">
                                  ({extension.device_state})
                                </span>
                              )}
@@ -522,77 +522,77 @@ const ExtensionManagement: React.FC = () => {
                        </div>
                      </td>
 
-                    {/* Last Status Change */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {formatDateTime(extension.last_status_change)}
-                      </div>
-                      {extension.last_status_change && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(extension.last_status_change).toLocaleDateString()}
-                        </div>
-                      )}
-                    </td>
+                     {/* Last Status Change */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                       <div className="text-sm text-gray-900 dark:text-white">
+                         {formatDateTime(extension.last_status_change)}
+                       </div>
+                       {extension.last_status_change && (
+                         <div className="text-xs text-gray-500 dark:text-gray-400">
+                           {new Date(extension.last_status_change).toLocaleDateString()}
+                         </div>
+                       )}
+                     </td>
 
-                    {/* Active Toggle */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => handleToggleActive(extension)}
-                          disabled={deletingExtensionId === extension.id}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            extension.is_active
-                              ? 'bg-indigo-600 dark:bg-indigo-500'
-                              : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
-                              extension.is_active ? 'translate-x-6' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
-                        <span className={`ml-3 text-sm font-medium ${
-                          extension.is_active
-                            ? 'text-indigo-600 dark:text-indigo-400'
-                            : 'text-gray-500 dark:text-gray-400'
-                        }`}>
-                          {extension.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    </td>
+                     {/* Active Toggle */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                       <div className="flex items-center">
+                         <button
+                           onClick={() => handleToggleActive(extension)}
+                           disabled={deletingExtensionId === extension.id}
+                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                             extension.is_active
+                               ? 'bg-indigo-600 dark:bg-indigo-500'
+                               : 'bg-gray-300 dark:bg-gray-600'
+                           }`}
+                         >
+                           <span
+                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                               extension.is_active ? 'translate-x-6' : 'translate-x-1'
+                             }`}
+                           />
+                         </button>
+                         <span className={`ml-3 text-sm font-medium hidden lg:inline ${
+                           extension.is_active
+                             ? 'text-indigo-600 dark:text-indigo-400'
+                             : 'text-gray-500 dark:text-gray-400'
+                         }`}>
+                           {extension.is_active ? 'Active' : 'Inactive'}
+                         </span>
+                       </div>
+                     </td>
 
-                    {/* Actions */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => openEditModal(extension)}
-                          disabled={deletingExtensionId === extension.id}
-                          className={`p-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
-                            deletingExtensionId === extension.id ? 'scale-95' : 'hover:scale-110'
-                          }`}
-                          title="Edit extension"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingExtension(extension)}
-                          disabled={deletingExtensionId === extension.id}
-                          className={`p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
-                            deletingExtensionId === extension.id ? 'scale-95 animate-pulse' : 'hover:scale-110'
-                          }`}
-                          title="Delete extension"
-                        >
-                          {deletingExtensionId === extension.id ? (
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                     {/* Actions */}
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+                       <div className="flex items-center justify-end space-x-1 sm:space-x-2">
+                         <button
+                           onClick={() => openEditModal(extension)}
+                           disabled={deletingExtensionId === extension.id}
+                           className={`p-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                             deletingExtensionId === extension.id ? 'scale-95' : 'hover:scale-110'
+                           }`}
+                           title="Edit extension"
+                         >
+                           <Edit className="h-4 w-4" />
+                         </button>
+                         <button
+                           onClick={() => setDeletingExtension(extension)}
+                           disabled={deletingExtensionId === extension.id}
+                           className={`p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                             deletingExtensionId === extension.id ? 'scale-95 animate-pulse' : 'hover:scale-110'
+                           }`}
+                           title="Delete extension"
+                         >
+                           {deletingExtensionId === extension.id ? (
+                             <LoaderCircle className="h-4 w-4 animate-spin" />
+                           ) : (
+                             <Trash2 className="h-4 w-4" />
+                           )}
+                         </button>
+                       </div>
+                     </td>
+                   </tr>
+                 ))}
               </tbody>
             </table>
           </div>

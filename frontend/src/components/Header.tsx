@@ -40,6 +40,8 @@ const Header: React.FC<HeaderProps> = ({
         return 'Dashboard';
       case '/call-console':
         return 'Call Console';
+      case '/settings':
+        return 'Settings';
       case '/':
         return 'Dashboard'; // Root path redirects to dashboard
       default:
