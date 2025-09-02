@@ -105,13 +105,13 @@ extensionSchema.statics.updateStatus = async function(extension, statusCode, dev
     return await this.createOrUpdateFromAMI(extension, statusCode, deviceState);
   }
   
-  // Check if extension is active - don't update inactive extensions
+  // ALWAYS update extension status, even if inactive (for real-time monitoring)
+  // Only log if inactive, but still update and broadcast
   if (!existingExtension.is_active) {
-    console.log(`🚫 Extension ${extension} is inactive - skipping status update`);
-    return null;
+    console.log(`⚠️ Extension ${extension} is inactive but updating status for monitoring`);
   }
   
-  // Update existing active extension
+  // Update existing extension (active or inactive)
   return this.findOneAndUpdate(
     { extension },
     { 

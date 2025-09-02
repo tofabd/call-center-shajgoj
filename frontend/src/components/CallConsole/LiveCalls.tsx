@@ -5,6 +5,7 @@ import type { CallUpdateEvent } from '../../services/socketService';
 import type { LiveCall } from '../../services/callService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
+import { getUnifiedCallStatus, isCallRinging, getStatusPriority as getUnifiedStatusPriority, debugStatusMismatch } from '../../utils/statusUtils';
 
 interface LiveCallsProps {
   selectedCallId: string | null; // Changed to string since MongoDB IDs are strings
@@ -138,6 +139,22 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           // Update existing call
           const updatedCalls = [...prevCalls];
           const existingCall = updatedCalls[existingIndex];
+          
+          // Debug logging for status changes
+          const oldStatus = getUnifiedCallStatus(existingCall);
+          const newStatus = update.status || getUnifiedCallStatus(update);
+          
+          if (oldStatus !== newStatus) {
+            debugStatusMismatch(existingCall.agent_exten || 'unknown', undefined, `${oldStatus} → ${newStatus}`, {
+              call_id: existingCall.id,
+              old_answered_at: existingCall.answered_at,
+              new_answered_at: update.answered_at,
+              old_ended_at: existingCall.ended_at,
+              new_ended_at: update.ended_at,
+              update_source: 'websocket'
+            });
+          }
+          
           updatedCalls[existingIndex] = {
             ...existingCall,
             // Update fields from the update event
@@ -171,6 +188,14 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               createdAt: update.timestamp || new Date().toISOString(),
               updatedAt: update.timestamp || new Date().toISOString()
             };
+            
+            // Debug logging for new calls
+            debugStatusMismatch(newCall.agent_exten || 'unknown', undefined, 'new call: ' + (newCall.status || 'unknown'), {
+              call_id: newCall.id,
+              direction: newCall.direction,
+              update_source: 'websocket'
+            });
+            
             return [...prevCalls, newCall];
           }
           return prevCalls;
@@ -230,8 +255,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
   // Computed values (replacing hook return values)
   const ringingCalls = liveCalls.filter(call => {
-    // A call is ringing if it hasn't been answered and hasn't ended
-    return !call.answered_at && !call.ended_at;
+    // Use unified ringing detection
+    return isCallRinging(call);
   });
 
   const answeredCalls = liveCalls.filter(call => {
@@ -338,19 +363,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
   const getStatusPriority = (status: string | undefined): number => {
     if (!status) return 999;
-    
-    const statusPriority = {
-      'ringing': 1,
-      'ring': 1,
-      'incoming': 1,
-      'calling': 1,
-      'started': 2,
-      'start': 2,
-      'answered': 3,
-      'in_progress': 3,
-    } as Record<string, number>;
-    
-    return statusPriority[status.toLowerCase()] || 999;
+    return getUnifiedStatusPriority(status);
   };
 
   // Sort displayCalls (only ringing and answered)

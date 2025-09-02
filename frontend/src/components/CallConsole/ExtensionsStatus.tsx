@@ -3,6 +3,11 @@ import { RefreshCw } from 'lucide-react';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
+import socketService from '../../services/socketService';
+import type { ExtensionStatusEvent } from '../../services/socketService';
+import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
+import { StatusTooltip } from '../common/StatusTooltip';
+import { getUnifiedExtensionStatus, isExtensionOnCall, debugStatusMismatch } from '../../utils/statusUtils';
 
 // Utility function to calculate duration since status change
 const getDurationSinceStatusChange = (lastStatusChange?: string): string => {
@@ -53,7 +58,7 @@ const ExtensionsStatus: React.FC = () => {
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(60);
   
   // Duration update timer for real-time duration display
   const [durationUpdateTimer, setDurationUpdateTimer] = useState<NodeJS.Timeout | null>(null);
@@ -63,6 +68,10 @@ const ExtensionsStatus: React.FC = () => {
   const [extensionStats, setExtensionStats] = useState<ExtensionCallStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  
+  // Connection health monitoring
+  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   
 
 
@@ -130,6 +139,56 @@ const ExtensionsStatus: React.FC = () => {
 
     startAutoRefresh();
     
+    // Subscribe to real-time extension status updates
+    const handleExtensionUpdate = (update: ExtensionStatusEvent) => {
+      console.log('📱 Real-time extension update received:', update);
+      
+      setExtensions(prevExtensions => 
+        prevExtensions.map(ext => {
+          if (ext.extension === update.extension) {
+            const updatedExt = { 
+              ...ext, 
+              status: update.status,
+              device_state: update.device_state || ext.device_state,
+              status_code: update.status_code || ext.status_code,
+              last_status_change: update.last_status_change || ext.last_status_change,
+              last_seen: update.timestamp
+            };
+            
+            // Debug logging for status changes
+            const oldStatus = getUnifiedExtensionStatus({ device_state: ext.device_state, status_code: ext.status_code });
+            const newStatus = getUnifiedExtensionStatus({ device_state: updatedExt.device_state, status_code: updatedExt.status_code });
+            
+            if (oldStatus !== newStatus) {
+              debugStatusMismatch(ext.extension, `${oldStatus} → ${newStatus}`, undefined, {
+                old_device_state: ext.device_state,
+                new_device_state: updatedExt.device_state,
+                old_status_code: ext.status_code,
+                new_status_code: updatedExt.status_code,
+                update_source: 'websocket'
+              });
+            }
+            
+            return updatedExt;
+          }
+          return ext;
+        })
+      );
+    };
+
+    // Subscribe to WebSocket extension updates
+    socketService.onExtensionStatusUpdated(handleExtensionUpdate);
+    console.log('📡 ExtensionsStatus: Subscribed to real-time extension updates');
+    
+    // Subscribe to unified connection health service
+    console.log('📡 ExtensionsStatus: Subscribing to unified connection health service');
+    
+    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
+      console.log('📡 ExtensionsStatus: Received connection health update:', health);
+      setConnectionHealth(health.health);
+      setRealtimeStatus(health.status);
+    });
+    
     // Handle page visibility changes
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
@@ -147,6 +206,12 @@ const ExtensionsStatus: React.FC = () => {
           setExtensions(prevExtensions => [...prevExtensions]);
         }, 1000);
         setDurationUpdateTimer(newTimer);
+        
+        // Ensure WebSocket is connected
+        if (!socketService.isConnected()) {
+          console.log('🔄 Reconnecting WebSocket for extension updates...');
+          socketService.reconnect();
+        }
       } else {
         // Clear duration timer when page becomes hidden to save resources
         if (durationUpdateTimer) {
@@ -168,6 +233,12 @@ const ExtensionsStatus: React.FC = () => {
         clearInterval(durationUpdateTimer);
         console.log('⏹️ Stopped duration update timer');
       }
+      
+      // Clean up WebSocket listeners
+      socketService.removeAllListeners();
+      unsubscribeHealth();
+      console.log('📡 ExtensionsStatus: Cleaned up WebSocket listeners and health subscription');
+      
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isPageVisible, isRefreshing]);
@@ -420,37 +491,8 @@ const ExtensionsStatus: React.FC = () => {
   };
 
   const getDeviceStateLabel = (deviceState: string, statusCode: number): string => {
-    // First try to map by device state
-    const deviceStateMap: Record<string, string> = {
-      'NOT_INUSE': 'Free',
-      'INUSE': 'On Call',
-      'BUSY': 'Busy',
-      'UNAVAILABLE': 'Offline',
-      'INVALID': 'Offline',
-      'RINGING': 'Ringing',
-      'RING*INUSE': 'Call Waiting',
-      'ONHOLD': 'On Hold',
-      'UNKNOWN': 'Unknown'
-    };
-
-    if (deviceState && deviceStateMap[deviceState]) {
-      return deviceStateMap[deviceState];
-    }
-
-    // Fallback to status code mapping
-    const statusCodeMap: Record<number, string> = {
-      0: 'Free',
-      1: 'On Call',
-      2: 'Busy',
-      3: 'Offline',
-      4: 'Ringing',
-      5: 'Call Waiting',
-      6: 'On Hold',
-      7: 'On Call + On Hold',
-      8: 'Ringing + On Hold'
-    };
-
-    return statusCodeMap[statusCode] || 'Unknown';
+    // Use unified status logic
+    return getUnifiedExtensionStatus({ device_state: deviceState, status_code: statusCode });
   };
 
   // Sort extensions and filter out AMI-generated codes and unknown status
@@ -511,6 +553,29 @@ const ExtensionsStatus: React.FC = () => {
               <div>
                 <div className="flex items-center space-x-3">
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
+                  {/* Real-time status indicator with reusable StatusTooltip */}
+                  <div className="flex items-center">
+                    <StatusTooltip status={realtimeStatus} health={connectionHealth}>
+                      <span className="relative flex size-3 cursor-help group">
+                        {realtimeStatus === 'connected' && connectionHealth === 'good' && (
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                        )}
+                        <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
+                          realtimeStatus === 'connected'
+                            ? connectionHealth === 'good'
+                              ? 'bg-green-500 group-hover:bg-green-600'
+                              : connectionHealth === 'poor'
+                              ? 'bg-yellow-500 group-hover:bg-yellow-600'
+                              : 'bg-orange-500 group-hover:bg-orange-600'
+                            : realtimeStatus === 'reconnecting'
+                              ? 'bg-blue-500 group-hover:bg-blue-600'
+                              : realtimeStatus === 'checking'
+                              ? 'bg-gray-500 group-hover:bg-gray-600'
+                              : 'bg-red-500 group-hover:bg-red-600'
+                        }`}></span>
+                      </span>
+                    </StatusTooltip>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-4 text-sm">
                    <div className="flex items-center space-x-1">
@@ -605,7 +670,9 @@ const ExtensionsStatus: React.FC = () => {
                     key={extension.id}
                      className={`flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow duration-200 ${
                        extension.status === 'online'
-                         ? 'bg-green-50 dark:bg-green-900/20 dark:border dark:border-green-700/30'
+                         ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
+                           ? 'bg-green-100 dark:bg-green-900/30 dark:border dark:border-green-700/40'
+                           : 'bg-green-50 dark:bg-green-900/20 dark:border dark:border-green-700/30'
                          : extension.status === 'offline'
                          ? 'bg-red-50 dark:bg-red-900/20 dark:border dark:border-red-700/30'
                          : 'bg-white dark:bg-gray-800 dark:border dark:border-gray-600'
@@ -614,26 +681,26 @@ const ExtensionsStatus: React.FC = () => {
                   >
                     <div className="flex items-center space-x-3">
                        <div className="flex-shrink-0 relative">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
-                            extension.status === 'online'
-                              ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
-                                ? 'bg-gradient-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
-                                : 'bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
-                              : extension.status === 'offline'
-                              ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
-                              : extension.status === 'unknown'
-                              ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
-                              : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
-                          }`}>
+                           <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
+                             extension.status === 'online'
+                               ? isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code })
+                                 ? 'bg-gradient-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
+                                 : 'bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
+                               : extension.status === 'offline'
+                               ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
+                               : extension.status === 'unknown'
+                               ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
+                               : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
+                           }`}>
                            <span className="text-white font-bold text-sm drop-shadow-md">
                              {extension.extension}
                            </span>
                          </div>
 
-                          {/* Pulse effect for online (not free) - outside the circle only */}
-                          {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
-                            <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
-                          )}
+                           {/* Pulse effect for online (not free) - outside the circle only */}
+                           {extension.status === 'online' && isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code }) && (
+                             <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
+                           )}
                       </div>
                       <div>
                          <h3 className="text-gray-800 dark:text-gray-200 font-semibold">

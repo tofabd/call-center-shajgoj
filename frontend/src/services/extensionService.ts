@@ -199,12 +199,18 @@ export const extensionService = {
     await api.delete(`/extensions/${id}`);
   },
 
-  // Sync extensions from Asterisk (not available in MongoDB API)
+  // Sync extensions from Asterisk - Uses the same functionality as refresh
   async syncExtensions(): Promise<{ synced_count: number; extensions: Extension[] }> {
-    // This feature is not available in the MongoDB API
-    // Return empty result to maintain compatibility
-    console.warn('Sync extensions feature is not available in MongoDB API');
-    return { synced_count: 0, extensions: [] };
+    console.log('🔄 Syncing extensions from Asterisk using refresh functionality...');
+    
+    // Use the working refresh functionality that queries AMI
+    const refreshResult = await this.refreshStatus();
+    
+    // Return sync-compatible response format
+    return {
+      synced_count: refreshResult.extensionsChecked || 0,
+      extensions: [] // Extensions are updated in database, will be fetched separately
+    };
   },
 
   // Update extension status

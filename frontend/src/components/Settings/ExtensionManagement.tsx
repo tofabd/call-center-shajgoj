@@ -67,10 +67,23 @@ const ExtensionManagement: React.FC = () => {
   const handleSync = async () => {
     try {
       setSyncing(true);
-      await extensionService.syncExtensions();
+      console.log('🔄 Starting Asterisk extension refresh...');
+      
+      // Use the working sync method (now uses refresh functionality)
+      const result = await extensionService.syncExtensions();
+      console.log('✅ Refresh completed:', result);
+      
+      // Add delay to ensure database updates complete (like refresh icon does)
+      console.log('⏳ Waiting for database updates to complete...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload extensions from database to get updated data
+      console.log('🔄 Loading updated extensions from database...');
       await loadExtensions();
       
-      toast.success('Extensions synced successfully from Asterisk', {
+      // Show accurate success message with sync count
+      const syncedCount = result.synced_count || 0;
+      toast.success(`Extensions refreshed successfully from Asterisk (${syncedCount} extensions processed)`, {
         position: "top-right",
         autoClose: 4000,
         hideProgressBar: false,
@@ -80,8 +93,8 @@ const ExtensionManagement: React.FC = () => {
         theme: "colored",
       });
     } catch (err) {
-      console.error('Error syncing extensions:', err);
-      toast.error('Failed to sync extensions', {
+      console.error('Error refreshing extensions:', err);
+      toast.error('Failed to refresh extensions from Asterisk', {
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
@@ -353,7 +366,7 @@ const ExtensionManagement: React.FC = () => {
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            <span>Sync from Asterisk</span>
+            <span>Refresh from Asterisk</span>
           </button>
           <button
             onClick={openAddModal}

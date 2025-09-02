@@ -595,7 +595,7 @@ class AmiEventProcessor {
 
     // Validate extension format - only allow clean numeric extensions
     // Reject AMI-generated codes like *47*1001*600, *47*1001, etc.
-    if (!/^\d{3,4}$/.test(extension)) {
+    if (!/^\d{3,5}$/.test(extension)) {
       console.log(`🚫 [EventProcessor] Skipping AMI-generated extension code: ${extension} (Status: ${statusCode}, Text: ${statusText})`);
       return;
     }
@@ -604,18 +604,43 @@ class AmiEventProcessor {
       // Map status code to device state
       const deviceState = this.mapDeviceState(statusCode, statusText);
       
-      // Update extension with new fields (only if it exists in database)
+      // Enhanced debugging for RINGING status
+      if (statusCode === '8' || statusCode === 8 || deviceState === 'RINGING') {
+        console.log(`🔔 [EventProcessor] *** RINGING STATUS DETECTED ***`);
+        console.log(`   Extension: ${extension}`);
+        console.log(`   Status Code: ${statusCode}`);
+        console.log(`   Status Text: ${statusText}`);
+        console.log(`   Device State: ${deviceState}`);
+      }
+      
+      // Update extension with new fields
       const updatedExtension = await Extension.updateStatus(extension, statusCode, deviceState);
       
-      // Broadcast extension status update only if update was successful
+      // Enhanced broadcast debugging
       if (updatedExtension) {
         broadcast.extensionStatusUpdated(updatedExtension);
+        
+        if (deviceState === 'RINGING') {
+          console.log(`📡 [EventProcessor] *** RINGING STATUS BROADCASTED ***`);
+          console.log(`   Extension: ${extension}`);
+          console.log(`   WebSocket Event: extension-status-updated`);
+          console.log(`   Broadcast Data:`, {
+            extension: updatedExtension.extension,
+            status_code: updatedExtension.status_code,
+            device_state: updatedExtension.device_state,
+            status: updatedExtension.status
+          });
+        }
+        
         console.log(`📱 [EventProcessor] Extension status updated: ${extension} -> ${statusCode} (${statusText}) -> ${deviceState}`);
       } else {
-        console.log(`⚠️ [EventProcessor] Extension ${extension} not found in database - status update skipped`);
+        console.error(`❌ [EventProcessor] Extension ${extension} update failed - no broadcast sent`);
       }
     } catch (error) {
       console.error('❌ [EventProcessor] Failed to update extension status:', error.message);
+      console.error('   Extension:', extension);
+      console.error('   Status Code:', statusCode);
+      console.error('   Device State:', deviceState);
     }
   }
 

@@ -18,8 +18,13 @@ export interface CallUpdateEvent {
 export interface ExtensionStatusEvent {
   extension: string;
   status: 'online' | 'offline' | 'unknown';
+  device_state?: string;
+  status_code?: number;
   agent_name?: string;
+  last_status_change?: string;
   last_seen?: string;
+  department?: string;
+  is_active?: boolean;
   timestamp: string;
 }
 

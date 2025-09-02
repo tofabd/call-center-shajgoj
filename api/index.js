@@ -71,6 +71,28 @@ app.get('/health', (req, res) => {
   });
 });
 
+// AMI Service health check endpoint
+app.get('/api/ami/status', (req, res) => {
+  logger.info('AMI service status endpoint accessed');
+  try {
+    const { getAmiServiceStatus, isAmiServiceHealthy } = require('./src/services/AmiServiceInstance.js');
+    const status = getAmiServiceStatus();
+    const healthy = isAmiServiceHealthy();
+    
+    res.json({
+      healthy,
+      status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      healthy: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
@@ -225,12 +247,22 @@ broadcast.onCallUpdated((call) => {
 });
 
 broadcast.onExtensionStatusUpdated((extension) => {
-  logger.info('Broadcasting extension status to all clients', { extension: extension.extension });
+  logger.info('Broadcasting extension status to all clients', { 
+    extension: extension.extension, 
+    status: extension.status,
+    deviceState: extension.device_state 
+  });
+  
   io.emit('extension-status-updated', {
     extension: extension.extension,
     status: extension.status,
+    device_state: extension.device_state,
+    status_code: extension.status_code,
     agent_name: extension.agent_name,
+    last_status_change: extension.last_status_change,
     last_seen: extension.last_seen,
+    department: extension.department,
+    is_active: extension.is_active,
     timestamp: new Date().toISOString()
   });
 });
