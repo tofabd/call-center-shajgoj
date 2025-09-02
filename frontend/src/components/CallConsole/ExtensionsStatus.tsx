@@ -605,41 +605,43 @@ const ExtensionsStatus: React.FC = () => {
                     key={extension.id}
                      className={`flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow duration-200 ${
                        extension.status === 'online'
-                         ? 'bg-green-50'
+                         ? 'bg-green-50 dark:bg-green-900/20 dark:border dark:border-green-700/30'
                          : extension.status === 'offline'
-                         ? 'bg-red-50'
-                         : 'bg-white'
+                         ? 'bg-red-50 dark:bg-red-900/20 dark:border dark:border-red-700/30'
+                         : 'bg-white dark:bg-gray-800 dark:border dark:border-gray-600'
                      }`}
                     onClick={() => handleExtensionClick(extension)}
                   >
                     <div className="flex items-center space-x-3">
-                      <div className="flex-shrink-0 relative">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
-                          extension.status === 'online'
-                            ? 'bg-gradient-to-br from-emerald-400 to-green-600 shadow-emerald-200/50'
-                            : extension.status === 'offline'
-                            ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
-                            : extension.status === 'unknown'
-                            ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
-                            : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
-                        }`}>
-                          <span className="text-white font-bold text-sm drop-shadow-md">
-                            {extension.extension}
-                          </span>
-                        </div>
+                       <div className="flex-shrink-0 relative">
+                         <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
+                           extension.status === 'online'
+                             ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
+                               ? 'bg-gradient-to-br from-emerald-500 to-green-700 shadow-emerald-300/70'
+                               : 'bg-gradient-to-br from-emerald-400 to-green-600 shadow-emerald-200/50'
+                             : extension.status === 'offline'
+                             ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
+                             : extension.status === 'unknown'
+                             ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
+                             : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
+                         }`}>
+                           <span className="text-white font-bold text-sm drop-shadow-md">
+                             {extension.extension}
+                           </span>
+                         </div>
 
-                        {/* Subtle pulse effect for online (not free) */}
-                        {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
-                          <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-15"></div>
-                        )}
+                         {/* Pulse effect for online (not free) - outside the circle only */}
+                         {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
+                           <div className="absolute inset-0 rounded-full bg-emerald-600 animate-ping opacity-30"></div>
+                         )}
                       </div>
                       <div>
-                        <h3 className="text-gray-800 font-semibold">
-                          {extension.agent_name || `Extension ${extension.extension}`}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {getDeviceStateLabel(extension.device_state, extension.status_code)}
-                        </p>
+                         <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
+                           {extension.agent_name || `Extension ${extension.extension}`}
+                         </h3>
+                         <p className="text-sm text-gray-500 dark:text-gray-400">
+                           {getDeviceStateLabel(extension.device_state, extension.status_code)}
+                         </p>
                       </div>
                     </div>
                     
