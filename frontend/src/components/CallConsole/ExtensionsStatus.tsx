@@ -614,26 +614,26 @@ const ExtensionsStatus: React.FC = () => {
                   >
                     <div className="flex items-center space-x-3">
                        <div className="flex-shrink-0 relative">
-                         <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
-                           extension.status === 'online'
-                             ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
-                               ? 'bg-gradient-to-br from-emerald-500 to-green-700 shadow-emerald-300/70'
-                               : 'bg-gradient-to-br from-emerald-400 to-green-600 shadow-emerald-200/50'
-                             : extension.status === 'offline'
-                             ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
-                             : extension.status === 'unknown'
-                             ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
-                             : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
-                         }`}>
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
+                            extension.status === 'online'
+                              ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
+                                ? 'bg-gradient-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
+                                : 'bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
+                              : extension.status === 'offline'
+                              ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
+                              : extension.status === 'unknown'
+                              ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
+                              : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
+                          }`}>
                            <span className="text-white font-bold text-sm drop-shadow-md">
                              {extension.extension}
                            </span>
                          </div>
 
-                         {/* Pulse effect for online (not free) - outside the circle only */}
-                         {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
-                           <div className="absolute inset-0 rounded-full bg-emerald-600 animate-ping opacity-30"></div>
-                         )}
+                          {/* Pulse effect for online (not free) - outside the circle only */}
+                          {extension.status === 'online' && extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0 && (
+                            <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
+                          )}
                       </div>
                       <div>
                          <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
