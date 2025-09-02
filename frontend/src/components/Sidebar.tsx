@@ -66,7 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Logo */}
         <div className="flex  items-center justify-center h-16">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-linear-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">C</span>
             </div>
             {!isCollapsed && (
@@ -95,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }
                         ${isCollapsed ? 'justify-center border-l-0' : 'space-x-3'}
                       `}>
-                        <Icon className={`h-5 w-5 flex-shrink-0 transition-all duration-300 ${isActive ? 'text-blue-300' : ''}`} />
+                        <Icon className={`h-5 w-5 shrink-0 transition-all duration-300 ${isActive ? 'text-blue-300' : ''}`} />
                         {!isCollapsed && (
                           <span className="font-medium transition-all duration-300">{item.name}</span>
                         )}

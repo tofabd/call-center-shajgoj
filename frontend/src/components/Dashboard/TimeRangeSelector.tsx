@@ -54,8 +54,8 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     const colorMap = {
       blue: {
         bg: isActive 
-          ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white' 
-          : 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40',
+          ? 'bg-linear-to-br from-blue-600 to-blue-700 text-white' 
+          : 'bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40',
         border: 'ring-1 ring-blue-300 dark:ring-blue-600',
         text: isActive ? 'text-white' : 'text-blue-700 dark:text-blue-300',
         icon: isActive ? 'text-white' : 'text-blue-600 dark:text-blue-400',
@@ -63,8 +63,8 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       },
       green: {
         bg: isActive 
-          ? 'bg-gradient-to-br from-green-600 to-green-700 text-white' 
-          : 'bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/40 dark:to-green-800/40',
+          ? 'bg-linear-to-br from-green-600 to-green-700 text-white' 
+          : 'bg-linear-to-br from-green-50 to-green-100 dark:from-green-900/40 dark:to-green-800/40',
         border: 'ring-1 ring-green-300 dark:ring-green-600',
         text: isActive ? 'text-white' : 'text-green-700 dark:text-green-300',
         icon: isActive ? 'text-white' : 'text-green-600 dark:text-green-400',
@@ -72,8 +72,8 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       },
       purple: {
         bg: isActive 
-          ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white' 
-          : 'bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/40',
+          ? 'bg-linear-to-br from-purple-600 to-purple-700 text-white' 
+          : 'bg-linear-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/40',
         border: 'ring-1 ring-purple-300 dark:ring-purple-600',
         text: isActive ? 'text-white' : 'text-purple-700 dark:text-purple-300',
         icon: isActive ? 'text-white' : 'text-purple-600 dark:text-purple-400',
@@ -81,8 +81,8 @@ const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       },
       orange: {
         bg: isActive 
-          ? 'bg-gradient-to-br from-orange-600 to-orange-700 text-white' 
-          : 'bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/40',
+          ? 'bg-linear-to-br from-orange-600 to-orange-700 text-white' 
+          : 'bg-linear-to-br from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/40',
         border: 'ring-1 ring-orange-300 dark:ring-orange-600',
         text: isActive ? 'text-white' : 'text-orange-700 dark:text-orange-300',
         icon: isActive ? 'text-white' : 'text-orange-600 dark:text-orange-400',

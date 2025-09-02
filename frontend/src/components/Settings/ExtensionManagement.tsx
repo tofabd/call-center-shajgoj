@@ -7,7 +7,8 @@ import {
   Search,
   RefreshCw,
   AlertTriangle,
-  LoaderCircle
+  LoaderCircle,
+  Users
 } from 'lucide-react';
 import { extensionService } from '../../services/extensionService';
 import type { Extension } from '../../services/extensionService';
@@ -25,7 +26,7 @@ const ExtensionManagement: React.FC = () => {
   const [deletingExtension, setDeletingExtension] = useState<ExtensionWithActive | null>(null);
   const [deletingExtensionId, setDeletingExtensionId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [showSyncConfirmation, setShowSyncConfirmation] = useState(false);
+  const [showRefreshConfirmation, setShowRefreshConfirmation] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -65,12 +66,12 @@ const ExtensionManagement: React.FC = () => {
     }
   };
 
-  const handleSyncClick = () => {
-    setShowSyncConfirmation(true);
+  const handleRefreshClick = () => {
+    setShowRefreshConfirmation(true);
   };
 
-  const handleSyncConfirm = async () => {
-    setShowSyncConfirmation(false);
+  const handleRefreshConfirm = async () => {
+    setShowRefreshConfirmation(false);
     await handleSync();
   };
 
@@ -371,7 +372,7 @@ const ExtensionManagement: React.FC = () => {
         </div>
         <div className="flex items-center space-x-3">
            <button
-             onClick={handleSyncClick}
+             onClick={handleRefreshClick}
              disabled={syncing}
              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
            >
@@ -511,63 +512,15 @@ const ExtensionManagement: React.FC = () => {
                             <span className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
                               {extension.status}
                             </span>
-                            {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
-                              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                ({extension.device_state})
-                              </span>
-      )}
-
-      {/* Sync Confirmation Modal */}
-      {showSyncConfirmation && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Refresh from Asterisk</h3>
-            </div>
-            
-            <div className="space-y-4 mb-6">
-              <p className="text-gray-700 dark:text-gray-300">
-                This will query Asterisk AMI to update extension status information.
-              </p>
-              
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-700">
-                <div className="flex items-start space-x-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium text-yellow-800 dark:text-yellow-300">Will update:</p>
-                    <p className="text-yellow-700 dark:text-yellow-400">Extension status, device states, and timestamps</p>
-                    <p className="font-medium text-yellow-800 dark:text-yellow-300 mt-2">Will NOT affect:</p>
-                    <p className="text-yellow-700 dark:text-yellow-400">Agent names, departments, or call history</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowSyncConfirmation(false)}
-                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSyncConfirm}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-                <span>Confirm Refresh</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                             {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
+                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                                 ({extension.device_state})
+                               </span>
+                             )}
+                           </div>
+                         )}
+                       </div>
+                     </td>
 
                     {/* Last Status Change */}
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -646,9 +599,71 @@ const ExtensionManagement: React.FC = () => {
         )}
       </div>
 
+      {/* Refresh Confirmation Modal */}
+      {showRefreshConfirmation && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Refresh Extensions from Asterisk</h3>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Warning: This action will refresh extension data</p>
+                    <p className="text-yellow-700 dark:text-yellow-400 mb-3">
+                      This operation will query the Asterisk AMI system to update extension status information in real-time.
+                    </p>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="font-medium text-yellow-800 dark:text-yellow-300">✓ What will be updated:</p>
+                        <ul className="text-yellow-700 dark:text-yellow-400 ml-4 list-disc">
+                          <li>Extension online/offline status</li>
+                          <li>Device states and availability</li>
+                          <li>Last seen timestamps</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-medium text-yellow-800 dark:text-yellow-300">✗ What will NOT be affected:</p>
+                        <ul className="text-yellow-700 dark:text-yellow-400 ml-4 list-disc">
+                          <li>Agent names and departments</li>
+                          <li>Call history and logs</li>
+                          <li>Extension configurations</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowRefreshConfirmation(false)}
+                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRefreshConfirm}
+                className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center space-x-2"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <span>Proceed with Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Extension Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Add New Extension</h3>
             <div className="space-y-5">
@@ -714,7 +729,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Edit Extension Modal */}
       {editingExtension && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Edit Extension</h3>
             <div className="space-y-5">
@@ -778,7 +793,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deletingExtension && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center space-x-3 mb-4">
               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">

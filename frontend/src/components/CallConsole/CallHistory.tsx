@@ -248,7 +248,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     <div className="flex flex-col h-full w-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
         {/* Card Header */}
-        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
+        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-600 rounded-lg">
               <Phone className="h-5 w-5 text-white" />
@@ -350,28 +350,28 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                               // Background colors based on status and direction (following design specs)
                               if (['answered', 'in_progress'].includes(status)) {
                                 return direction === 'outgoing'
-                                  ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30'
-                                  : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
+                                  ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30'
+                                  : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30';
                               }
                               if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(status)) {
                                 return direction === 'outgoing'
-                                  ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 border-l-4 border-l-indigo-500'
-                                  : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30 border-l-4 border-l-green-500';
+                                  ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/30 dark:hover:to-purple-900/30 border-l-4 border-l-indigo-500'
+                                  : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 hover:from-green-100 hover:to-teal-100 dark:hover:from-green-900/30 dark:hover:to-teal-900/30 border-l-4 border-l-green-500';
                               }
                               if (['busy'].includes(status)) {
                                 return direction === 'outgoing'
-                                  ? 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 hover:from-red-100 hover:to-rose-100 dark:hover:from-red-900/30 dark:hover:to-rose-900/30'
-                                  : 'border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 hover:from-red-100 hover:to-pink-100 dark:hover:from-red-900/30 dark:hover:to-pink-900/30';
+                                  ? 'border-red-300 dark:border-red-700 bg-linear-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 hover:from-red-100 hover:to-rose-100 dark:hover:from-red-900/30 dark:hover:to-rose-900/30'
+                                  : 'border-red-300 dark:border-red-700 bg-linear-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 hover:from-red-100 hover:to-pink-100 dark:hover:from-red-900/30 dark:hover:to-pink-900/30';
                               }
                               if (['no answer', 'missed', 'failed'].includes(status)) {
                                 return direction === 'outgoing'
-                                  ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/30 dark:hover:to-amber-900/30'
-                                  : 'border-yellow-300 dark:border-yellow-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30';
+                                  ? 'border-orange-300 dark:border-orange-700 bg-linear-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/30 dark:hover:to-amber-900/30'
+                                  : 'border-yellow-300 dark:border-yellow-700 bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30';
                               }
                               // Default (completed, etc.)
                               return direction === 'outgoing'
-                                ? 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-700 dark:hover:to-slate-700'
-                                : 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-700 dark:hover:to-gray-700';
+                                ? 'border-gray-200 dark:border-gray-600 bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-700 dark:hover:to-slate-700'
+                                : 'border-gray-200 dark:border-gray-600 bg-linear-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 hover:from-slate-100 hover:to-gray-100 dark:hover:from-slate-700 dark:hover:to-gray-700';
                             })()
                       }`}
                       onClick={() => onCallSelect(call.id)}
@@ -379,7 +379,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                       {/* Main call info line */}
                       <div className="flex items-center space-x-3">
                         {/* Direction Icon */}
-                        <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                        <div className="w-6 h-6 shrink-0 flex items-center justify-center">
                           {call.direction === 'outgoing' ? (
                             <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                           ) : call.direction === 'incoming' ? (
@@ -400,7 +400,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                         </div>
 
                             {/* Extension */}
-                            <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 flex-shrink-0">
+                            <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 shrink-0">
                               <span className="text-gray-500 dark:text-gray-400 text-xs">Ext</span>
                               <span className="font-mono font-bold">
                                 {call.agentExten || '-'}
@@ -408,7 +408,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                             </div>
 
                         {/* Direction Badge */}
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           {call.direction ? (
                             <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                               call.direction === 'outgoing'
@@ -425,7 +425,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                         </div>
 
                         {/* Status Badge */}
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)} ${
                             ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
                               ? (call.direction === 'outgoing'

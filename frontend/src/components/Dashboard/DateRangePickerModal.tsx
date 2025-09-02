@@ -128,7 +128,7 @@ const DateRangePickerModal: React.FC<DateRangePickerModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300"
         onClick={handleCancel}
       />
       
@@ -136,7 +136,7 @@ const DateRangePickerModal: React.FC<DateRangePickerModalProps> = ({
       <div className="relative w-full max-w-md mx-4 transform transition-all duration-300 scale-100">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">

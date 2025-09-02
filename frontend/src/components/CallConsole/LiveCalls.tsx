@@ -400,7 +400,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
       <div className="flex flex-col h-full w-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
+        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-green-600 rounded-lg">
               <Phone className="h-5 w-5 text-white" />
@@ -516,15 +516,15 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
                              if (['answered', 'in_progress'].includes(callStatus)) {
                                return direction === 'outgoing'
-                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
-                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
+                                 ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
+                                 : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
                              }
                              if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(callStatus)) {
                                return direction === 'outgoing'
-                                 ? 'border-indigo-300 dark:border-indigo-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
-                                 : 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
+                                 ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
+                                 : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
                              }
-                             return 'border-gray-200 dark:border-gray-600 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
+                             return 'border-gray-200 dark:border-gray-600 bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
                            })()
                      } ${
                        (() => {
@@ -542,7 +542,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                     {/* Main call info */}
                     <div className="flex items-center space-x-3">
                       {/* Direction Icon */}
-                      <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                      <div className="w-6 h-6 shrink-0 flex items-center justify-center">
                         {call.direction === 'outgoing' ? (
                           <PhoneOutgoing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                         ) : call.direction === 'incoming' ? (
@@ -563,7 +563,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       </div>
 
                       {/* Extension */}
-                      <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 flex-shrink-0">
+                      <div className="flex items-center space-x-1 text-sm text-gray-700 dark:text-gray-300 shrink-0">
                         <span className="text-gray-500 dark:text-gray-400 text-xs">Ext</span>
                         <span className="font-mono font-bold">
                           {call.agent_exten || '-'}
@@ -571,7 +571,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       </div>
 
                       {/* Direction Badge */}
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         {call.direction ? (
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                             call.direction === 'outgoing'
@@ -588,7 +588,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       </div>
 
                       {/* Status Badge */}
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <span className={`inline-flex items-center px-3 py-2 text-xs font-medium rounded-full min-w-[80px] justify-center ${getStatusColor(call.status || 'unknown', call.direction)} ${
                           call.status && ['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(call.status.toLowerCase()) 
                             ? (call.direction === 'outgoing'

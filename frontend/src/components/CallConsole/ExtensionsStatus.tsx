@@ -470,13 +470,13 @@ const ExtensionsStatus: React.FC = () => {
   const getBackgroundColor = (status: string) => {
     switch (status) {
       case 'online':
-        return 'bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-green-300 dark:border-green-700';
+        return 'bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-green-300 dark:border-green-700';
       case 'offline':
-        return 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700';
+        return 'bg-linear-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700';
       case 'unknown':
-        return 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-300 dark:border-yellow-700';
+        return 'bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-300 dark:border-yellow-700';
       default:
-        return 'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 border-gray-200 dark:border-gray-600';
+        return 'bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 border-gray-200 dark:border-gray-600';
     }
   };
 
@@ -528,7 +528,7 @@ const ExtensionsStatus: React.FC = () => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
              <div 
-         className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex-shrink-0 cursor-pointer"
+         className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 shrink-0 cursor-pointer"
          onDoubleClick={handleHeaderDoubleClick}
          onContextMenu={handleContextMenu}
           title="Double-click or right-click to refresh extensions. Auto-refreshes from database every 30s"
@@ -668,17 +668,17 @@ const ExtensionsStatus: React.FC = () => {
                     onClick={() => handleExtensionClick(extension)}
                   >
                     <div className="flex items-center space-x-3">
-                       <div className="flex-shrink-0 relative">
+                       <div className="shrink-0 relative">
                            <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
                              extension.status === 'online'
                                ? isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code })
-                                 ? 'bg-gradient-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
-                                 : 'bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
+                                 ? 'bg-linear-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
+                                 : 'bg-linear-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
                                : extension.status === 'offline'
-                               ? 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-200/50'
+                               ? 'bg-linear-to-br from-red-400 to-rose-500 shadow-red-200/50'
                                : extension.status === 'unknown'
-                               ? 'bg-gradient-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
-                               : 'bg-gradient-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
+                               ? 'bg-linear-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
+                               : 'bg-linear-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
                            }`}>
                            <span className="text-white font-bold text-sm drop-shadow-md">
                              {extension.extension}

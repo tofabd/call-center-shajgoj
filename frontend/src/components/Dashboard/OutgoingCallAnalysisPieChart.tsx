@@ -129,7 +129,7 @@ const OutgoingCallAnalysisPieChart: React.FC<OutgoingCallAnalysisPieChartProps> 
   }, []);
 
   return (
-    <div className={`bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-xl border border-purple-200 dark:border-purple-700 ${className}`}>
+    <div className={`bg-linear-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-xl border border-purple-200 dark:border-purple-700 ${className}`}>
       <div 
         ref={chartRef} 
         style={{ height: `${height}px`, width: '100%' }}

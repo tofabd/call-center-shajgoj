@@ -174,7 +174,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
           }`}
         >
           {/* Header */}
-          <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 flex items-center justify-between">
+          <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-green-600 rounded-lg">
                 <ShoppingBag className="h-5 w-5 text-white" />
@@ -266,7 +266,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                 <div className="w-full space-y-6">
                                                         {/* Summary banner */}
                     {details && (
-                      <div className="relative rounded-2xl border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 p-6 shadow-lg shadow-blue-100/50 dark:shadow-blue-900/20 mb-8 overflow-hidden">
+                      <div className="relative rounded-2xl border border-blue-200 dark:border-blue-800 bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 p-6 shadow-lg shadow-blue-100/50 dark:shadow-blue-900/20 mb-8 overflow-hidden">
                         {/* Background Pattern */}
                         <div className="absolute inset-0 opacity-5">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200 rounded-full translate-x-16 -translate-y-16"></div>
@@ -278,9 +278,9 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                           <div className="space-y-3">
                                                          <div className="flex items-center gap-3 flex-wrap">
                                <span className={`px-4 py-2 text-sm rounded-full font-bold text-white shadow-sm flex items-center gap-2 ${
-                                 details.direction === 'outgoing' ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                                 details.direction === 'incoming' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' :
-                                 'bg-gradient-to-r from-gray-500 to-slate-600'
+                                 details.direction === 'outgoing' ? 'bg-linear-to-r from-blue-500 to-blue-600' :
+                                 details.direction === 'incoming' ? 'bg-linear-to-r from-emerald-500 to-teal-600' :
+                                 'bg-linear-to-r from-gray-500 to-slate-600'
                                }`}>
                                  {details.direction === 'outgoing' ? (
                                    <PhoneOutgoing className="w-4 h-4" />
@@ -317,11 +317,11 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                           </div>
                           <div className="flex items-center gap-3">
                             <span className={`px-4 py-2 text-base rounded-full font-bold text-white shadow-sm ${
-                              (details.status || '').toLowerCase() === 'answered' ? 'bg-gradient-to-r from-emerald-500 to-green-600' :
-                              (details.status || '').toLowerCase() === 'busy' ? 'bg-gradient-to-r from-rose-500 to-red-600' :
-                              (details.status || '').toLowerCase().includes('ring') ? 'bg-gradient-to-r from-blue-500 to-cyan-600 animate-pulse' :
-                              (details.status || '').toLowerCase() === 'started' ? 'bg-gradient-to-r from-violet-500 to-purple-600' :
-                              'bg-gradient-to-r from-gray-500 to-slate-600'
+                              (details.status || '').toLowerCase() === 'answered' ? 'bg-linear-to-r from-emerald-500 to-green-600' :
+                              (details.status || '').toLowerCase() === 'busy' ? 'bg-linear-to-r from-rose-500 to-red-600' :
+                              (details.status || '').toLowerCase().includes('ring') ? 'bg-linear-to-r from-blue-500 to-cyan-600 animate-pulse' :
+                              (details.status || '').toLowerCase() === 'started' ? 'bg-linear-to-r from-violet-500 to-purple-600' :
+                              'bg-linear-to-r from-gray-500 to-slate-600'
                             }`}>
                               {details.status || 'Unknown'}
                             </span>
@@ -334,7 +334,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                     {details && details.callFlow && (
                       <div className="space-y-5">
                         <div className="flex items-center gap-3 mb-6">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-linear-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
                             <Hash className="w-4 h-4 text-white" />
                           </div>
                           <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Call Flow Journey</h4>
@@ -342,11 +342,11 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                         
                         {details.callFlow.map((step, index) => (
                           <div key={step.uniqueid || index} className={`relative rounded-xl p-5 shadow-md border-l-4 transition-all duration-300 hover:shadow-lg ${
-                            step.step_type === 'master_channel' ? 'bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/10 dark:to-violet-900/10 border-l-purple-400' :
-                            step.step_type === 'queue_handling' ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-l-amber-400' :
-                            step.step_type === 'agent_connection' ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 border-l-emerald-400' :
-                            step.step_type === 'trunk_connection' ? 'bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 border-l-cyan-400' :
-                            'bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 border-l-slate-400'
+                            step.step_type === 'master_channel' ? 'bg-linear-to-r from-purple-50 to-violet-50 dark:from-purple-900/10 dark:to-violet-900/10 border-l-purple-400' :
+                            step.step_type === 'queue_handling' ? 'bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-l-amber-400' :
+                            step.step_type === 'agent_connection' ? 'bg-linear-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 border-l-emerald-400' :
+                            step.step_type === 'trunk_connection' ? 'bg-linear-to-r from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 border-l-cyan-400' :
+                            'bg-linear-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 border-l-slate-400'
                           }`}>
                             {/* Step Number Badge */}
                             <div className="absolute -top-2 -left-2">
@@ -434,14 +434,14 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                     {details && details.direction === 'incoming' && details.extensionChanges && details.extensionChanges.length > 0 && (
                       <div className="space-y-5 mt-8">
                         <div className="flex items-center gap-3 mb-6">
-                          <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-linear-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
                             <Clock className="w-4 h-4 text-white" />
                           </div>
                           <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Extension Routing Changes</h4>
                         </div>
                         
                         {details.extensionChanges.map((change, index) => (
-                          <div key={index} className="relative rounded-xl p-5 shadow-md border-l-4 border-l-amber-400 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/10 dark:via-orange-900/10 dark:to-yellow-900/10 transition-all duration-300 hover:shadow-lg">
+                          <div key={index} className="relative rounded-xl p-5 shadow-md border-l-4 border-l-amber-400 bg-linear-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/10 dark:via-orange-900/10 dark:to-yellow-900/10 transition-all duration-300 hover:shadow-lg">
                             {/* Change Number Badge */}
                             <div className="absolute -top-2 -left-2">
                               <div className="w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md">
@@ -490,13 +490,13 @@ const CallDetails: React.FC<CallDetailsProps> = ({ selectedCallId, isOpen, onClo
                     {details && (
                       <div className="space-y-4 mt-8">
                         <div className="flex items-center gap-3 mb-6">
-                          <div className="w-8 h-8 bg-gradient-to-br from-slate-400 to-gray-500 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-linear-to-br from-slate-400 to-gray-500 rounded-full flex items-center justify-center">
                             <User className="w-4 h-4 text-white" />
                           </div>
                           <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Call Information</h4>
                         </div>
                         
-                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 p-5 shadow-md">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-r from-slate-50 to-gray-50 dark:from-slate-900/10 dark:to-gray-900/10 p-5 shadow-md">
                                                      <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                              <div>
                                <dt className="text-slate-600 dark:text-slate-300 font-medium mb-1">🆔 Call ID</dt>

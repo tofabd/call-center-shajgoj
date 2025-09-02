@@ -106,7 +106,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
   return (
     <div className="flex flex-col h-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-full">
-        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700">
+        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-orange-600 rounded-lg">
@@ -210,15 +210,15 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
               <div className="w-full space-y-6">
                 {/* Overall Summary */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700 dark:to-slate-700 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm">
+                  <div className="flex justify-between items-center p-4 bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-700 dark:to-slate-700 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Calls</span>
                     <span className="text-xl font-bold text-gray-900 dark:text-white">{callStats.total_calls}</span>
                   </div>
-                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
+                  <div className="flex justify-between items-center p-4 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Incoming</span>
                     <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{callStats.incoming_calls}</span>
                   </div>
-                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 rounded-xl border border-teal-200 dark:border-teal-800 shadow-sm">
+                  <div className="flex justify-between items-center p-4 bg-linear-to-r from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 rounded-xl border border-teal-200 dark:border-teal-800 shadow-sm">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Outgoing</span>
                     <span className="text-xl font-bold text-teal-600 dark:text-teal-400">{callStats.outgoing_calls}</span>
                   </div>
@@ -228,35 +228,35 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Call Status Breakdown</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Completed</span>
                       <span className="text-xl font-bold text-green-600 dark:text-green-400">{callStats.calls_by_status?.completed || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">In Progress</span>
                       <span className="text-xl font-bold text-green-600 dark:text-green-400">{callStats.calls_by_status?.in_progress || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl border border-red-200 dark:border-red-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl border border-red-200 dark:border-red-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Missed</span>
                       <span className="text-xl font-bold text-red-600 dark:text-red-400">{callStats.calls_by_status?.['no_answer'] || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Busy</span>
                       <span className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{callStats.calls_by_status?.busy || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Failed</span>
                       <span className="text-xl font-bold text-purple-600 dark:text-purple-400">{callStats.calls_by_status?.failed || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-xl border border-orange-200 dark:border-orange-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-xl border border-orange-200 dark:border-orange-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Canceled</span>
                       <span className="text-xl font-bold text-orange-600 dark:text-orange-400">{callStats.calls_by_status?.canceled || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20 rounded-xl border border-pink-200 dark:border-pink-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20 rounded-xl border border-pink-200 dark:border-pink-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Rejected</span>
                       <span className="text-xl font-bold text-pink-600 dark:text-pink-400">{callStats.calls_by_status?.rejected || 0}</span>
                     </div>
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm">
+                    <div className="flex justify-between items-center p-4 bg-linear-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Ringing</span>
                       <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{callStats.calls_by_status?.ringing || 0}</span>
                     </div>
@@ -266,7 +266,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                 {/* Direction-based Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Incoming Calls Breakdown */}
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl border border-blue-200 dark:border-blue-800 p-4 shadow-sm">
+                  <div className="bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl border border-blue-200 dark:border-blue-800 p-4 shadow-sm">
                     <h5 className="text-md font-semibold text-blue-900 dark:text-blue-300 mb-3">Incoming Calls</h5>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
@@ -289,7 +289,7 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                   </div>
 
                   {/* Outgoing Calls Breakdown */}
-                  <div className="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/10 dark:to-cyan-900/10 rounded-xl border border-teal-200 dark:border-teal-800 p-4 shadow-sm">
+                  <div className="bg-linear-to-br from-teal-50 to-cyan-50 dark:from-teal-900/10 dark:to-cyan-900/10 rounded-xl border border-teal-200 dark:border-teal-800 p-4 shadow-sm">
                     <h5 className="text-md font-semibold text-teal-900 dark:text-teal-300 mb-3">Outgoing Calls</h5>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
