@@ -320,6 +320,540 @@ export const getLiveCalls = async (req, res) => {
   }
 };
 
+// Get today's statistics
+export const getTodayStats = async (req, res) => {
+  try {
+    const { agent_exten } = req.query;
+    
+    // Today's date range (00:00 to 23:59)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const dateFilter = {
+      started_at: {
+        $gte: startOfToday,
+        $lte: endOfToday
+      }
+    };
+
+    if (agent_exten) {
+      dateFilter.agent_exten = agent_exten;
+    }
+
+    // Get all calls for today
+    const todayCalls = await Call.find(dateFilter).lean();
+
+    // Calculate statistics
+    const stats = calculatePeriodStats(todayCalls, 'today', startOfToday, endOfToday);
+
+    // Get hourly breakdown for today
+    const hourlyBreakdown = Array.from({ length: 24 }, (_, hour) => {
+      const hourStart = new Date(startOfToday);
+      hourStart.setHours(hour);
+      const hourEnd = new Date(startOfToday);
+      hourEnd.setHours(hour + 1);
+
+      const hourCalls = todayCalls.filter(call => {
+        const callTime = new Date(call.started_at);
+        return callTime >= hourStart && callTime < hourEnd;
+      });
+
+      const answered = hourCalls.filter(call => call.answered_at).length;
+      const missed = hourCalls.filter(call => !call.answered_at && call.ended_at).length;
+
+      return {
+        hour,
+        call_count: hourCalls.length,
+        answered,
+        missed
+      };
+    });
+
+    // Get yesterday's stats for comparison
+    const yesterdayStart = new Date(startOfToday);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(endOfToday);
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+
+    const yesterdayCalls = await Call.find({
+      ...dateFilter,
+      started_at: {
+        $gte: yesterdayStart,
+        $lte: yesterdayEnd
+      }
+    }).lean();
+
+    const comparison = calculateComparison(todayCalls, yesterdayCalls);
+
+    res.json({
+      period: 'today',
+      date_range: {
+        start: startOfToday.toISOString(),
+        end: endOfToday.toISOString(),
+        period_name: 'Today'
+      },
+      ...stats,
+      hourly_breakdown: hourlyBreakdown,
+      comparison
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching today statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get weekly statistics
+export const getWeeklyStats = async (req, res) => {
+  try {
+    const { agent_exten } = req.query;
+    
+    // This week's date range (Monday to Sunday)
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    startOfWeek.setDate(diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const dateFilter = {
+      started_at: {
+        $gte: startOfWeek,
+        $lte: endOfWeek
+      }
+    };
+
+    if (agent_exten) {
+      dateFilter.agent_exten = agent_exten;
+    }
+
+    // Get all calls for this week
+    const weekCalls = await Call.find(dateFilter).lean();
+
+    // Calculate statistics
+    const stats = calculatePeriodStats(weekCalls, 'weekly', startOfWeek, endOfWeek);
+
+    // Get daily breakdown for the week
+    const dailyBreakdown = [];
+    for (let i = 0; i < 7; i++) {
+      const dayStart = new Date(startOfWeek);
+      dayStart.setDate(startOfWeek.getDate() + i);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const dayCalls = weekCalls.filter(call => {
+        const callTime = new Date(call.started_at);
+        return callTime >= dayStart && callTime <= dayEnd;
+      });
+
+      const answered = dayCalls.filter(call => call.answered_at).length;
+      const missed = dayCalls.filter(call => !call.answered_at && call.ended_at).length;
+
+      dailyBreakdown.push({
+        date: dayStart.toISOString().split('T')[0],
+        day_name: dayStart.toLocaleDateString('en-US', { weekday: 'long' }),
+        call_count: dayCalls.length,
+        answered,
+        missed
+      });
+    }
+
+    // Get last week's stats for comparison
+    const lastWeekStart = new Date(startOfWeek);
+    lastWeekStart.setDate(startOfWeek.getDate() - 7);
+    const lastWeekEnd = new Date(endOfWeek);
+    lastWeekEnd.setDate(endOfWeek.getDate() - 7);
+
+    const lastWeekCalls = await Call.find({
+      ...dateFilter,
+      started_at: {
+        $gte: lastWeekStart,
+        $lte: lastWeekEnd
+      }
+    }).lean();
+
+    const comparison = calculateComparison(weekCalls, lastWeekCalls);
+
+    res.json({
+      period: 'weekly',
+      date_range: {
+        start: startOfWeek.toISOString(),
+        end: endOfWeek.toISOString(),
+        period_name: 'This Week'
+      },
+      ...stats,
+      daily_breakdown: dailyBreakdown,
+      comparison
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching weekly statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get monthly statistics
+export const getMonthlyStats = async (req, res) => {
+  try {
+    const { agent_exten } = req.query;
+    
+    // This month's date range (1st to last day)
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999);
+
+    const dateFilter = {
+      started_at: {
+        $gte: startOfMonth,
+        $lte: endOfMonth
+      }
+    };
+
+    if (agent_exten) {
+      dateFilter.agent_exten = agent_exten;
+    }
+
+    // Get all calls for this month
+    const monthCalls = await Call.find(dateFilter).lean();
+
+    // Calculate statistics
+    const stats = calculatePeriodStats(monthCalls, 'monthly', startOfMonth, endOfMonth);
+
+    // Get daily breakdown for the month
+    const dailyBreakdown = [];
+    const daysInMonth = endOfMonth.getDate();
+    
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), i, 0, 0, 0, 0);
+      const dayEnd = new Date(now.getFullYear(), now.getMonth(), i, 23, 59, 59, 999);
+
+      const dayCalls = monthCalls.filter(call => {
+        const callTime = new Date(call.started_at);
+        return callTime >= dayStart && callTime <= dayEnd;
+      });
+
+      const answered = dayCalls.filter(call => call.answered_at).length;
+      const missed = dayCalls.filter(call => !call.answered_at && call.ended_at).length;
+
+      dailyBreakdown.push({
+        date: dayStart.toISOString().split('T')[0],
+        day_name: dayStart.toLocaleDateString('en-US', { weekday: 'long' }),
+        call_count: dayCalls.length,
+        answered,
+        missed
+      });
+    }
+
+    // Get last month's stats for comparison
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    lastMonthEnd.setHours(23, 59, 59, 999);
+
+    const lastMonthCalls = await Call.find({
+      ...dateFilter,
+      started_at: {
+        $gte: lastMonthStart,
+        $lte: lastMonthEnd
+      }
+    }).lean();
+
+    const comparison = calculateComparison(monthCalls, lastMonthCalls);
+
+    res.json({
+      period: 'monthly',
+      date_range: {
+        start: startOfMonth.toISOString(),
+        end: endOfMonth.toISOString(),
+        period_name: startOfMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      },
+      ...stats,
+      daily_breakdown: dailyBreakdown,
+      comparison
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching monthly statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get custom date range statistics  
+export const getCustomRangeStats = async (req, res) => {
+  try {
+    const { start_date, end_date, agent_exten } = req.query;
+    
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both start_date and end_date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    
+    // Validate dates
+    if (startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date must be before end date'
+      });
+    }
+
+    const dateFilter = {
+      started_at: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+
+    if (agent_exten) {
+      dateFilter.agent_exten = agent_exten;
+    }
+
+    // Get all calls for the custom range
+    const rangeCalls = await Call.find(dateFilter).lean();
+
+    // Calculate statistics
+    const stats = calculatePeriodStats(rangeCalls, 'custom', startDate, endDate);
+
+    // Get daily breakdown for the custom range
+    const dailyBreakdown = [];
+    const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    
+    for (let i = 0; i <= daysDiff; i++) {
+      const dayStart = new Date(startDate);
+      dayStart.setDate(startDate.getDate() + i);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+      
+      // Skip if we've gone past the end date
+      if (dayStart > endDate) break;
+
+      const dayCalls = rangeCalls.filter(call => {
+        const callTime = new Date(call.started_at);
+        return callTime >= dayStart && callTime <= dayEnd;
+      });
+
+      const answered = dayCalls.filter(call => call.answered_at).length;
+      const missed = dayCalls.filter(call => !call.answered_at && call.ended_at).length;
+
+      dailyBreakdown.push({
+        date: dayStart.toISOString().split('T')[0],
+        day_name: dayStart.toLocaleDateString('en-US', { weekday: 'long' }),
+        call_count: dayCalls.length,
+        answered,
+        missed
+      });
+    }
+
+    // Calculate comparison with previous period (same number of days before the start date)
+    const periodLength = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    const previousStart = new Date(startDate);
+    previousStart.setDate(previousStart.getDate() - periodLength);
+    const previousEnd = new Date(startDate);
+    previousEnd.setDate(previousEnd.getDate() - 1);
+    previousEnd.setHours(23, 59, 59, 999);
+
+    const previousRangeCalls = await Call.find({
+      ...dateFilter,
+      started_at: {
+        $gte: previousStart,
+        $lte: previousEnd
+      }
+    }).lean();
+
+    const comparison = calculateComparison(rangeCalls, previousRangeCalls);
+
+    // Format period name
+    const formatDate = (date) => date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: startDate.getFullYear() !== endDate.getFullYear() ? 'numeric' : undefined
+    });
+    const periodName = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+
+    res.json({
+      period: 'custom',
+      date_range: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        period_name: periodName
+      },
+      ...stats,
+      daily_breakdown: dailyBreakdown,
+      comparison
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching custom range statistics',
+      error: error.message
+    });
+  }
+};
+
+// Helper function to calculate period statistics
+const calculatePeriodStats = (calls, period, startDate, endDate) => {
+  const totalCalls = calls.length;
+  const incomingCalls = calls.filter(call => call.direction === 'incoming');
+  const outgoingCalls = calls.filter(call => call.direction === 'outgoing');
+  const answeredCalls = calls.filter(call => call.answered_at).length;
+  const missedCalls = calls.filter(call => !call.answered_at && call.ended_at).length;
+  const busyCalls = calls.filter(call => call.disposition === 'busy').length;
+  const failedCalls = calls.filter(call => call.disposition === 'failed' || call.disposition === 'congestion').length;
+
+  // Helper function to calculate metrics for a specific call subset
+  const calculateSubsetMetrics = (callSubset) => {
+    const total = callSubset.length;
+    const answered = callSubset.filter(call => call.answered_at).length;
+    const missed = callSubset.filter(call => !call.answered_at && call.ended_at).length;
+    const busy = callSubset.filter(call => call.disposition === 'busy').length;
+    const failed = callSubset.filter(call => call.disposition === 'failed' || call.disposition === 'congestion').length;
+    
+    const answerRate = total > 0 ? (answered / total * 100) : 0;
+    
+    const answeredWithTimes = callSubset.filter(call => call.answered_at && call.ring_seconds);
+    const avgRingTime = answeredWithTimes.length > 0 ? 
+      answeredWithTimes.reduce((sum, call) => sum + call.ring_seconds, 0) / answeredWithTimes.length : 0;
+      
+    const callsWithTalkTime = callSubset.filter(call => call.talk_seconds);
+    const avgTalkTime = callsWithTalkTime.length > 0 ?
+      callsWithTalkTime.reduce((sum, call) => sum + call.talk_seconds, 0) / callsWithTalkTime.length : 0;
+    
+    const totalTalkTime = callSubset.reduce((sum, call) => sum + (call.talk_seconds || 0), 0);
+
+    return {
+      total,
+      answered,
+      missed,
+      busy,
+      failed,
+      answer_rate: Math.round(answerRate * 100) / 100,
+      avg_ring_time: Math.round(avgRingTime),
+      avg_talk_time: Math.round(avgTalkTime),
+      total_talk_time: Math.round(totalTalkTime)
+    };
+  };
+
+  // Calculate separate metrics for incoming and outgoing calls
+  const incomingMetrics = calculateSubsetMetrics(incomingCalls);
+  const outgoingMetrics = calculateSubsetMetrics(outgoingCalls);
+
+  // Calculate overall performance metrics
+  const answerRate = totalCalls > 0 ? (answeredCalls / totalCalls * 100) : 0;
+  
+  const answeredCallsWithTimes = calls.filter(call => call.answered_at && call.ring_seconds);
+  const avgRingTime = answeredCallsWithTimes.length > 0 ? 
+    answeredCallsWithTimes.reduce((sum, call) => sum + call.ring_seconds, 0) / answeredCallsWithTimes.length : 0;
+    
+  const callsWithTalkTime = calls.filter(call => call.talk_seconds);
+  const avgTalkTime = callsWithTalkTime.length > 0 ?
+    callsWithTalkTime.reduce((sum, call) => sum + call.talk_seconds, 0) / callsWithTalkTime.length : 0;
+  
+  const totalTalkTime = calls.reduce((sum, call) => sum + (call.talk_seconds || 0), 0);
+
+  // Find peak hour/day
+  let peakHour = "N/A";
+  let busiestDay = "N/A";
+
+  if (period === 'today') {
+    // Find peak hour for today
+    const hourCounts = {};
+    calls.forEach(call => {
+      const hour = new Date(call.started_at).getHours();
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    });
+    const maxHour = Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b, '0');
+    peakHour = `${maxHour}:00-${parseInt(maxHour) + 1}:00`;
+  } else {
+    // Find busiest day for weekly/monthly
+    const dayCounts = {};
+    calls.forEach(call => {
+      const day = new Date(call.started_at).toLocaleDateString('en-US', { weekday: 'long' });
+      dayCounts[day] = (dayCounts[day] || 0) + 1;
+    });
+    busiestDay = Object.keys(dayCounts).reduce((a, b) => dayCounts[a] > dayCounts[b] ? a : b, 'N/A');
+  }
+
+  return {
+    totals: {
+      total_calls: totalCalls,
+      incoming_calls: incomingCalls.length,
+      outgoing_calls: outgoingCalls.length,
+      answered_calls: answeredCalls,
+      missed_calls: missedCalls,
+      busy_calls: busyCalls,
+      failed_calls: failedCalls
+    },
+    incoming_metrics: incomingMetrics,
+    outgoing_metrics: outgoingMetrics,
+    performance_metrics: {
+      answer_rate: Math.round(answerRate * 100) / 100,
+      avg_ring_time: Math.round(avgRingTime),
+      avg_talk_time: Math.round(avgTalkTime),
+      total_talk_time: Math.round(totalTalkTime),
+      peak_hour: peakHour,
+      busiest_day: busiestDay
+    }
+  };
+};
+
+// Helper function to calculate comparison with previous period
+const calculateComparison = (currentCalls, previousCalls) => {
+  const currentTotal = currentCalls.length;
+  const previousTotal = previousCalls.length;
+  const currentAnswered = currentCalls.filter(call => call.answered_at).length;
+  const previousAnswered = previousCalls.filter(call => call.answered_at).length;
+
+  // Overall metrics
+  const totalChange = currentTotal - previousTotal;
+  const totalChangePercentage = previousTotal > 0 ? (totalChange / previousTotal * 100) : 0;
+
+  const currentAnswerRate = currentTotal > 0 ? (currentAnswered / currentTotal * 100) : 0;
+  const previousAnswerRate = previousTotal > 0 ? (previousAnswered / previousTotal * 100) : 0;
+  const answerRateChange = currentAnswerRate - previousAnswerRate;
+
+  // Incoming call metrics
+  const currentIncoming = currentCalls.filter(call => call.direction === 'incoming');
+  const previousIncoming = previousCalls.filter(call => call.direction === 'incoming');
+  const incomingChange = currentIncoming.length - previousIncoming.length;
+  const incomingChangePercentage = previousIncoming.length > 0 ? (incomingChange / previousIncoming.length * 100) : 0;
+
+  // Outgoing call metrics
+  const currentOutgoing = currentCalls.filter(call => call.direction === 'outgoing');
+  const previousOutgoing = previousCalls.filter(call => call.direction === 'outgoing');
+  const outgoingChange = currentOutgoing.length - previousOutgoing.length;
+  const outgoingChangePercentage = previousOutgoing.length > 0 ? (outgoingChange / previousOutgoing.length * 100) : 0;
+
+  return {
+    total_calls_change: totalChange,
+    total_calls_change_pct: Math.round(totalChangePercentage * 100) / 100,
+    answer_rate_change: Math.round(answerRateChange * 100) / 100,
+    incoming_calls_change: incomingChange,
+    incoming_calls_change_pct: Math.round(incomingChangePercentage * 100) / 100,
+    outgoing_calls_change: outgoingChange,
+    outgoing_calls_change_pct: Math.round(outgoingChangePercentage * 100) / 100
+  };
+};
+
 // Get call details for modal
 export const getCallDetails = async (req, res) => {
   try {

@@ -16,6 +16,7 @@
     "@tanstack/react-query-devtools": "^5.80.7",
     "axios": "^1.9.0",
     "clsx": "^2.1.1",
+    "echarts": "^6.0.0",
     "lucide-react": "^0.511.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^19.1.0",
