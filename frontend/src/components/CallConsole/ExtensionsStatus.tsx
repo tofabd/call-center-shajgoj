@@ -311,7 +311,7 @@ const ExtensionsStatus: React.FC = () => {
   };
 
   const handleRefresh = useCallback(() => {
-    console.log('🔄 Manual refresh triggered - triggering AMI query and database update');
+    console.log('🔄 Manual refresh triggered - loading from database (same as periodic refresh)');
     setIsRefreshing(true);
     
     // Reset the periodic timer
@@ -320,53 +320,43 @@ const ExtensionsStatus: React.FC = () => {
       console.log('⏰ Periodic timer reset due to manual refresh');
     }
     
-    // Trigger AMI refresh first, then load from database
-    extensionService.refreshStatus()
-      .then((result) => {
-        console.log('✅ AMI refresh completed, extensions updated in database:', result);
-        setIsRefreshing(false);
-        
-        // Add a small delay to ensure database is updated before loading
-        return new Promise(resolve => setTimeout(resolve, 500));
-      })
+    // Load extensions from database (same as periodic refresh)
+    loadExtensions(true)
       .then(() => {
-        // After delay, reload extensions from database to get updated status
-        console.log('🔄 Loading updated extensions from database after AMI refresh...');
-        return loadExtensions(true);
+        console.log('✅ Manual refresh completed - extensions loaded from database');
       })
       .catch((error) => {
-        console.error('❌ AMI refresh failed:', error);
-        setIsRefreshing(false);
-        
-        // Fallback to database reload if AMI refresh fails
-        console.log('🔄 Fallback: Loading extensions from database due to AMI failure...');
-        return loadExtensions(true);
+        console.error('❌ Manual refresh failed:', error);
       })
       .finally(() => {
-        // Restart the 30-second database polling timer
-        const newInterval = setInterval(() => {
-          if (isPageVisible && !isRefreshing) {
-            console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
-            setIsAutoRefreshing(true);
-            loadExtensions(true).finally(() => {
-              setTimeout(() => {
-                setIsAutoRefreshing(false);
-              }, 1000);
-            });
+        setTimeout(() => {
+          setIsRefreshing(false);
+          
+          // Restart the 30-second database polling timer
+          const newInterval = setInterval(() => {
+            if (isPageVisible && !isRefreshing) {
+              console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
+              setIsAutoRefreshing(true);
+              loadExtensions(true).finally(() => {
+                setTimeout(() => {
+                  setIsAutoRefreshing(false);
+                }, 1000);
+              });
+            }
+          }, 30000);
+          setAutoRefreshInterval(newInterval);
+          console.log('⏰ Restarted automatic database refresh timer');
+          
+          // Restart duration update timer
+          if (durationUpdateTimer) {
+            clearInterval(durationUpdateTimer);
           }
-        }, 30000);
-        setAutoRefreshInterval(newInterval);
-        console.log('⏰ Restarted automatic database refresh timer');
-        
-        // Restart duration update timer
-        if (durationUpdateTimer) {
-          clearInterval(durationUpdateTimer);
-        }
-        const newDurationTimer = setInterval(() => {
-          setExtensions(prevExtensions => [...prevExtensions]);
-        }, 1000);
-        setDurationUpdateTimer(newDurationTimer);
-        console.log('⏰ Restarted duration update timer');
+          const newDurationTimer = setInterval(() => {
+            setExtensions(prevExtensions => [...prevExtensions]);
+          }, 1000);
+          setDurationUpdateTimer(newDurationTimer);
+          console.log('⏰ Restarted duration update timer');
+        }, 1000); // Keep spinning for visual feedback
       });
   }, [autoRefreshInterval, isPageVisible, isRefreshing]);
 
@@ -624,14 +614,12 @@ const ExtensionsStatus: React.FC = () => {
 
       
       <div className="flex-1 min-h-0 flex flex-col">
-        {loading ? (
-          <div className="p-6 space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-3"></div>
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-              </div>
-            ))}
+        {loading && extensions.length === 0 ? (
+          <div className="flex items-center justify-center flex-1 p-6">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading extensions...</p>
+            </div>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center flex-1 p-6">
