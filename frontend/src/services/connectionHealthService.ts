@@ -135,12 +135,15 @@ export class ConnectionHealthService {
   private checkHealth(): void {
     const previousHealth = { ...this.currentHealth };
     
+    // For Laravel compatibility, treat socket as disabled/disconnected
+    const isSocketConnected = socketService.isConnected();
+    
     console.log('🔍 Checking connection health...', {
-      socketConnected: socketService.isConnected(),
+      socketConnected: isSocketConnected,
       lastHeartbeat: socketService.getLastHeartbeat()
     });
     
-    if (socketService.isConnected()) {
+    if (isSocketConnected) {
       this.currentHealth.status = 'connected';
       this.currentHealth.isConnected = true;
       
@@ -157,7 +160,7 @@ export class ConnectionHealthService {
           this.currentHealth.health = 'poor';
         } else { // More than 30 seconds
           this.currentHealth.health = 'stale';
-          // Attempt reconnection when stale
+          // Attempt reconnection when stale (if not disabled)
           console.log('🔄 Connection stale, attempting reconnection...');
           socketService.reconnect();
         }
@@ -166,15 +169,16 @@ export class ConnectionHealthService {
         this.currentHealth.timeSinceHeartbeat = null;
       }
     } else {
+      // Socket is disconnected or disabled
       this.currentHealth.status = 'disconnected';
       this.currentHealth.health = 'poor';
       this.currentHealth.isConnected = false;
       this.currentHealth.lastHeartbeat = null;
       this.currentHealth.timeSinceHeartbeat = null;
       
-      // Attempt reconnection when disconnected
-      console.log('🔄 Connection lost, attempting reconnection...');
-      socketService.reconnect();
+      // Only attempt reconnection if socket is not disabled
+      // For Laravel mode, we skip reconnection attempts
+      console.log('🔄 Socket disconnected (Laravel mode - real-time features disabled)');
     }
 
     // Check if health changed

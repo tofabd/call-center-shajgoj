@@ -38,10 +38,13 @@ class SocketService {
   private lastHeartbeat: Date | null = null;
   private heartbeatTimeout = 30000; // 30 seconds
   private isPageVisible = true; // Add page visibility tracking
+  private isDisabled = true; // Disable socket connections for now
 
   constructor() {
     this.setupPageVisibilityListener(); // Add page visibility listener
-    this.connect();
+    // Disable auto-connect for now since Laravel doesn't have socket.io yet
+    // this.connect();
+    console.log('🔌 Socket service initialized but disabled for Laravel compatibility');
   }
 
   private setupPageVisibilityListener() {
@@ -92,6 +95,12 @@ class SocketService {
   }
 
   private connect() {
+    // Disable socket connection for Laravel compatibility
+    if (this.isDisabled) {
+      console.log('🔌 Socket connection disabled for Laravel compatibility');
+      return;
+    }
+    
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       
