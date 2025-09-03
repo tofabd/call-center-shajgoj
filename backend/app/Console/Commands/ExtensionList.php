@@ -36,10 +36,10 @@ class ExtensionList extends Command
         parent::__construct();
 
         // Get AMI credentials from environment
-        $this->host = env('AMI_HOST', '103.177.125.83');
-        $this->port = env('AMI_PORT', 5038);
-        $this->username = env('AMI_USERNAME', 'admin');
-        $this->password = env('AMI_PASSWORD', 'Tractor@0152');
+        $this->host = env('AMI_HOST');
+        $this->port = env('AMI_PORT');
+        $this->username = env('AMI_USERNAME');
+        $this->password = env('AMI_PASSWORD');
     }
 
     /**

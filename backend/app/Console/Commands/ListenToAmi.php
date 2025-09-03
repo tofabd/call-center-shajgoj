@@ -43,20 +43,11 @@ use App\Services\ExtensionService;
      {
          $this->extensionService = new ExtensionService();
 
-        // Mellowhost Server
 
-        //  $host = env('AMI_HOST', '103.177.125.93');
-        //  $port = env('AMI_PORT', 5038);
-        //  $username = env('AMI_USERNAME', 'admin');
-        //  $password = env('AMI_PASSWORD', 'talent1212');
-
-
-        //  Shajgoj Server
-
-         $host = env('AMI_HOST', '103.177.125.83');
-         $port = env('AMI_PORT', 5038);
-         $username = env('AMI_USERNAME', 'admin');
-         $password = env('AMI_PASSWORD', 'Tractor@0152');
+         $host = env('AMI_HOST');
+         $port = env('AMI_PORT');
+         $username = env('AMI_USERNAME');
+         $password = env('AMI_PASSWORD');
 
          try {
              // Connect to Asterisk AMI
