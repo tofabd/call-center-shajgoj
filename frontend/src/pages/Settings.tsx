@@ -5,6 +5,7 @@ import {
   Server
 } from 'lucide-react';
 import ExtensionManagement from '../components/Settings/ExtensionManagement';
+import TeamSettings from '../components/Settings/TeamSettings';
 
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('extensions');
@@ -20,7 +21,7 @@ const Settings: React.FC = () => {
       id: 'team',
       name: 'Team Settings',
       icon: Server,
-      component: () => <div className="p-6 text-center text-gray-500">Team settings coming soon...</div>
+      component: TeamSettings
     }
   ];
 

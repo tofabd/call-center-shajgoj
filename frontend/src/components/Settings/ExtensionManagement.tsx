@@ -322,13 +322,13 @@ const ExtensionManagement: React.FC = () => {
   const getDepartmentColor = (department: string | null) => {
     switch (department) {
       case 'Support':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300';
       case 'Sales':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+        return 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300';
       case 'Administration':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300';
       case 'General':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
@@ -454,11 +454,11 @@ const ExtensionManagement: React.FC = () => {
                  {filteredExtensions.map((extension) => (
                    <tr 
                      key={extension.id} 
-                     className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
-                       deletingExtensionId === extension.id 
-                         ? 'bg-red-50 dark:bg-red-900/20 opacity-80' 
-                         : 'bg-white dark:bg-gray-800'
-                     }`}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
+                         deletingExtensionId === extension.id 
+                           ? 'bg-red-50 dark:bg-red-950/20 opacity-80' 
+                           : 'bg-white dark:bg-gray-800'
+                       }`}
                    >
                      {/* Extension Number */}
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
@@ -568,9 +568,9 @@ const ExtensionManagement: React.FC = () => {
                          <button
                            onClick={() => openEditModal(extension)}
                            disabled={deletingExtensionId === extension.id}
-                           className={`p-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
-                             deletingExtensionId === extension.id ? 'scale-95' : 'hover:scale-110'
-                           }`}
+                             className={`p-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                               deletingExtensionId === extension.id ? 'scale-95' : 'hover:scale-110'
+                             }`}
                            title="Edit extension"
                          >
                            <Edit className="h-4 w-4" />
@@ -578,9 +578,9 @@ const ExtensionManagement: React.FC = () => {
                          <button
                            onClick={() => setDeletingExtension(extension)}
                            disabled={deletingExtensionId === extension.id}
-                           className={`p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
-                             deletingExtensionId === extension.id ? 'scale-95 animate-pulse' : 'hover:scale-110'
-                           }`}
+                             className={`p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                               deletingExtensionId === extension.id ? 'scale-95 animate-pulse' : 'hover:scale-110'
+                             }`}
                            title="Delete extension"
                          >
                            {deletingExtensionId === extension.id ? (
@@ -601,17 +601,17 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Refresh Confirmation Modal */}
       {showRefreshConfirmation && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
             <div className="flex items-center space-x-3 mb-6">
-              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-950/50 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Refresh Extensions from Asterisk</h3>
             </div>
             
             <div className="space-y-4 mb-6">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+              <div className="bg-yellow-50 dark:bg-yellow-950/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
                 <div className="flex items-start space-x-3">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
                   <div className="text-sm">
@@ -663,7 +663,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Add Extension Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Add New Extension</h3>
             <div className="space-y-5">
@@ -729,7 +729,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Edit Extension Modal */}
       {editingExtension && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Edit Extension</h3>
             <div className="space-y-5">
@@ -793,10 +793,10 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deletingExtension && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+              <div className="p-2 bg-red-100 dark:bg-red-950/50 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Delete Extension</h3>

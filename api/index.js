@@ -8,6 +8,7 @@ import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
 import callRoutes from './src/routes/callRoutes.js';
 import extensionRoutes from './src/routes/extensionRoutes.js';
+import teamRoutes from './src/routes/teamRoutes.js';
 import { errorHandler, notFound } from './src/middleware/errorHandler.js';
 
 import mongoose from 'mongoose';
@@ -56,6 +57,7 @@ app.get('/', (req, res) => {
       health: '/health',
       users: '/api/users',
       auth: '/api/auth',
+      teams: '/api/teams',
       documentation: '/api/docs'
     }
   });
@@ -98,6 +100,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/extensions', extensionRoutes);
+app.use('/api/teams', teamRoutes);
 
 // Documentation endpoint
 app.get('/api/docs', (req, res) => {
@@ -129,6 +132,16 @@ app.get('/api/docs', (req, res) => {
         'GET /api/extensions/:id': 'Get extension by ID',
         'PUT /api/extensions/:id': 'Update extension',
         'DELETE /api/extensions/:id': 'Delete extension'
+      },
+
+      teams: {
+        'GET /api/teams': 'Get all teams with pagination and filtering',
+        'GET /api/teams/simple': 'Get teams for dropdown/selection',
+        'GET /api/teams/statistics': 'Get team statistics',
+        'GET /api/teams/:id': 'Get team by ID with members',
+        'POST /api/teams': 'Create new team',
+        'PUT /api/teams/:id': 'Update team',
+        'DELETE /api/teams/:id': 'Delete team'
       },
 
       authentication: {
@@ -277,7 +290,8 @@ httpServer.listen(PORT, () => {
       docs: `http://localhost:${PORT}/api/docs`,
       users: `http://localhost:${PORT}/api/users`,
       calls: `http://localhost:${PORT}/api/calls`,
-      extensions: `http://localhost:${PORT}/api/extensions`
+      extensions: `http://localhost:${PORT}/api/extensions`,
+      teams: `http://localhost:${PORT}/api/teams`
     }
   });
 
