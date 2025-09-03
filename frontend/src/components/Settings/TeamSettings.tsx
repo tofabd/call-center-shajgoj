@@ -139,7 +139,7 @@ const TeamSettings: React.FC = () => {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-950 dark:bg-opacity-50 dark:border-red-800 dark:text-red-400">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-950/50 dark:border-red-800 dark:text-red-400">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 flex-shrink-0" />
               <span>{error}</span>
@@ -149,19 +149,19 @@ const TeamSettings: React.FC = () => {
 
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg dark:bg-blue-950 dark:bg-opacity-50 border dark:border-blue-800">
+            <div className="bg-blue-50 p-4 rounded-lg dark:bg-blue-950/50 border dark:border-blue-800">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total_teams}</div>
               <div className="text-sm text-gray-600 dark:text-gray-400">Total Teams</div>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg dark:bg-green-950 dark:bg-opacity-50 border dark:border-green-800">
+            <div className="bg-green-50 p-4 rounded-lg dark:bg-green-950/50 border dark:border-green-800">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.active_teams}</div>
               <div className="text-sm text-gray-600 dark:text-gray-400">Active Teams</div>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg dark:bg-yellow-950 dark:bg-opacity-50 border dark:border-yellow-800">
+            <div className="bg-yellow-50 p-4 rounded-lg dark:bg-yellow-950/50 border dark:border-yellow-800">
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.inactive_teams}</div>
               <div className="text-sm text-gray-600 dark:text-gray-400">Inactive Teams</div>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg dark:bg-purple-950 dark:bg-opacity-50 border dark:border-purple-800">
+            <div className="bg-purple-50 p-4 rounded-lg dark:bg-purple-950/50 border dark:border-purple-800">
               <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.teams_with_users}</div>
               <div className="text-sm text-gray-600 dark:text-gray-400">Teams with Users</div>
             </div>
@@ -227,8 +227,8 @@ const TeamSettings: React.FC = () => {
                   disabled={submitting}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
                     team.isActive
-                      ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:bg-opacity-50 dark:text-green-400 dark:hover:bg-opacity-75 border dark:border-green-800'
-                      : 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-950 dark:bg-opacity-50 dark:text-red-400 dark:hover:bg-opacity-75 border dark:border-red-800'
+                      ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-950/75 border dark:border-green-800'
+                      : 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-950/75 border dark:border-red-800'
                   }`}
                 >
                   {team.isActive ? 'Active' : 'Inactive'}
@@ -262,7 +262,7 @@ const TeamSettings: React.FC = () => {
 
       {/* Add/Edit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
               {editingTeam ? 'Edit Team' : 'Add New Team'}
@@ -334,14 +334,14 @@ const TeamSettings: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Delete Team</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Are you sure you want to delete <strong>"{deleteConfirm.name}"</strong>? This action cannot be undone.
             </p>
             {deleteConfirm.userCount && deleteConfirm.userCount > 0 && (
-              <div className="bg-red-50 dark:bg-red-950 dark:bg-opacity-50 border border-red-200 dark:border-red-800 rounded-md p-3 mb-4">
+              <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md p-3 mb-4">
                 <p className="text-red-600 dark:text-red-400 text-sm">
                   Warning: This team has {deleteConfirm.userCount} member(s). Please reassign them first.
                 </p>

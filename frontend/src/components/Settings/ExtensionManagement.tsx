@@ -601,7 +601,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Refresh Confirmation Modal */}
       {showRefreshConfirmation && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-3 bg-yellow-100 dark:bg-yellow-950/50 rounded-lg">
@@ -663,7 +663,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Add Extension Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Add New Extension</h3>
             <div className="space-y-5">
@@ -729,7 +729,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Edit Extension Modal */}
       {editingExtension && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Edit Extension</h3>
             <div className="space-y-5">
@@ -793,7 +793,7 @@ const ExtensionManagement: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deletingExtension && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center space-x-3 mb-4">
               <div className="p-2 bg-red-100 dark:bg-red-950/50 rounded-lg">
