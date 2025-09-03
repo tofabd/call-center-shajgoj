@@ -116,6 +116,37 @@ class CallController extends Controller
 	}
 
 	/**
+	 * Get only live/active calls (not ended)
+	 */
+	public function getLiveCalls()
+	{
+		$calls = Call::whereNull('ended_at')
+			->orderByDesc('started_at')
+			->take(50) // Limit active calls
+			->get()
+			->map(function (Call $call) {
+				return [
+					'id' => $call->id,
+					'linkedid' => $call->linkedid,
+					'direction' => $call->direction,
+					'other_party' => $call->other_party,
+					'agent_exten' => $call->agent_exten,
+					'started_at' => $call->started_at,
+					'answered_at' => $call->answered_at,
+					'ended_at' => $call->ended_at,
+					'caller_number' => $call->other_party,
+					'caller_name' => null,
+					'duration' => $call->started_at ? max(0, $call->started_at->diffInSeconds(now(), true)) : null,
+					'status' => $this->deriveStatusFromCall($call),
+					'createdAt' => $call->created_at,
+					'updatedAt' => $call->updated_at,
+				];
+			})->toArray();
+
+		return $calls;
+	}
+
+	/**
 	 * Debug method to understand call status derivation
 	 */
 	public function debugCallStatus(int $callId)

@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Clean calls routes
     Route::get('/calls', [CallController::class, 'index']);
+    Route::get('/calls/live', [CallController::class, 'getLiveCalls']);
     Route::get('/calls/today-stats', [CallController::class, 'getTodayStats']);
     Route::get('/calls/{id}/details', [CallController::class, 'getCallDetails']);
     Route::get('/calls/{id}/debug-status', [CallController::class, 'debugCallStatus']);

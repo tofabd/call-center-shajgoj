@@ -165,7 +165,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             answered_at: update.answered_at || existingCall.answered_at,
             ended_at: update.ended_at || existingCall.ended_at,
             duration: update.duration || existingCall.duration,
-            status: update.status || existingCall.status, // Use status from real-time update
+            status: update.status || existingCall.status,
             updatedAt: update.timestamp || new Date().toISOString()
           };
           return updatedCalls;
@@ -173,8 +173,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           // Add new call if it's active (not ended)
           if (!update.ended_at) {
             const newCall: LiveCall = {
-              _id: update.id,
               id: update.id,
+              _id: update.id, // For compatibility
               linkedid: update.linkedid,
               direction: update.direction,
               other_party: update.other_party,
@@ -184,7 +184,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               ended_at: update.ended_at,
               caller_number: update.other_party || 'Unknown',
               duration: update.duration,
-              status: update.status, // Include status from real-time update
+              status: update.status,
               createdAt: update.timestamp || new Date().toISOString(),
               updatedAt: update.timestamp || new Date().toISOString()
             };

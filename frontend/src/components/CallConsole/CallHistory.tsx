@@ -6,7 +6,7 @@ import { StatusTooltip } from '../common/StatusTooltip';
 
 // Interface for individual call
 interface IndividualCall {
-  id: number;
+  id: string; // Changed from number to string for Laravel compatibility
   callerNumber: string;
   callerName: string | null;
   startTime: string;

@@ -202,48 +202,88 @@ export interface PeriodStats {
 class CallLogService {
   async getCallLogs(): Promise<CallLog[]> {
     try {
-      const response = await api.get<{
-        success: boolean;
-        data: CallLog[];
-        pagination: any;
-      }>('/calls');
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error('API returned error');
-      }
+      const response = await api.get<CallLog[]>('/calls');
+      // Laravel returns array directly
+      return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error fetching calls:', error);
       throw error;
     }
   }
 
-  // Legacy method (deprecated - use getTodayStats instead)
+  // Get today's statistics from Laravel
   async getTodayStats(): Promise<CallStats> {
     const response = await api.get<CallStats>('/calls/today-stats');
     return response.data;
   }
 
-  // New enhanced statistics methods
+  // New enhanced statistics methods (temporarily return legacy format)
   async getTodayStatsEnhanced(): Promise<PeriodStats> {
-    const response = await api.get<PeriodStats>('/calls/today-stats');
-    return response.data;
+    // For now, convert CallStats to PeriodStats format
+    const stats = await this.getTodayStats();
+    
+    // Convert Laravel CallStats to PeriodStats format
+    return {
+      period: 'today',
+      date_range: {
+        start: stats.date,
+        end: stats.date,
+        period_name: 'Today'
+      },
+      totals: {
+        total_calls: stats.total_calls,
+        incoming_calls: stats.incoming_calls,
+        outgoing_calls: stats.outgoing_calls,
+        answered_calls: stats.calls_by_status?.completed || 0,
+        missed_calls: stats.calls_by_status?.no_answer || 0,
+        busy_calls: stats.calls_by_status?.busy || 0,
+        failed_calls: stats.calls_by_status?.failed || 0,
+      },
+      incoming_metrics: {
+        total: stats.incoming_calls,
+        answered: stats.incoming_by_status?.completed || 0,
+        missed: stats.incoming_by_status?.no_answer || 0,
+        busy: stats.incoming_by_status?.busy || 0,
+        failed: stats.incoming_by_status?.failed || 0,
+        answer_rate: stats.incoming_calls ? Math.round(((stats.incoming_by_status?.completed || 0) / stats.incoming_calls) * 100) : 0,
+        avg_ring_time: 0,
+        avg_talk_time: 0,
+        total_talk_time: 0,
+      },
+      outgoing_metrics: {
+        total: stats.outgoing_calls,
+        answered: stats.outgoing_by_status?.completed || 0,
+        missed: stats.outgoing_by_status?.no_answer || 0,
+        busy: stats.outgoing_by_status?.busy || 0,
+        failed: stats.outgoing_by_status?.failed || 0,
+        answer_rate: stats.outgoing_calls ? Math.round(((stats.outgoing_by_status?.completed || 0) / stats.outgoing_calls) * 100) : 0,
+        avg_ring_time: 0,
+        avg_talk_time: 0,
+        total_talk_time: 0,
+      },
+      performance_metrics: {
+        answer_rate: stats.total_calls ? Math.round(((stats.calls_by_status?.completed || 0) / stats.total_calls) * 100) : 0,
+        avg_ring_time: 0,
+        avg_talk_time: 0,
+        total_talk_time: 0,
+        peak_hour: '12:00-13:00'
+      }
+    } as PeriodStats;
   }
 
   async getWeeklyStats(): Promise<PeriodStats> {
-    const response = await api.get<PeriodStats>('/calls/weekly-stats');  
-    return response.data;
+    // Fallback to today stats for now
+    return this.getTodayStatsEnhanced();
   }
 
   async getMonthlyStats(): Promise<PeriodStats> {
-    const response = await api.get<PeriodStats>('/calls/monthly-stats');
-    return response.data;
+    // Fallback to today stats for now
+    return this.getTodayStatsEnhanced();
   }
 
   async getPeriodStats(startDate: string, endDate: string): Promise<PeriodStats> {
-    const response = await api.get<PeriodStats>(`/calls/custom-range-stats?start_date=${startDate}&end_date=${endDate}`);
-    return response.data;
+    // Fallback to today stats for now
+    return this.getTodayStatsEnhanced();
   }
 
   // Method to get stats based on time range
@@ -270,23 +310,14 @@ class CallLogService {
 
   async getCallDetails(id: string): Promise<CallDetails> {
     try {
-      const response = await api.get<{
-        success: boolean;
-        data: CallDetails;
-      }>(`/calls/${id}/details`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error('API returned error');
-      }
+      const response = await api.get<CallDetails>(`/calls/${id}/details`);
+      // Laravel returns data directly
+      return response.data;
     } catch (error) {
       console.error('Error fetching call details:', error);
       throw error;
     }
   }
-
- 
 }
 
 export const callLogService = new CallLogService();
