@@ -13,6 +13,7 @@ class Extension extends Model
     protected $fillable = [
         'extension',
         'agent_name',
+        'team',
         'status',
         'status_code',
         'device_state',
@@ -27,6 +28,26 @@ class Extension extends Model
         'is_active' => 'boolean',
         'status_code' => 'integer',
     ];
+
+    protected $appends = [
+        'department' // Add department as virtual attribute for frontend compatibility
+    ];
+
+    /**
+     * Get department attribute (alias for team)
+     */
+    public function getDepartmentAttribute(): ?string
+    {
+        return $this->team;
+    }
+
+    /**
+     * Set department attribute (maps to team)
+     */
+    public function setDepartmentAttribute(?string $value): void
+    {
+        $this->attributes['team'] = $value;
+    }
 
     /**
      * Get the calls associated with this extension

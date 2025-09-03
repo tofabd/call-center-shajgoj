@@ -21,9 +21,10 @@ export interface ExtensionStatusEvent {
   device_state?: string;
   status_code?: number;
   agent_name?: string;
+  team?: string;
   last_status_change?: string;
   last_seen?: string;
-  department?: string;
+  department?: string; // Support both for backward compatibility
   is_active?: boolean;
   timestamp: string;
 }

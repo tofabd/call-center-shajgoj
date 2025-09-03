@@ -5,13 +5,14 @@ export interface Extension {
   id: string; // For backward compatibility, will map from _id
   extension: string;
   agent_name?: string;
+  team?: string;
   status_code: number;
   device_state: string;
   status: 'online' | 'offline' | 'unknown';
   last_status_change?: string;
   last_seen?: string;
   is_active: boolean;
-  department?: string;
+  department?: string; // Alias for team for backward compatibility
   createdAt: string;
   updatedAt: string;
   created_at: string; // For backward compatibility
@@ -157,7 +158,8 @@ export const extensionService = {
       device_state: ext.device_state ?? 'NOT_INUSE',
       last_status_change: ext.last_status_change ?? null,
       last_seen: ext.last_seen ?? null,
-      department: ext.department ?? null,
+      team: ext.team ?? null,
+      department: ext.department ?? ext.team ?? null, // Support both fields
       // Add human-readable status label
       statusLabel: getStatusLabel(ext.device_state as string ?? 'NOT_INUSE', ext.status_code as number ?? 0)
     }));
@@ -172,8 +174,15 @@ export const extensionService = {
   },
 
   // Create new extension
-  async createExtension(data: { extension: string; agent_name?: string; department?: string }): Promise<Extension> {
-    const response = await api.post('/extensions', data);
+  async createExtension(data: { extension: string; agent_name?: string; department?: string; team?: string }): Promise<Extension> {
+    // Support both department and team fields - prefer team if provided
+    const requestData = {
+      extension: data.extension,
+      agent_name: data.agent_name,
+      team: data.team || data.department
+    };
+    
+    const response = await api.post('/extensions', requestData);
     const ext = response.data.data;
     return {
       ...ext,
@@ -184,8 +193,17 @@ export const extensionService = {
   },
 
   // Update extension
-  async updateExtension(id: string, data: { extension?: string; agent_name?: string; department?: string; is_active?: boolean }): Promise<Extension> {
-    const response = await api.put(`/extensions/${id}`, data);
+  async updateExtension(id: string, data: { extension?: string; agent_name?: string; department?: string; team?: string; is_active?: boolean }): Promise<Extension> {
+    // Support both department and team fields - prefer team if provided
+    const requestData = {
+      ...data,
+      team: data.team || data.department
+    };
+    
+    // Remove department from request data to avoid sending both
+    delete requestData.department;
+    
+    const response = await api.put(`/extensions/${id}`, requestData);
     const ext = response.data.data;
     return {
       ...ext,

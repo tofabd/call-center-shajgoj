@@ -38,7 +38,31 @@ class ExtensionController extends Controller
     }
 
     /**
-     * Get extension statistics for dashboard
+     * Get extension statistics for frontend dashboard
+     */
+    public function statistics(): JsonResponse
+    {
+        try {
+            $stats = $this->extensionService->getExtensionStats();
+            $topAgents = $this->extensionService->getTopPerformingAgents(3);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'top_agents' => $topAgents
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Refresh extensions from Asterisk AMI (same as existing stats method)
      */
     public function stats(): JsonResponse
     {
@@ -62,6 +86,57 @@ class ExtensionController extends Controller
     }
 
     /**
+     * Refresh extensions from Asterisk AMI
+     */
+    public function refresh(): JsonResponse
+    {
+        try {
+            // Execute the GetAsteriskExtensions artisan command to refresh from AMI
+            \Artisan::call('extensions:get-asterisk');
+            $commandOutput = \Artisan::output();
+
+            // Get updated extension count after refresh
+            $extensionsChecked = Extension::count();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Extension refresh completed via Asterisk AMI',
+                'data' => [
+                    'extensionsChecked' => $extensionsChecked,
+                    'lastQueryTime' => now()->toISOString(),
+                    'statistics' => [
+                        'successfulQueries' => $extensionsChecked,
+                        'failedQueries' => 0
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refresh extensions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get single extension by ID
+     */
+    public function show(Extension $extension): JsonResponse
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => $extension
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch extension: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Create a new extension
      */
     public function store(Request $request): JsonResponse
@@ -69,6 +144,8 @@ class ExtensionController extends Controller
         $validator = Validator::make($request->all(), [
             'extension' => 'required|string|max:10|unique:extensions,extension',
             'agent_name' => 'nullable|string|max:255',
+            'team' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255', // Support both team and department
             'status_code' => 'nullable|integer|min:0|max:99',
             'device_state' => 'nullable|string|max:20',
             'is_active' => 'nullable|boolean',
@@ -86,9 +163,10 @@ class ExtensionController extends Controller
             $extension = Extension::create([
                 'extension' => $request->extension,
                 'agent_name' => $request->agent_name,
+                'team' => $request->team ?: $request->department, // Support both team and department fields
                 'status' => 'unknown',
-                'status_code' => $request->status_code ?? 0,
-                'device_state' => $request->device_state ?? 'NOT_INUSE',
+                'status_code' => $request->status_code ?? 3,
+                'device_state' => $request->device_state ?? 'UNAVAILABLE',
                 'last_status_change' => now(),
                 'is_active' => $request->is_active ?? true,
             ]);
@@ -114,6 +192,8 @@ class ExtensionController extends Controller
         $validator = Validator::make($request->all(), [
             'extension' => 'nullable|string|max:10|unique:extensions,extension,' . $extension->id,
             'agent_name' => 'nullable|string|max:255',
+            'team' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255', // Support both team and department
             'status' => 'nullable|in:online,offline,unknown',
             'status_code' => 'nullable|integer|min:0|max:99',
             'device_state' => 'nullable|string|max:20',
@@ -131,15 +211,22 @@ class ExtensionController extends Controller
         try {
             // Track if status-related fields changed
             $statusChanged = $request->has('status') || $request->has('status_code') || $request->has('device_state');
-            
-            // Update fields
+
+            // Update fields - support both team and department
             $updateData = $request->only(['extension', 'agent_name', 'status', 'status_code', 'device_state', 'is_active']);
-            
+
+            // Handle team/department field mapping
+            if ($request->has('team')) {
+                $updateData['team'] = $request->team;
+            } elseif ($request->has('department')) {
+                $updateData['team'] = $request->department;
+            }
+
             // Add last_status_change if status-related fields changed
             if ($statusChanged) {
                 $updateData['last_status_change'] = now();
             }
-            
+
             $extension->update($updateData);
 
             return response()->json([

@@ -29,10 +29,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Extension routes
     Route::get('/extensions', [ExtensionController::class, 'index']);
-    Route::get('/extensions/stats', [ExtensionController::class, 'stats']);
+    Route::get('/extensions/statistics', [ExtensionController::class, 'statistics']);
+    Route::post('/extensions/refresh', [ExtensionController::class, 'refresh']);
     Route::post('/extensions', [ExtensionController::class, 'store']);
+    Route::get('/extensions/{extension}', [ExtensionController::class, 'show']);
     Route::put('/extensions/{extension}', [ExtensionController::class, 'update']);
     Route::delete('/extensions/{extension}', [ExtensionController::class, 'destroy']);
     Route::post('/extensions/sync', [ExtensionController::class, 'sync']);
-    Route::post('/extensions/status', [ExtensionController::class, 'updateStatus']);
+    Route::put('/extensions/status', [ExtensionController::class, 'updateStatus']);
 });

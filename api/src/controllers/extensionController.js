@@ -145,8 +145,8 @@ export const createExtension = async (req, res) => {
       agent_name,
       department,
       is_active,
-      status_code: 0,
-      device_state: 'NOT_INUSE',
+      status_code: 3,
+      device_state: 'UNAVAILABLE',
       status: 'unknown',
       last_status_change: now,
       last_seen: now

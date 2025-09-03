@@ -2,13 +2,14 @@ export interface Extension {
   _id: string;
   extension: string;
   agent_name: string | null;
+  team: string | null;
   status_code: number;
   device_state: string;
   status: 'online' | 'offline' | 'unknown';
   last_status_change: string | null;
   last_seen: string | null;
   is_active: boolean;
-  department: string | null;
+  department: string | null; // Alias for team for backward compatibility
   createdAt: string;
   updatedAt: string;
 }
@@ -16,25 +17,28 @@ export interface Extension {
 export interface ExtensionStatusUpdate {
   extension: string;
   agent_name: string | null;
+  team: string | null;
   status: 'online' | 'offline' | 'unknown';
   status_code: number;
   device_state: string;
   last_status_change: string | null;
   last_seen: string | null;
-  department: string | null;
+  department: string | null; // Alias for team for backward compatibility
   is_active: boolean;
 }
 
 export interface CreateExtensionRequest {
   extension: string;
   agent_name?: string;
-  department?: string;
+  team?: string;
+  department?: string; // Support both for backward compatibility
   is_active?: boolean;
 }
 
 export interface UpdateExtensionRequest {
   agent_name?: string;
-  department?: string;
+  team?: string;
+  department?: string; // Support both for backward compatibility
   is_active?: boolean;
 }
 

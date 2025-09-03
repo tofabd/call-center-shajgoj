@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use App\Services\ExtensionService;
 
 class ExtensionList extends Command
 {
@@ -18,8 +17,7 @@ class ExtensionList extends Command
                             {--context=* : Filter by specific contexts}
                             {--all : Show all extensions (not just registered ones)}
                             {--numeric-only : Show only numeric extensions (1001, 1002, etc.)}
-                            {--states-only : Show extension states directly (bypasses SIP peers)}
-                            {--check-status : Verify actual extension status with Asterisk (requires ExtensionService)}';
+                            {--states-only : Show extension states directly (bypasses SIP peers)}';
 
     /**
      * The console command description.
@@ -75,11 +73,6 @@ class ExtensionList extends Command
             if (empty($extensions)) {
                 $this->warn("⚠️ No extensions found in Asterisk");
                 return 0;
-            }
-
-            // Check status of extensions if --check-status option is enabled
-            if ($this->option('check-status')) {
-                $extensions = $this->checkExtensionStatuses($extensions);
             }
 
             // Display results based on format option
@@ -580,121 +573,6 @@ class ExtensionList extends Command
         return $extensions;
     }
 
-    /**
-     * Check the actual status of extensions using ExtensionService
-     */
-    private function checkExtensionStatuses(array $extensions): array
-    {
-        $this->info("🔍 Checking actual extension statuses with Asterisk...");
-        $this->line("This will verify the real-time status of each extension.");
-        $this->line("");
-
-        $extensionService = new ExtensionService();
-        $checkedExtensions = [];
-        $successful = 0;
-        $failed = 0;
-        $statusMismatches = 0;
-
-        foreach ($extensions as $extension) {
-            $extNumber = $extension['extension'] ?? '';
-
-            if (empty($extNumber)) {
-                $checkedExtensions[] = $extension;
-                continue;
-            }
-
-            $this->line("Checking {$extNumber}...");
-
-            try {
-                // Get the actual status from Asterisk
-                $actualStatus = $extensionService->getExtensionStatus($extNumber);
-
-                if ($actualStatus !== null) {
-                    $successful++;
-
-                    // Check for status mismatch
-                    $currentStatus = $this->normalizeStatus($extension['status'] ?? '');
-                    $normalizedActualStatus = $this->normalizeStatus($actualStatus);
-
-                    $statusMatch = $currentStatus === $normalizedActualStatus;
-                    if (!$statusMatch) {
-                        $statusMismatches++;
-                    }
-
-                    // Add the verified status information
-                    $extension['verified_status'] = $actualStatus;
-                    $extension['status_verified'] = true;
-                    $extension['status_match'] = $statusMatch;
-
-                    $matchIcon = $statusMatch ? '✅' : '❌';
-                    $this->line("  {$matchIcon} {$extNumber}: SIP={$currentStatus}, Actual={$actualStatus}");
-                } else {
-                    $failed++;
-                    $extension['verified_status'] = 'FAILED';
-                    $extension['status_verified'] = false;
-                    $extension['status_match'] = false;
-
-                    $this->warn("  ⚠️ {$extNumber}: Status check failed");
-                }
-            } catch (\Exception $e) {
-                $failed++;
-                $extension['verified_status'] = 'ERROR';
-                $extension['status_verified'] = false;
-                $extension['status_match'] = false;
-
-                $this->error("  ❌ {$extNumber}: " . $e->getMessage());
-            }
-
-            $checkedExtensions[] = $extension;
-        }
-
-        // Display status check summary
-        $this->line("");
-        $this->info("📊 Status Check Summary:");
-        $this->line("  ✅ Successful checks: {$successful}");
-        $this->line("  ❌ Failed checks: {$failed}");
-        $this->line("  🔄 Status mismatches: {$statusMismatches}");
-        $this->line("  📊 Total extensions: " . count($extensions));
-
-        if ($statusMismatches > 0) {
-            $this->line("");
-            $this->warn("⚠️ Found {$statusMismatches} status mismatches between SIP peers and actual extension status!");
-            $this->line("💡 This could indicate:");
-            $this->line("  - Extensions are registered but not properly configured");
-            $this->line("  - Different status sources (SIP vs Extension contexts)");
-            $this->line("  - Extensions in different contexts than expected");
-        }
-
-        if ($failed > 0) {
-            $this->line("");
-            $this->warn("💡 Troubleshooting failed checks:");
-            $this->line("  - Verify extensions exist in Asterisk dialplan");
-            $this->line("  - Check extension contexts (ext-local, from-internal, etc.)");
-            $this->line("  - Ensure AMI permissions for ExtensionState queries");
-        }
-
-        return $checkedExtensions;
-    }
-
-    /**
-     * Normalize status for comparison
-     */
-    private function normalizeStatus(string $status): string
-    {
-        $status = strtolower(trim($status));
-
-        // Map various status representations to normalized values
-        if (strpos($status, 'ok') !== false || strpos($status, 'online') !== false) {
-            return 'online';
-        } elseif (strpos($status, 'unreachable') !== false || strpos($status, 'offline') !== false) {
-            return 'offline';
-        } elseif (strpos($status, 'unknown') !== false || strpos($status, 'lagged') !== false) {
-            return 'unknown';
-        }
-
-        return $status;
-    }
-
     private function displayExtensions(array $extensions): void
     {
         $format = $this->option('format');
@@ -718,29 +596,7 @@ class ExtensionList extends Command
 
     private function displayAsTable(array $extensions, bool $includeStatus): void
     {
-        // Check if status verification was performed
-        $hasVerification = $this->option('check-status') && !empty($extensions) && isset($extensions[0]['status_verified']);
-
-        if ($hasVerification) {
-            // Extended headers for status verification
-            $headers = ['Extension', 'Type', 'SIP Status', 'Verified Status', 'Match', 'IP Address', 'Port'];
-            $rows = array_map(function($ext) {
-                $matchIcon = '';
-                if (isset($ext['status_match'])) {
-                    $matchIcon = $ext['status_match'] ? '✅' : '❌';
-                }
-
-                return [
-                    $ext['extension'] ?? 'N/A',
-                    $ext['type'] ?? 'N/A',
-                    $this->formatSipStatus($ext['status'] ?? 'N/A'),
-                    $ext['verified_status'] ?? 'N/A',
-                    $matchIcon,
-                    $ext['ip_address'] ?? 'N/A',
-                    $ext['port'] ?? 'N/A',
-                ];
-            }, $extensions);
-        } elseif ($includeStatus) {
+        if ($includeStatus) {
             $headers = ['Extension', 'Type', 'Status', 'IP Address', 'Port', 'Dynamic', 'Ext Status', 'Status Text', 'Context'];
             $rows = array_map(function($ext) {
                 return [
@@ -835,23 +691,6 @@ class ExtensionList extends Command
         }
 
         // Show verification statistics if status checking was performed
-        if ($this->option('check-status')) {
-            $verified = count(array_filter($extensions, function($ext) {
-                return isset($ext['status_verified']) && $ext['status_verified'];
-            }));
-            $matched = count(array_filter($extensions, function($ext) {
-                return isset($ext['status_match']) && $ext['status_match'];
-            }));
-            $mismatched = count(array_filter($extensions, function($ext) {
-                return isset($ext['status_match']) && !$ext['status_match'];
-            }));
-
-            $this->line("\n🔍 Status Verification Summary:");
-            $this->line("  ✅ Successfully verified: {$verified}");
-            $this->line("  🔄 Status matches: {$matched}");
-            $this->line("  ⚠️ Status mismatches: {$mismatched}");
-            $this->line("  ❌ Failed verifications: " . ($total - $verified));
-        }
     }
 
     private function formatSipStatus(string $status): string

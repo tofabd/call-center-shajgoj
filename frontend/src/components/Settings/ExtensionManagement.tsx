@@ -310,13 +310,13 @@ const ExtensionManagement: React.FC = () => {
     return date.toLocaleString('en-US', options);
   };
 
-  // Department options
+  // Department options - updated to match seeder teams
   const departmentOptions = [
-    { value: '', label: 'No Department' },
-    { value: 'Support', label: 'Support' },
+    { value: '', label: 'No Team' },
     { value: 'Sales', label: 'Sales' },
-    { value: 'Administration', label: 'Administration' },
-    { value: 'General', label: 'General' }
+    { value: 'Support', label: 'Support' },
+    { value: 'Marketing', label: 'Marketing' },
+    { value: 'Admin', label: 'Admin' }
   ];
 
   const getDepartmentColor = (department: string | null) => {
@@ -325,10 +325,10 @@ const ExtensionManagement: React.FC = () => {
         return 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300';
       case 'Sales':
         return 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300';
-      case 'Administration':
+      case 'Marketing':
         return 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300';
-      case 'General':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300';
+      case 'Admin':
+        return 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
@@ -434,7 +434,7 @@ const ExtensionManagement: React.FC = () => {
                     Agent Details
                   </th>
                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
-                    Department
+                     Team
                   </th>
                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Status
@@ -485,9 +485,9 @@ const ExtensionManagement: React.FC = () => {
                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getDepartmentColor(extension.department)}`}>
                            {extension.department}
                          </span>
-                       ) : (
-                         <span className="text-sm text-gray-400 dark:text-gray-500 italic">No department</span>
-                       )}
+                        ) : (
+                          <span className="text-sm text-gray-400 dark:text-gray-500 italic">No team</span>
+                        )}
                      </td>
 
                      {/* Status */}
