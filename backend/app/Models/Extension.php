@@ -14,13 +14,18 @@ class Extension extends Model
         'extension',
         'agent_name',
         'status',
+        'status_code',
+        'device_state',
+        'last_status_change',
         'last_seen',
         'is_active',
     ];
 
     protected $casts = [
         'last_seen' => 'datetime',
+        'last_status_change' => 'datetime',
         'is_active' => 'boolean',
+        'status_code' => 'integer',
     ];
 
     /**
@@ -40,16 +45,30 @@ class Extension extends Model
     }
 
     /**
-     * Update the extension status
+     * Update the extension status with detailed state information
      */
-    public function updateStatus(string $status, ?string $lastSeen = null): bool
+    public function updateStatus(string $status, ?string $lastSeen = null, ?int $statusCode = null, ?string $deviceState = null): bool
     {
         $this->status = $status;
+        
         if ($lastSeen) {
             $this->last_seen = $lastSeen;
         } else {
             $this->last_seen = now();
         }
+        
+        // Update status code if provided
+        if ($statusCode !== null) {
+            $this->status_code = $statusCode;
+        }
+        
+        // Update device state if provided
+        if ($deviceState !== null) {
+            $this->device_state = $deviceState;
+        }
+        
+        // Update last status change timestamp
+        $this->last_status_change = now();
 
         return $this->save();
     }

@@ -69,6 +69,8 @@ class ExtensionController extends Controller
         $validator = Validator::make($request->all(), [
             'extension' => 'required|string|max:10|unique:extensions,extension',
             'agent_name' => 'nullable|string|max:255',
+            'status_code' => 'nullable|integer|min:0|max:99',
+            'device_state' => 'nullable|string|max:20',
             'is_active' => 'nullable|boolean',
         ]);
 
@@ -85,6 +87,9 @@ class ExtensionController extends Controller
                 'extension' => $request->extension,
                 'agent_name' => $request->agent_name,
                 'status' => 'unknown',
+                'status_code' => $request->status_code ?? 0,
+                'device_state' => $request->device_state ?? 'NOT_INUSE',
+                'last_status_change' => now(),
                 'is_active' => $request->is_active ?? true,
             ]);
 
@@ -110,6 +115,8 @@ class ExtensionController extends Controller
             'extension' => 'nullable|string|max:10|unique:extensions,extension,' . $extension->id,
             'agent_name' => 'nullable|string|max:255',
             'status' => 'nullable|in:online,offline,unknown',
+            'status_code' => 'nullable|integer|min:0|max:99',
+            'device_state' => 'nullable|string|max:20',
             'is_active' => 'nullable|boolean',
         ]);
 
@@ -122,7 +129,18 @@ class ExtensionController extends Controller
         }
 
         try {
-            $extension->update($request->only(['extension', 'agent_name', 'status', 'is_active']));
+            // Track if status-related fields changed
+            $statusChanged = $request->has('status') || $request->has('status_code') || $request->has('device_state');
+            
+            // Update fields
+            $updateData = $request->only(['extension', 'agent_name', 'status', 'status_code', 'device_state', 'is_active']);
+            
+            // Add last_status_change if status-related fields changed
+            if ($statusChanged) {
+                $updateData['last_status_change'] = now();
+            }
+            
+            $extension->update($updateData);
 
             return response()->json([
                 'success' => true,
@@ -189,6 +207,8 @@ class ExtensionController extends Controller
         $validator = Validator::make($request->all(), [
             'extension' => 'required|string',
             'status' => 'required|in:online,offline,unknown',
+            'status_code' => 'nullable|integer|min:0|max:99',
+            'device_state' => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -202,7 +222,9 @@ class ExtensionController extends Controller
         try {
             $success = $this->extensionService->updateExtensionStatus(
                 $request->extension,
-                $request->status
+                $request->status,
+                $request->status_code,
+                $request->device_state
             );
 
             if ($success) {

@@ -149,16 +149,17 @@ export const extensionService = {
     // Map MongoDB response to frontend interface for backward compatibility
     const mappedExtensions = extensions.map((ext: Record<string, unknown>) => ({
       ...ext,
-      id: ext._id, // Map _id to id for backward compatibility
-      created_at: ext.createdAt, // Map createdAt to created_at
-      updated_at: ext.updatedAt, // Map updatedAt to updated_at
-      // Ensure new fields have default values if missing
-      status_code: ext.status_code || 0,
-      device_state: ext.device_state || 'NOT_INUSE',
-      last_status_change: ext.last_status_change || null,
-      department: ext.department || null,
+      id: ext._id || ext.id, // Map _id to id for backward compatibility
+      created_at: ext.created_at || ext.createdAt, // Map createdAt to created_at
+      updated_at: ext.updated_at || ext.updatedAt, // Map updatedAt to updated_at
+      // Ensure new fields have proper default values
+      status_code: ext.status_code ?? 0,
+      device_state: ext.device_state ?? 'NOT_INUSE',
+      last_status_change: ext.last_status_change ?? null,
+      last_seen: ext.last_seen ?? null,
+      department: ext.department ?? null,
       // Add human-readable status label
-      statusLabel: getStatusLabel(ext.device_state as string || 'NOT_INUSE', ext.status_code as number || 0)
+      statusLabel: getStatusLabel(ext.device_state as string ?? 'NOT_INUSE', ext.status_code as number ?? 0)
     }));
     
     return mappedExtensions;

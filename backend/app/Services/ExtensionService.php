@@ -272,7 +272,7 @@ class ExtensionService
     /**
      * Update extension status
      */
-    public function updateExtensionStatus(string $extension, string $status): bool
+    public function updateExtensionStatus(string $extension, string $status, ?int $statusCode = null, ?string $deviceState = null): bool
     {
         try {
             $ext = Extension::where('extension', $extension)->first();
@@ -286,12 +286,14 @@ class ExtensionService
             }
 
             $oldStatus = $ext->status;
-            $result = $ext->updateStatus($status);
+            $result = $ext->updateStatus($status, null, $statusCode, $deviceState);
 
             Log::info("Extension status update attempt", [
                 'extension' => $extension,
                 'old_status' => $oldStatus,
                 'new_status' => $status,
+                'status_code' => $statusCode,
+                'device_state' => $deviceState,
                 'result' => $result
             ]);
 
