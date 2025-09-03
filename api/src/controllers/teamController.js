@@ -8,7 +8,6 @@ export const getTeams = async (req, res) => {
       page = 1,
       limit = 50,
       search,
-      department,
       is_active,
       sort_by = 'createdAt',
       sort_order = 'desc'
@@ -20,17 +19,12 @@ export const getTeams = async (req, res) => {
     if (is_active !== undefined) {
       filter.is_active = is_active === 'true';
     }
-    
-    if (department) {
-      filter.department = { $regex: department, $options: 'i' };
-    }
 
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
-        { department: { $regex: search, $options: 'i' } },
-        { manager_name: { $regex: search, $options: 'i' } }
+        { slug: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -48,10 +42,16 @@ export const getTeams = async (req, res) => {
     // Get member counts for each team
     const teamsWithMemberCount = await Promise.all(
       teams.map(async (team) => {
-        const memberCount = await User.countDocuments({ team_id: team._id });
+        const users_count = await User.countDocuments({ team_id: team._id });
         return {
-          ...team,
-          member_count: memberCount
+          id: team._id,
+          name: team.name,
+          slug: team.slug,
+          description: team.description,
+          is_active: team.is_active,
+          users_count,
+          created_at: team.createdAt,
+          updated_at: team.updatedAt
         };
       })
     );
@@ -95,18 +95,26 @@ export const getTeamById = async (req, res) => {
 
     // Get team members
     const members = await User.find({ team_id: id })
-      .select('name email extension role department is_active')
+      .select('name email extension is_active')
       .sort({ name: 1 });
 
-    const teamWithMembers = {
-      ...team.toJSON(),
-      members: members,
-      member_count: members.length
+    const users_count = await User.countDocuments({ team_id: id });
+
+    const teamData = {
+      id: team._id,
+      name: team.name,
+      slug: team.slug,
+      description: team.description,
+      is_active: team.is_active,
+      users_count,
+      members,
+      created_at: team.createdAt,
+      updated_at: team.updatedAt
     };
 
     res.json({
       success: true,
-      data: teamWithMembers
+      data: teamData
     });
   } catch (error) {
     res.status(500).json({
@@ -123,12 +131,7 @@ export const createTeam = async (req, res) => {
     const {
       name,
       description,
-      department,
-      manager_name,
-      manager_email,
-      max_members,
-      is_active = true,
-      created_by = 'system'
+      is_active = true
     } = req.body;
 
     // Validation
@@ -139,56 +142,48 @@ export const createTeam = async (req, res) => {
       });
     }
 
-    if (name.length > 100) {
+    if (name.length > 255) {
       return res.status(400).json({
         success: false,
-        message: 'Team name cannot exceed 100 characters'
+        message: 'Team name cannot exceed 255 characters'
       });
     }
 
-    if (description && description.length > 500) {
+    if (description && description.length > 1000) {
       return res.status(400).json({
         success: false,
-        message: 'Description cannot exceed 500 characters'
-      });
-    }
-
-    if (manager_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manager_email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid manager email format'
-      });
-    }
-
-    if (max_members && (max_members < 1 || max_members > 1000)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Max members must be between 1 and 1000'
+        message: 'Description cannot exceed 1000 characters'
       });
     }
 
     const teamData = {
       name: name.trim(),
-      description: description?.trim() || '',
-      department: department?.trim() || '',
-      manager_name: manager_name?.trim() || '',
-      manager_email: manager_email?.trim().toLowerCase() || '',
-      max_members,
+      description: description?.trim() || null,
       is_active,
-      created_by,
-      updated_by: created_by
+      slug: '' // Add empty slug to trigger pre-save middleware slug generation
     };
 
     const team = new Team(teamData);
     const savedTeam = await team.save();
 
+    const responseData = {
+      id: savedTeam._id,
+      name: savedTeam.name,
+      slug: savedTeam.slug,
+      description: savedTeam.description,
+      is_active: savedTeam.is_active,
+      users_count: 0,
+      created_at: savedTeam.createdAt,
+      updated_at: savedTeam.updatedAt
+    };
+
     res.status(201).json({
       success: true,
       message: 'Team created successfully',
-      data: savedTeam
+      data: responseData
     });
   } catch (error) {
-    if (error.code === 'DUPLICATE_TEAM_NAME' || error.code === 11000) {
+    if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message: 'Team name already exists'
@@ -210,12 +205,7 @@ export const updateTeam = async (req, res) => {
     const {
       name,
       description,
-      department,
-      manager_name,
-      manager_email,
-      max_members,
-      is_active,
-      updated_by = 'system'
+      is_active
     } = req.body;
 
     const team = await Team.findById(id);
@@ -235,44 +225,26 @@ export const updateTeam = async (req, res) => {
         });
       }
 
-      if (name.length > 100) {
+      if (name.length > 255) {
         return res.status(400).json({
           success: false,
-          message: 'Team name cannot exceed 100 characters'
+          message: 'Team name cannot exceed 255 characters'
         });
       }
     }
 
-    if (description !== undefined && description.length > 500) {
+    if (description !== undefined && description && description.length > 1000) {
       return res.status(400).json({
         success: false,
-        message: 'Description cannot exceed 500 characters'
-      });
-    }
-
-    if (manager_email !== undefined && manager_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manager_email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid manager email format'
-      });
-    }
-
-    if (max_members !== undefined && max_members && (max_members < 1 || max_members > 1000)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Max members must be between 1 and 1000'
+        message: 'Description cannot exceed 1000 characters'
       });
     }
 
     // Build update object
-    const updateData = { updated_by };
+    const updateData = {};
     
     if (name !== undefined) updateData.name = name.trim();
-    if (description !== undefined) updateData.description = description.trim();
-    if (department !== undefined) updateData.department = department.trim();
-    if (manager_name !== undefined) updateData.manager_name = manager_name.trim();
-    if (manager_email !== undefined) updateData.manager_email = manager_email.trim().toLowerCase();
-    if (max_members !== undefined) updateData.max_members = max_members;
+    if (description !== undefined) updateData.description = description?.trim() || null;
     if (is_active !== undefined) updateData.is_active = is_active;
 
     const updatedTeam = await Team.findByIdAndUpdate(
@@ -281,13 +253,26 @@ export const updateTeam = async (req, res) => {
       { new: true, runValidators: true }
     );
 
+    const users_count = await User.countDocuments({ team_id: id });
+
+    const responseData = {
+      id: updatedTeam._id,
+      name: updatedTeam.name,
+      slug: updatedTeam.slug,
+      description: updatedTeam.description,
+      is_active: updatedTeam.is_active,
+      users_count,
+      created_at: updatedTeam.createdAt,
+      updated_at: updatedTeam.updatedAt
+    };
+
     res.json({
       success: true,
       message: 'Team updated successfully',
-      data: updatedTeam
+      data: responseData
     });
   } catch (error) {
-    if (error.code === 'DUPLICATE_TEAM_NAME' || error.code === 11000) {
+    if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message: 'Team name already exists'
@@ -306,7 +291,6 @@ export const updateTeam = async (req, res) => {
 export const deleteTeam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { force = false } = req.query;
 
     const team = await Team.findById(id);
     if (!team) {
@@ -319,31 +303,18 @@ export const deleteTeam = async (req, res) => {
     // Check if team has members
     const memberCount = await User.countDocuments({ team_id: id });
     
-    if (memberCount > 0 && !force) {
-      return res.status(400).json({
+    if (memberCount > 0) {
+      return res.status(422).json({
         success: false,
-        message: `Cannot delete team with ${memberCount} member(s). Use force=true to delete anyway.`,
-        data: { member_count: memberCount }
+        message: `Cannot delete team with ${memberCount} member(s). Please reassign them first.`
       });
-    }
-
-    // If force delete, remove team_id from all users
-    if (force && memberCount > 0) {
-      await User.updateMany(
-        { team_id: id },
-        { $unset: { team_id: 1 } }
-      );
     }
 
     await Team.findByIdAndDelete(id);
 
     res.json({
       success: true,
-      message: 'Team deleted successfully',
-      data: {
-        deleted_team: team.name,
-        members_affected: force ? memberCount : 0
-      }
+      message: 'Team deleted successfully'
     });
   } catch (error) {
     res.status(500).json({
@@ -357,25 +328,21 @@ export const deleteTeam = async (req, res) => {
 // Get team statistics
 export const getTeamStatistics = async (req, res) => {
   try {
-    // Basic team statistics
     const [
       totalTeams,
       activeTeams,
-      teamsByDepartment,
-      totalMembers
+      totalMembers,
+      emptyTeams
     ] = await Promise.all([
       Team.countDocuments(),
       Team.countDocuments({ is_active: true }),
-      Team.aggregate([
-        { $match: { is_active: true } },
-        { $group: { _id: '$department', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
-      ]),
-      User.countDocuments({ team_id: { $exists: true, $ne: null } })
+      User.countDocuments({ team_id: { $exists: true, $ne: null } }),
+      Team.countDocuments({
+        _id: { $nin: await User.distinct('team_id', { team_id: { $exists: true, $ne: null } }) }
+      })
     ]);
 
-    // Team size distribution
-    const teamSizes = await Team.aggregate([
+    const teamsWithUsers = await Team.aggregate([
       {
         $lookup: {
           from: 'users',
@@ -386,30 +353,18 @@ export const getTeamStatistics = async (req, res) => {
       },
       {
         $project: {
-          name: 1,
-          department: 1,
-          member_count: { $size: '$members' },
-          max_members: 1,
-          is_active: 1
+          member_count: { $size: '$members' }
         }
       },
-      { $match: { is_active: true } }
+      {
+        $match: { member_count: { $gt: 0 } }
+      },
+      {
+        $count: 'count'
+      }
     ]);
 
-    // Calculate averages
-    const avgTeamSize = teamSizes.length > 0 ? 
-      Math.round(teamSizes.reduce((sum, team) => sum + team.member_count, 0) / teamSizes.length) : 0;
-
-    // Department statistics
-    const departmentStats = {};
-    teamsByDepartment.forEach(dept => {
-      departmentStats[dept._id || 'No Department'] = dept.count;
-    });
-
-    // Teams with capacity issues (over 80% full)
-    const capacityWarnings = teamSizes.filter(team => {
-      return team.max_members && (team.member_count / team.max_members) > 0.8;
-    }).length;
+    const teamsWithUsersCount = teamsWithUsers.length > 0 ? teamsWithUsers[0].count : 0;
 
     res.json({
       success: true,
@@ -418,20 +373,9 @@ export const getTeamStatistics = async (req, res) => {
           total_teams: totalTeams,
           active_teams: activeTeams,
           inactive_teams: totalTeams - activeTeams,
-          total_members: totalMembers,
-          avg_team_size: avgTeamSize,
-          capacity_warnings: capacityWarnings
-        },
-        by_department: departmentStats,
-        team_sizes: teamSizes.map(team => ({
-          team_id: team._id,
-          name: team.name,
-          department: team.department,
-          member_count: team.member_count,
-          max_members: team.max_members,
-          utilization: team.max_members ? 
-            Math.round((team.member_count / team.max_members) * 100) : null
-        }))
+          teams_with_users: teamsWithUsersCount,
+          empty_teams: totalTeams - teamsWithUsersCount
+        }
       }
     });
   } catch (error) {
@@ -454,19 +398,18 @@ export const getTeamsSimple = async (req, res) => {
     }
 
     const teams = await Team.find(filter)
-      .select('name department member_count')
+      .select('name')
       .sort({ name: 1 })
       .lean();
 
     // Add member counts
     const teamsWithCount = await Promise.all(
       teams.map(async (team) => {
-        const memberCount = await User.countDocuments({ team_id: team._id });
+        const member_count = await User.countDocuments({ team_id: team._id });
         return {
           id: team._id,
           name: team.name,
-          department: team.department,
-          member_count: memberCount
+          member_count
         };
       })
     );

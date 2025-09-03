@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema({
     trim: true,
     maxlength: [30, 'Department cannot exceed 30 characters']
   },
+  team_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Team',
+    default: null
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -61,6 +66,7 @@ const userSchema = new mongoose.Schema({
 // Indexes for better query performance
 // Note: email and extension already have unique: true, so no need for additional indexes
 userSchema.index({ isActive: 1 });
+userSchema.index({ team_id: 1 });
 
 // Instance method to get user's full information
 userSchema.methods.getPublicProfile = function() {
@@ -78,6 +84,11 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 // Static method to find active users
 userSchema.statics.findActiveUsers = function() {
   return this.find({ isActive: true });
+};
+
+// Static method to find users by team
+userSchema.statics.findByTeam = function(teamId) {
+  return this.find({ team_id: teamId });
 };
 
 // Pre-save middleware to hash password

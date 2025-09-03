@@ -1,21 +1,14 @@
 // Team-related TypeScript interfaces
 
 export interface Team {
-  _id: string;
+  id: number;
   name: string;
   slug: string;
-  description?: string;
-  isActive: boolean;
-  metadata?: Record<string, any>;
-  userCount?: number;
-  users?: Array<{
-    _id: string;
-    name: string;
-    email: string;
-    teamId?: string;
-  }>;
-  createdAt: string;
-  updatedAt: string;
+  description: string | null;
+  is_active: boolean;
+  users_count?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TeamStats {
@@ -28,12 +21,12 @@ export interface TeamStats {
 
 export interface CreateTeamData {
   name: string;
-  description?: string;
-  isActive?: boolean;
+  description?: string | null;
+  is_active?: boolean;
 }
 
 export interface UpdateTeamData {
   name?: string;
-  description?: string;
-  isActive?: boolean;
+  description?: string | null;
+  is_active?: boolean;
 }

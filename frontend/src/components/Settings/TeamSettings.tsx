@@ -6,6 +6,17 @@ import * as TeamTypes from '../../types/team';
 type Team = TeamTypes.Team;
 type TeamStats = TeamTypes.TeamStats;
 
+// Helper function to generate slug from name
+const generateSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+};
+
 const TeamSettings: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [stats, setStats] = useState<TeamStats | null>(null);
@@ -18,9 +29,12 @@ const TeamSettings: React.FC = () => {
 
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
-    isActive: true
+    is_active: true
   });
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+
 
   useEffect(() => {
     loadData();
@@ -48,15 +62,38 @@ const TeamSettings: React.FC = () => {
     e.preventDefault();
     if (submitting) return;
 
+    // Client-side validation
+    if (!formData.name.trim()) {
+      setError('Team name is required');
+      return;
+    }
+
+    if (formData.name.length > 255) {
+      setError('Team name cannot exceed 255 characters');
+      return;
+    }
+
+    if (formData.description && formData.description.length > 1000) {
+      setError('Description cannot exceed 1000 characters');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
 
+      // Prepare data for API
+      const submitData = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        is_active: formData.is_active
+      };
+
       if (editingTeam) {
-        const updated = await teamService.updateTeam(editingTeam._id, formData);
-        setTeams(teams.map(t => t._id === editingTeam._id ? updated : t));
+        const updated = await teamService.updateTeam(editingTeam.id, submitData);
+        setTeams(teams.map(t => t.id === editingTeam.id ? updated : t));
       } else {
-        const newTeam = await teamService.createTeam(formData);
+        const newTeam = await teamService.createTeam(submitData);
         setTeams([...teams, newTeam]);
       }
       
@@ -75,8 +112,8 @@ const TeamSettings: React.FC = () => {
     try {
       setSubmitting(true);
       setError(null);
-      await teamService.deleteTeam(team._id);
-      setTeams(teams.filter(t => t._id !== team._id));
+      await teamService.deleteTeam(team.id);
+      setTeams(teams.filter(t => t.id !== team.id));
       setDeleteConfirm(null);
       await loadData(); // Refresh stats
     } catch (err: any) {
@@ -91,8 +128,8 @@ const TeamSettings: React.FC = () => {
 
     try {
       setError(null);
-      const updated = await teamService.toggleTeamStatus(team._id, !team.isActive);
-      setTeams(teams.map(t => t._id === team._id ? updated : t));
+      const updated = await teamService.toggleTeamStatus(team.id, !team.is_active);
+      setTeams(teams.map(t => t.id === team.id ? updated : t));
       await loadData(); // Refresh stats
     } catch (err: any) {
       setError(err.message || 'Failed to update team status');
@@ -100,20 +137,52 @@ const TeamSettings: React.FC = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', isActive: true });
+    setFormData({ name: '', slug: '', description: '', is_active: true });
     setEditingTeam(null);
     setShowAddModal(false);
+    setIsSlugManuallyEdited(false);
+    setError(null); // Clear any form errors
   };
 
   const startEdit = (team: Team) => {
     setFormData({
       name: team.name,
+      slug: team.slug,
       description: team.description || '',
-      isActive: team.isActive
+      is_active: team.is_active
     });
     setEditingTeam(team);
+    setIsSlugManuallyEdited(false);
     setShowAddModal(true);
   };
+
+  // Handle name changes and auto-generate slug
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setFormData(prev => {
+      const updates = { ...prev, name: newName };
+      
+      // Auto-generate slug for new teams when name changes, unless user has manually edited it
+      if (!editingTeam && !isSlugManuallyEdited) {
+        updates.slug = generateSlug(newName);
+      }
+      
+      return updates;
+    });
+  };
+
+  // Handle slug changes
+  const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newSlug = e.target.value;
+    setFormData(prev => ({ ...prev, slug: newSlug }));
+    
+    // Mark that the user has manually edited the slug (only for new teams)
+    if (!editingTeam) {
+      setIsSlugManuallyEdited(true);
+    }
+  };
+
+
 
   if (loading) {
     return (
@@ -129,7 +198,10 @@ const TeamSettings: React.FC = () => {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Team Management</h2>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
             disabled={submitting}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
@@ -175,13 +247,13 @@ const TeamSettings: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {teams.map((team) => (
-          <div key={team._id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div key={team.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <span className="truncate">{team.name}</span>
-                    {team.isActive ? (
+                    {team.is_active ? (
                       <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
                     ) : (
                       <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
@@ -220,25 +292,25 @@ const TeamSettings: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 gap-1">
                   <Users className="h-4 w-4 flex-shrink-0" />
-                  <span>{team.userCount || 0} members</span>
+                  <span>{team.users_count || 0} members</span>
                 </div>
                 <button
                   onClick={() => handleToggleStatus(team)}
                   disabled={submitting}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
-                    team.isActive
+                    team.is_active
                       ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-950/75 border dark:border-green-800'
                       : 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-950/75 border dark:border-red-800'
                   }`}
                 >
-                  {team.isActive ? 'Active' : 'Inactive'}
+                  {team.is_active ? 'Active' : 'Inactive'}
                 </button>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 dark:text-gray-500">
-                  <div>Created: {new Date(team.createdAt).toLocaleDateString()}</div>
-                  <div>Updated: {new Date(team.updatedAt).toLocaleDateString()}</div>
+                  <div>Created: {new Date(team.created_at).toLocaleDateString()}</div>
+                  <div>Updated: {new Date(team.updated_at).toLocaleDateString()}</div>
                 </div>
               </div>
             </div>
@@ -252,7 +324,10 @@ const TeamSettings: React.FC = () => {
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No teams found</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-4">Get started by creating your first team</p>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors"
           >
             Create Team
@@ -267,6 +342,16 @@ const TeamSettings: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
               {editingTeam ? 'Edit Team' : 'Add New Team'}
             </h3>
+            
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-950/50 dark:border-red-800 dark:text-red-400">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              </div>
+            )}
+            
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -277,15 +362,35 @@ const TeamSettings: React.FC = () => {
                   required
                   disabled={submitting}
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={handleNameChange}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 transition-colors"
-                  placeholder="Enter team name"
+                  placeholder="Enter team name (max 255 characters)"
+                  maxLength={255}
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Description
+                  Slug
+                </label>
+                <input
+                  type="text"
+                  disabled={submitting}
+                  value={formData.slug}
+                  onChange={handleSlugChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 transition-colors"
+                  placeholder="Enter team slug"
+                />
+                {formData.slug && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    URL: /teams/{formData.slug}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Description <span className="text-gray-400">(optional)</span>
                 </label>
                 <textarea
                   disabled={submitting}
@@ -293,8 +398,14 @@ const TeamSettings: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 transition-colors resize-vertical"
                   rows={3}
-                  placeholder="Enter team description (optional)"
+                  placeholder="Enter team description (optional, max 1000 characters)"
+                  maxLength={1000}
                 />
+                {formData.description && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formData.description.length}/1000 characters
+                  </p>
+                )}
               </div>
               
               <div>
@@ -302,8 +413,8 @@ const TeamSettings: React.FC = () => {
                   <input
                     type="checkbox"
                     disabled={submitting}
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                     className="disabled:opacity-50 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
@@ -340,10 +451,10 @@ const TeamSettings: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Are you sure you want to delete <strong>"{deleteConfirm.name}"</strong>? This action cannot be undone.
             </p>
-            {deleteConfirm.userCount && deleteConfirm.userCount > 0 && (
+            {deleteConfirm.users_count && deleteConfirm.users_count > 0 && (
               <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md p-3 mb-4">
                 <p className="text-red-600 dark:text-red-400 text-sm">
-                  Warning: This team has {deleteConfirm.userCount} member(s). Please reassign them first.
+                  Warning: This team has {deleteConfirm.users_count} member(s). Please reassign them first.
                 </p>
               </div>
             )}
@@ -357,7 +468,7 @@ const TeamSettings: React.FC = () => {
               </button>
               <button
                 onClick={() => handleDelete(deleteConfirm)}
-                disabled={submitting || (deleteConfirm.userCount && deleteConfirm.userCount > 0)}
+                disabled={submitting || (deleteConfirm.users_count && deleteConfirm.users_count > 0)}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors min-w-[80px]"
               >
                 {submitting ? 'Deleting...' : 'Delete'}

@@ -5,54 +5,23 @@ const teamSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    maxlength: 100
+    maxlength: 255
+  },
+  slug: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
   },
   description: {
     type: String,
-    default: '',
-    maxlength: 500
-  },
-  department: {
-    type: String,
-    default: '',
-    maxlength: 100
-  },
-  manager_name: {
-    type: String,
-    default: '',
-    maxlength: 100
-  },
-  manager_email: {
-    type: String,
-    default: '',
-    maxlength: 255,
-    lowercase: true,
-    validate: {
-      validator: function(v) {
-        return !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-      },
-      message: 'Invalid email format'
-    }
-  },
-  max_members: {
-    type: Number,
     default: null,
-    min: 1,
-    max: 1000
+    maxlength: 1000
   },
   is_active: {
     type: Boolean,
     default: true
-  },
-  created_by: {
-    type: String,
-    default: 'system',
-    maxlength: 100
-  },
-  updated_by: {
-    type: String,
-    default: 'system',
-    maxlength: 100
   }
 }, {
   timestamps: true,
@@ -60,31 +29,48 @@ const teamSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-teamSchema.index({ name: 1 }, { unique: true });
-teamSchema.index({ department: 1 });
+teamSchema.index({ name: 1 });
+teamSchema.index({ slug: 1 }, { unique: true });
 teamSchema.index({ is_active: 1 });
-teamSchema.index({ created_by: 1 });
 
 // Virtual for member count (would need to be populated from User model)
-teamSchema.virtual('member_count').get(function() {
-  return this._member_count || 0;
+teamSchema.virtual('users_count').get(function() {
+  return this._users_count || 0;
 });
 
 // Ensure virtual fields are serialized
 teamSchema.set('toJSON', { virtuals: true });
 
-// Pre-save middleware to ensure name uniqueness case-insensitive
+// Generate slug from name
+function generateSlug(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-'); // Replace multiple hyphens with single hyphen
+}
+
+// Pre-save middleware to generate slug and ensure uniqueness
 teamSchema.pre('save', async function(next) {
-  if (this.isModified('name')) {
-    const existingTeam = await mongoose.model('Team').findOne({
-      name: new RegExp(`^${this.name}$`, 'i'),
-      _id: { $ne: this._id }
-    });
+  // Generate slug if name is modified or slug is empty (for new documents)
+  if (this.isModified('name') || !this.slug) {
+    this.slug = generateSlug(this.name);
     
-    if (existingTeam) {
-      const error = new Error('Team name already exists');
-      error.code = 'DUPLICATE_TEAM_NAME';
-      return next(error);
+    // Ensure slug uniqueness
+    let baseSlug = this.slug;
+    let counter = 1;
+    
+    while (true) {
+      const existingTeam = await mongoose.model('Team').findOne({
+        slug: this.slug,
+        _id: { $ne: this._id }
+      });
+      
+      if (!existingTeam) break;
+      
+      this.slug = `${baseSlug}-${counter}`;
+      counter++;
     }
   }
   next();
