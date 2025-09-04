@@ -3,16 +3,11 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 
 import { callLogService } from '@services/callLogService';
 import type { CallLog } from '@services/callLogService';
-import socketService, { type CallUpdateEvent } from '@services/socketService';
-// Removed WordPress/WooCommerce API imports
-// MongoDB API supports real-time features via Socket.IO
-// import '@services/echo'; // Import Echo setup (Laravel only)
-// Removed WooCommerce order modals
+import callRealtimeService, { type CallUpdate } from '@services/callRealtimeService';
 import CallHistory from '@/components/CallConsole/CallHistory';
 import LiveCalls from '@/components/CallConsole/LiveCalls';
 import CallDetails from '@/components/CallConsole/CallDetailsModal';
 import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
-// Removed OrderNotesPanel
 
 // Real-time interface disabled for MongoDB API
 // interface CallStatusUpdateData {
@@ -75,32 +70,22 @@ const CallConsole: React.FC = () => {
     }
   }, []);
 
-  // Real-time Socket.IO setup for call updates
+  // Real-time Echo setup for call updates
   useEffect(() => {
     isMountedRef.current = true;
     
     // Initial fetch
     fetchData(true);
     
-    // Set up Socket.IO connection status monitoring
-    const checkSocketConnection = () => {
-      // Connection status check - removed unused variable
-      socketService.isConnected();
-    };
-    
-    // Check connection status every 5 seconds
-    const connectionCheckInterval = setInterval(checkSocketConnection, 5000);
-    checkSocketConnection(); // Initial check
-    
-    // Set up real-time call updates via Socket.IO
-    socketService.onCallUpdated((callUpdate: CallUpdateEvent) => {
+    // Set up real-time call updates via Echo
+    const unsubscribe = callRealtimeService.subscribeToAll((callUpdate: CallUpdate) => {
       console.log('🔔 Received real-time call update:', callUpdate);
       
       if (!isMountedRef.current) return;
       
       // Update the specific call in the list or add new one
       setCallLogs(prevLogs => {
-        const callId = callUpdate.id; // Keep as string
+        const callId = String(callUpdate.id);
         const existingIndex = prevLogs.findIndex(call => call.id === callId);
         
         if (existingIndex >= 0) {
@@ -108,12 +93,14 @@ const CallConsole: React.FC = () => {
           const updatedLogs = [...prevLogs];
           updatedLogs[existingIndex] = {
             ...updatedLogs[existingIndex],
+            callerNumber: callUpdate.callerNumber || updatedLogs[existingIndex].callerNumber,
+            callerName: callUpdate.callerName || updatedLogs[existingIndex].callerName,
             status: callUpdate.status || updatedLogs[existingIndex].status,
-            duration: callUpdate.duration || updatedLogs[existingIndex].duration,
-            endTime: callUpdate.ended_at || updatedLogs[existingIndex].endTime,
+            duration: callUpdate.duration ?? updatedLogs[existingIndex].duration,
+            endTime: callUpdate.endTime || updatedLogs[existingIndex].endTime,
             direction: callUpdate.direction || updatedLogs[existingIndex].direction,
-            agentExten: callUpdate.agent_exten || updatedLogs[existingIndex].agentExten,
-            otherParty: callUpdate.other_party || updatedLogs[existingIndex].otherParty
+            agentExten: callUpdate.agentExten || updatedLogs[existingIndex].agentExten,
+            otherParty: callUpdate.otherParty || updatedLogs[existingIndex].otherParty
           };
           
           console.log('✅ Updated existing call:', callId);
@@ -122,15 +109,15 @@ const CallConsole: React.FC = () => {
           // Add new call if it doesn't exist
           const newCall: CallLog = {
             id: callId,
-            callerNumber: callUpdate.other_party || 'Unknown',
-            callerName: null,
-            startTime: callUpdate.started_at || new Date().toISOString(),
-            endTime: callUpdate.ended_at,
+            callerNumber: callUpdate.callerNumber || callUpdate.otherParty || 'Unknown',
+            callerName: callUpdate.callerName,
+            startTime: callUpdate.startTime || new Date().toISOString(),
+            endTime: callUpdate.endTime,
             status: callUpdate.status || 'unknown',
             duration: callUpdate.duration,
             direction: callUpdate.direction,
-            agentExten: callUpdate.agent_exten,
-            otherParty: callUpdate.other_party
+            agentExten: callUpdate.agentExten,
+            otherParty: callUpdate.otherParty
           };
           
           console.log('➕ Added new call:', callId);
@@ -143,19 +130,14 @@ const CallConsole: React.FC = () => {
       });
     });
     
-    console.log('📡 CallHistory: Socket.IO real-time updates enabled');
+    console.log('📡 CallConsole: Echo real-time updates enabled');
 
     // Handle page visibility changes
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
       
       if (isVisible) {
-        console.log('📱 CallConsole page became visible, checking connections...');
-        // Reconnect socket if needed
-        if (!socketService.isConnected()) {
-          socketService.reconnect();
-        }
-        // Refresh data
+        console.log('📱 CallConsole page became visible, refreshing data...');
         fetchData(false);
       }
     };
@@ -165,10 +147,9 @@ const CallConsole: React.FC = () => {
     // Cleanup function
     return () => {
       isMountedRef.current = false;
-      clearInterval(connectionCheckInterval);
-      socketService.removeAllListeners();
+      unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      console.log('🧹 CallHistory: Stopped real-time updates');
+      console.log('🧹 CallConsole: Stopped real-time updates');
     };
   }, [fetchData]);
 

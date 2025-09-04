@@ -280,10 +280,10 @@ use App\Services\ExtensionService;
              }
          }
 
-         // Skip events that don't have required fields
-         if (!isset($fields['Uniqueid']) && !isset($fields['Linkedid'])) {
-             return;
-         }
+          // Skip events that don't have required fields (except ExtensionStatus events)
+          if ($eventType !== 'ExtensionStatus' && !isset($fields['Uniqueid']) && !isset($fields['Linkedid'])) {
+              return;
+          }
 
          // Log all parsed fields to laravel.log
          Log::info("AMI {$eventType} fields", $fields);
@@ -767,31 +767,42 @@ use App\Services\ExtensionService;
         try {
             // Map the status value (handles both numeric and text values)
             $mappedStatus = $this->mapExtensionStatus($status);
+            
+            // Map status to device state for storage
+            $deviceState = $this->mapStatusToDeviceState($status, $statusText);
 
             Log::info("📱 Mapping extension status", [
                 'extension' => $extension,
                 'raw_status' => $status,
                 'mapped_status' => $mappedStatus,
-                'status_text' => $statusText
+                'status_text' => $statusText,
+                'device_state' => $deviceState
             ]);
 
-            // Update extension status in database
-            $success = $this->extensionService->updateExtensionStatus($extension, $mappedStatus);
+            // Update extension status in database with all values
+            $success = $this->extensionService->updateExtensionStatus(
+                $extension, 
+                $mappedStatus, 
+                (int)$status, // Pass raw status as status_code
+                $deviceState  // Pass device state
+            );
 
             if ($success) {
-                $this->info("📱 Extension status updated: {$extension} -> {$status} ({$statusText}) -> {$mappedStatus}");
+                $this->info("📱 Extension status updated: {$extension} -> {$status} ({$statusText}) -> {$mappedStatus} [{$deviceState}]");
                 Log::info("Extension status updated successfully", [
                     'extension' => $extension,
                     'raw_status' => $status,
                     'mapped_status' => $mappedStatus,
-                    'status_text' => $statusText
+                    'status_text' => $statusText,
+                    'device_state' => $deviceState
                 ]);
             } else {
                 $this->warn("⚠️ Failed to update extension status: {$extension} -> {$status}");
                 Log::warning("Failed to update extension status", [
                     'extension' => $extension,
                     'status' => $status,
-                    'mapped_status' => $mappedStatus
+                    'mapped_status' => $mappedStatus,
+                    'device_state' => $deviceState
                 ]);
             }
 
@@ -856,6 +867,63 @@ use App\Services\ExtensionService;
         ]);
 
         return 'unknown';
+    }
+
+    /**
+     * Map Asterisk extension status to device state for detailed status tracking
+     * This provides the most detailed state information available from Asterisk
+     */
+    private function mapStatusToDeviceState(string $asteriskStatus, ?string $statusText = null): string
+    {
+        // Handle numeric status values (from ExtensionStatus events)
+        $numericDeviceStateMap = [
+            '0' => 'NOT_INUSE',      // Extension available and not in use
+            '1' => 'INUSE',          // Extension in use
+            '2' => 'BUSY',           // Extension busy
+            '4' => 'UNAVAILABLE',    // Extension not available
+            '8' => 'RINGING',        // Extension ringing
+            '16' => 'RINGINUSE',     // Extension ringing while in use
+            '-1' => 'UNKNOWN',       // Unknown status
+        ];
+
+        // Handle text status values
+        $textDeviceStateMap = [
+            'Registered' => 'NOT_INUSE',
+            'Unregistered' => 'UNAVAILABLE',
+            'Rejected' => 'UNAVAILABLE',
+            'Timeout' => 'UNAVAILABLE',
+            'NotInUse' => 'NOT_INUSE',
+            'InUse' => 'INUSE',
+            'Busy' => 'BUSY',
+            'Unavailable' => 'UNAVAILABLE',
+            'Ringing' => 'RINGING',
+            'Ringinuse' => 'RINGINUSE',
+            'Unknown' => 'UNKNOWN',
+        ];
+
+        // First try numeric mapping
+        if (isset($numericDeviceStateMap[$asteriskStatus])) {
+            return $numericDeviceStateMap[$asteriskStatus];
+        }
+
+        // Then try text mapping
+        if (isset($textDeviceStateMap[$asteriskStatus])) {
+            return $textDeviceStateMap[$asteriskStatus];
+        }
+
+        // If statusText is provided, try mapping that
+        if ($statusText && isset($textDeviceStateMap[$statusText])) {
+            return $textDeviceStateMap[$statusText];
+        }
+
+        // Log unknown device state for debugging
+        Log::warning("Unknown device state mapping", [
+            'status' => $asteriskStatus,
+            'status_text' => $statusText,
+            'type' => gettype($asteriskStatus)
+        ]);
+
+        return 'UNKNOWN';
     }
 
      public function __destruct()

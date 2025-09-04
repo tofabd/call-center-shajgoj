@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw, CircleDashed } from 'lucide-react';
-import socketService from '../../services/socketService';
-import type { CallUpdateEvent } from '../../services/socketService';
+import callRealtimeService from '../../services/callRealtimeService';
+import type { CallUpdate } from '../../services/callRealtimeService';
 import type { LiveCall } from '../../services/callService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
@@ -126,13 +126,13 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     startAutoRefresh();
 
     // Subscribe to real-time call updates
-    const handleCallUpdate = (update: CallUpdateEvent) => {
+    const handleCallUpdate = (update: CallUpdate) => {
       console.log('📞 Real-time call update received:', update);
       
       setLiveCalls(prevCalls => {
         // Find existing call or add new one
         const existingIndex = prevCalls.findIndex(call => 
-          call.id === update.id || call.linkedid === update.linkedid
+          call.id === String(update.id)
         );
         
         if (existingIndex >= 0) {
@@ -148,10 +148,10 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             debugStatusMismatch(existingCall.agent_exten || 'unknown', undefined, `${oldStatus} → ${newStatus}`, {
               call_id: existingCall.id,
               old_answered_at: existingCall.answered_at,
-              new_answered_at: update.answered_at,
+              new_answered_at: update.startTime,
               old_ended_at: existingCall.ended_at,
-              new_ended_at: update.ended_at,
-              update_source: 'websocket'
+              new_ended_at: update.endTime,
+              update_source: 'echo'
             });
           }
           
@@ -159,29 +159,29 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             ...existingCall,
             // Update fields from the update event
             direction: update.direction || existingCall.direction,
-            other_party: update.other_party || existingCall.other_party,
-            agent_exten: update.agent_exten || existingCall.agent_exten,
-            started_at: update.started_at || existingCall.started_at,
-            answered_at: update.answered_at || existingCall.answered_at,
-            ended_at: update.ended_at || existingCall.ended_at,
-            duration: update.duration || existingCall.duration,
+            other_party: update.otherParty || existingCall.other_party,
+            agent_exten: update.agentExten || existingCall.agent_exten,
+            started_at: update.startTime || existingCall.started_at,
+            answered_at: update.startTime || existingCall.answered_at,
+            ended_at: update.endTime || existingCall.ended_at,
+            duration: update.duration ?? existingCall.duration,
             status: update.status || existingCall.status,
             updatedAt: update.timestamp || new Date().toISOString()
           };
           return updatedCalls;
         } else {
           // Add new call if it's active (not ended)
-          if (!update.ended_at) {
+          if (!update.endTime) {
             const newCall: LiveCall = {
-              id: update.id,
-              linkedid: update.linkedid,
+              id: String(update.id),
+              linkedid: String(update.id),
               direction: update.direction,
-              other_party: update.other_party,
-              agent_exten: update.agent_exten,
-              started_at: update.started_at || new Date().toISOString(),
-              answered_at: update.answered_at,
-              ended_at: update.ended_at,
-              caller_number: update.other_party || 'Unknown',
+              other_party: update.otherParty,
+              agent_exten: update.agentExten,
+              started_at: update.startTime || new Date().toISOString(),
+              answered_at: update.startTime,
+              ended_at: update.endTime,
+              caller_number: update.otherParty || update.callerNumber || 'Unknown',
               duration: update.duration,
               status: update.status,
               createdAt: update.timestamp || new Date().toISOString(),
@@ -192,7 +192,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             debugStatusMismatch(newCall.agent_exten || 'unknown', undefined, 'new call: ' + (newCall.status || 'unknown'), {
               call_id: newCall.id,
               direction: newCall.direction,
-              update_source: 'websocket'
+              update_source: 'echo'
             });
             
             return [...prevCalls, newCall];
@@ -203,7 +203,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     };
     
     // Subscribe to call updates
-    socketService.onCallUpdated(handleCallUpdate);
+    const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
     
     // Subscribe to unified connection health service
     console.log('📡 LiveCalls: Subscribing to unified connection health service');
@@ -221,11 +221,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
       
       if (isVisible) {
         console.log('📱 Page became visible, checking live calls connection...');
-        // Reconnect socket if needed
-        if (!socketService.isConnected()) {
-          socketService.reconnect();
-        }
-        // Force refresh data
         handleRefresh();
       }
     };
@@ -234,7 +229,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     
     // Cleanup
     return () => {
-      socketService.removeAllListeners();
+      unsubscribe();
       unsubscribeHealth();
       if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);

@@ -1,23 +1,25 @@
 import echo from './echo';
-import type { Extension } from './extensionService';
 
-export interface ExtensionStatusUpdate {
+export interface CallUpdate {
   id: number;
-  extension: string;
-  agent_name: string | null;
+  callerNumber: string;
+  callerName: string | null;
+  startTime: string | null;
+  endTime: string | null;
   status: string;
-  status_code?: number;
-  device_state?: string;
-  last_seen: string | null;
-  updated_at: string;
+  duration: number | null;
+  direction: string;
+  agentExten: string | null;
+  otherParty: string;
+  timestamp: string;
 }
 
-class ExtensionRealtimeService {
-  private listeners: Map<string, (update: ExtensionStatusUpdate) => void> = new Map();
+class CallRealtimeService {
+  private listeners: Map<string, (update: CallUpdate) => void> = new Map();
   private isListening = false;
 
   /**
-   * Start listening to real-time extension status updates
+   * Start listening to real-time call updates
    */
   startListening(): void {
     if (this.isListening) {
@@ -25,16 +27,16 @@ class ExtensionRealtimeService {
     }
 
     try {
-      echo.channel('extensions')
-        .listen('.extension.status.updated', (update: ExtensionStatusUpdate) => {
-          console.log('📱 Real-time extension status update:', update);
+      echo.channel('call-console')
+        .listen('.call-updated', (update: CallUpdate) => {
+          console.log('📞 Real-time call update:', update);
           this.notifyListeners(update);
         });
 
       this.isListening = true;
-      console.log('✅ Started listening to real-time extension updates');
+      console.log('✅ Started listening to real-time call updates');
     } catch (error) {
-      console.error('❌ Failed to start real-time listening:', error);
+      console.error('❌ Failed to start real-time call listening:', error);
     }
   }
 
@@ -47,19 +49,19 @@ class ExtensionRealtimeService {
     }
 
     try {
-      echo.leaveChannel('extensions');
+      echo.leaveChannel('call-console');
       this.isListening = false;
-      console.log('🛑 Stopped listening to real-time extension updates');
+      console.log('🛑 Stopped listening to real-time call updates');
     } catch (error) {
-      console.error('❌ Failed to stop real-time listening:', error);
+      console.error('❌ Failed to stop real-time call listening:', error);
     }
   }
 
   /**
-   * Subscribe to extension status updates
+   * Subscribe to call updates
    */
-  subscribe(extensionId: string, callback: (update: ExtensionStatusUpdate) => void): () => void {
-    this.listeners.set(extensionId, callback);
+  subscribe(callId: string, callback: (update: CallUpdate) => void): () => void {
+    this.listeners.set(callId, callback);
     
     // Start listening if this is the first subscriber
     if (this.listeners.size === 1) {
@@ -68,7 +70,7 @@ class ExtensionRealtimeService {
 
     // Return unsubscribe function
     return () => {
-      this.listeners.delete(extensionId);
+      this.listeners.delete(callId);
       
       // Stop listening if no more subscribers
       if (this.listeners.size === 0) {
@@ -78,9 +80,9 @@ class ExtensionRealtimeService {
   }
 
   /**
-   * Subscribe to all extension updates
+   * Subscribe to all call updates
    */
-  subscribeToAll(callback: (update: ExtensionStatusUpdate) => void): () => void {
+  subscribeToAll(callback: (update: CallUpdate) => void): () => void {
     const id = 'all';
     this.listeners.set(id, callback);
     
@@ -103,12 +105,12 @@ class ExtensionRealtimeService {
   /**
    * Notify all listeners of an update
    */
-  private notifyListeners(update: ExtensionStatusUpdate): void {
+  private notifyListeners(update: CallUpdate): void {
     this.listeners.forEach((callback) => {
       try {
         callback(update);
       } catch (error) {
-        console.error('Error in extension status update callback:', error);
+        console.error('Error in call update callback:', error);
       }
     });
   }
@@ -139,5 +141,5 @@ class ExtensionRealtimeService {
   }
 }
 
-export const extensionRealtimeService = new ExtensionRealtimeService();
-export default extensionRealtimeService;
+export const callRealtimeService = new CallRealtimeService();
+export default callRealtimeService;

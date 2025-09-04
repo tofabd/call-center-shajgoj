@@ -3,8 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
 import type { Extension, ExtensionCallStats } from '../../services/extensionService';
-import socketService from '../../services/socketService';
-import type { ExtensionStatusEvent } from '../../services/socketService';
+import extensionRealtimeService, { type ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 import { getUnifiedExtensionStatus, isExtensionOnCall, debugStatusMismatch } from '../../utils/statusUtils';
@@ -140,19 +139,20 @@ const ExtensionsStatus: React.FC = () => {
     startAutoRefresh();
     
     // Subscribe to real-time extension status updates
-    const handleExtensionUpdate = (update: ExtensionStatusEvent) => {
+    const handleExtensionUpdate = (update: ExtensionStatusUpdate) => {
       console.log('📱 Real-time extension update received:', update);
       
       setExtensions(prevExtensions => 
         prevExtensions.map(ext => {
-          if (ext.extension === update.extension) {
+          if (ext.id === update.id || ext.extension === update.extension) {
             const updatedExt = { 
               ...ext, 
-              status: update.status,
+              agent_name: update.agent_name || ext.agent_name,
+              status: update.status || ext.status,
+              status_code: update.status_code !== undefined ? update.status_code : ext.status_code,
               device_state: update.device_state || ext.device_state,
-              status_code: update.status_code || ext.status_code,
-              last_status_change: update.last_status_change || ext.last_status_change,
-              last_seen: update.timestamp
+              last_seen: update.last_seen || ext.last_seen,
+              updated_at: update.updated_at || ext.updated_at
             };
             
             // Debug logging for status changes
@@ -161,11 +161,11 @@ const ExtensionsStatus: React.FC = () => {
             
             if (oldStatus !== newStatus) {
               debugStatusMismatch(ext.extension, `${oldStatus} → ${newStatus}`, undefined, {
+                update_source: 'echo',
                 old_device_state: ext.device_state,
                 new_device_state: updatedExt.device_state,
                 old_status_code: ext.status_code,
-                new_status_code: updatedExt.status_code,
-                update_source: 'websocket'
+                new_status_code: updatedExt.status_code
               });
             }
             
@@ -176,8 +176,8 @@ const ExtensionsStatus: React.FC = () => {
       );
     };
 
-    // Subscribe to WebSocket extension updates
-    socketService.onExtensionStatusUpdated(handleExtensionUpdate);
+    // Subscribe to Echo extension updates
+    const unsubscribe = extensionRealtimeService.subscribeToAll(handleExtensionUpdate);
     console.log('📡 ExtensionsStatus: Subscribed to real-time extension updates');
     
     // Subscribe to unified connection health service
@@ -206,12 +206,6 @@ const ExtensionsStatus: React.FC = () => {
           setExtensions(prevExtensions => [...prevExtensions]);
         }, 1000);
         setDurationUpdateTimer(newTimer);
-        
-        // Ensure WebSocket is connected
-        if (!socketService.isConnected()) {
-          console.log('🔄 Reconnecting WebSocket for extension updates...');
-          socketService.reconnect();
-        }
       } else {
         // Clear duration timer when page becomes hidden to save resources
         if (durationUpdateTimer) {
@@ -235,9 +229,9 @@ const ExtensionsStatus: React.FC = () => {
       }
       
       // Clean up WebSocket listeners
-      socketService.removeAllListeners();
+      unsubscribe();
       unsubscribeHealth();
-      console.log('📡 ExtensionsStatus: Cleaned up WebSocket listeners and health subscription');
+      console.log('📡 ExtensionsStatus: Cleaned up Echo listeners and health subscription');
       
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

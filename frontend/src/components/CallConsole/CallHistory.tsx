@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
-import socketService from '../../services/socketService';
+import callRealtimeService from '../../services/callRealtimeService';
 import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 
@@ -144,10 +144,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
       
       if (isVisible) {
         console.log('📱 Page became visible, checking call history connection...');
-        // Reconnect socket if needed
-        if (!socketService.isConnected()) {
-          socketService.reconnect();
-        }
         // Force refresh if refresh function is available
         if (onRefresh) {
           onRefresh();
