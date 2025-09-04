@@ -1,8 +1,7 @@
 import api from './api';
 
 export interface Extension {
-  _id: string;
-  id: string; // For backward compatibility, will map from _id
+  id: string;
   extension: string;
   agent_name?: string;
   team?: string;
@@ -147,12 +146,9 @@ export const extensionService = {
       return statusCodeMap[statusCode] || 'Unknown';
     };
 
-    // Map MongoDB response to frontend interface for backward compatibility
+    // Map MongoDB response to frontend interface
     const mappedExtensions = extensions.map((ext: Record<string, unknown>) => ({
       ...ext,
-      id: ext._id || ext.id, // Map _id to id for backward compatibility
-      created_at: ext.created_at || ext.createdAt, // Map createdAt to created_at
-      updated_at: ext.updated_at || ext.updatedAt, // Map updatedAt to updated_at
       // Ensure new fields have proper default values
       status_code: ext.status_code ?? 0,
       device_state: ext.device_state ?? 'NOT_INUSE',
@@ -160,6 +156,8 @@ export const extensionService = {
       last_seen: ext.last_seen ?? null,
       team: ext.team ?? null,
       department: ext.department ?? ext.team ?? null, // Support both fields
+      created_at: ext.created_at || ext.createdAt, // Map createdAt to created_at
+      updated_at: ext.updated_at || ext.updatedAt, // Map updatedAt to updated_at
       // Add human-readable status label
       statusLabel: getStatusLabel(ext.device_state as string ?? 'NOT_INUSE', ext.status_code as number ?? 0)
     }));
@@ -183,13 +181,7 @@ export const extensionService = {
     };
     
     const response = await api.post('/extensions', requestData);
-    const ext = response.data.data;
-    return {
-      ...ext,
-      id: ext._id,
-      created_at: ext.createdAt,
-      updated_at: ext.updatedAt
-    };
+    return response.data.data;
   },
 
   // Update extension
@@ -204,13 +196,7 @@ export const extensionService = {
     delete requestData.department;
     
     const response = await api.put(`/extensions/${id}`, requestData);
-    const ext = response.data.data;
-    return {
-      ...ext,
-      id: ext._id,
-      created_at: ext.createdAt,
-      updated_at: ext.updatedAt
-    };
+    return response.data.data;
   },
 
   // Delete extension
@@ -240,18 +226,18 @@ export const extensionService = {
   // Update extension active status
   async updateActiveStatus(id: string, is_active: boolean): Promise<Extension> {
     const response = await api.put(`/extensions/${id}`, { is_active });
-    const ext = response.data.data;
-    return {
-      ...ext,
-      id: ext._id,
-      created_at: ext.createdAt,
-      updated_at: ext.updatedAt
-    };
+    return response.data.data;
   },
 
   // Manual refresh extension status from AMI
   async refreshStatus(): Promise<RefreshResult> {
     const response = await api.post('/extensions/refresh');
+    return response.data.data;
+  },
+
+  // Get extension state list with detailed status information
+  async getExtensionStateList(): Promise<{ extensions: Array<{ extension: string; status: number; statusText: string; hint: string; context: string }> }> {
+    const response = await api.get('/extensions/extension-state-list');
     return response.data.data;
   },
 

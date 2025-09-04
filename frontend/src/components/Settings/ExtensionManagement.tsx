@@ -17,6 +17,37 @@ interface ExtensionWithActive extends Extension {
   is_active: boolean;
 }
 
+// Status code mapping as per specification: 0=Unknown, 1=Online, 2=Online, 3=Online, 4=Invalid, 5=Offline, 6=Online, 7=Online, 8=Online
+const getStatusFromCode = (statusCode: number): string => {
+  const statusMap: Record<number, string> = {
+    0: 'unknown',
+    1: 'online',
+    2: 'online', 
+    3: 'online',
+    4: 'invalid',
+    5: 'offline',
+    6: 'online',
+    7: 'online',
+    8: 'online'
+  };
+  return statusMap[statusCode] || 'unknown';
+};
+
+const getStatusText = (statusCode: number): string => {
+  const statusTextMap: Record<number, string> = {
+    0: 'Unknown',
+    1: 'Online',
+    2: 'Online',
+    3: 'Online', 
+    4: 'Invalid',
+    5: 'Offline',
+    6: 'Online',
+    7: 'Online',
+    8: 'Online'
+  };
+  return statusTextMap[statusCode] || 'Unknown';
+};
+
 const ExtensionManagement: React.FC = () => {
   const [extensions, setExtensions] = useState<ExtensionWithActive[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,23 +109,23 @@ const ExtensionManagement: React.FC = () => {
   const handleSync = async () => {
     try {
       setSyncing(true);
-      console.log('🔄 Starting Asterisk extension refresh...');
+      console.log('🔄 Starting Asterisk extension refresh with ExtensionStateList...');
       
-      // Use the working sync method (now uses refresh functionality)
-      const result = await extensionService.syncExtensions();
-      console.log('✅ Refresh completed:', result);
+      // Call ExtensionStateList to get all extensions with detailed status
+      const stateListResult = await extensionService.getExtensionStateList();
+      console.log('✅ ExtensionStateList completed:', stateListResult);
       
-      // Add delay to ensure database updates complete (like refresh icon does)
-      console.log('⏳ Waiting for database updates to complete...');
+      // Add delay to ensure processing completes
+      console.log('⏳ Waiting for processing to complete...');
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Reload extensions from database to get updated data
       console.log('🔄 Loading updated extensions from database...');
       await loadExtensions();
       
-      // Show accurate success message with sync count
-      const syncedCount = result.synced_count || 0;
-      toast.success(`Extensions refreshed successfully from Asterisk (${syncedCount} extensions processed)`, {
+      // Show success message with count
+      const extensionsCount = stateListResult.extensions?.length || 0;
+      toast.success(`Extensions refreshed successfully from Asterisk (${extensionsCount} extensions processed)`, {
         position: "top-right",
         autoClose: 4000,
         hideProgressBar: false,
@@ -353,6 +384,8 @@ const ExtensionManagement: React.FC = () => {
         return 'text-green-600 dark:text-green-400';
       case 'offline':
         return 'text-red-600 dark:text-red-400';
+      case 'invalid':
+        return 'text-orange-600 dark:text-orange-400';
       case 'unknown':
         return 'text-yellow-600 dark:text-yellow-400';
       default:
@@ -440,6 +473,12 @@ const ExtensionManagement: React.FC = () => {
                     Status
                   </th>
                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                    Status Code
+                  </th>
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                    Status Text
+                  </th>
+                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
                     Last Status Change
                   </th>
                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
@@ -490,37 +529,53 @@ const ExtensionManagement: React.FC = () => {
                         )}
                      </td>
 
-                     {/* Status */}
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                       <div className="flex items-center">
-                         {!extension.is_active ? (
-                           <div className="flex items-center">
-                             <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-                             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                               Disabled
-                             </span>
-                           </div>
-                         ) : (
-                           <div className="flex items-center">
-                             <div className={`w-2 h-2 rounded-full mr-2 ${
-                               extension.status === 'online' 
-                                 ? 'bg-green-500' 
-                                 : extension.status === 'offline' 
-                                 ? 'bg-red-500' 
-                                 : 'bg-yellow-500'
-                             }`}></div>
-                             <span className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                               {extension.status}
-                             </span>
-                             {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
-                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 hidden lg:inline">
-                                 ({extension.device_state})
-                               </span>
-                             )}
-                           </div>
-                         )}
-                       </div>
-                     </td>
+                      {/* Status */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {!extension.is_active ? (
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                Disabled
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <div className={`w-2 h-2 rounded-full mr-2 ${
+                                getStatusFromCode(extension.status_code || 0) === 'online' 
+                                  ? 'bg-green-500' 
+                                  : getStatusFromCode(extension.status_code || 0) === 'offline' 
+                                  ? 'bg-red-500' 
+                                  : getStatusFromCode(extension.status_code || 0) === 'invalid'
+                                  ? 'bg-orange-500'
+                                  : 'bg-yellow-500'
+                              }`}></div>
+                              <span className={`text-sm font-medium ${getStatusColor(getStatusFromCode(extension.status_code || 0))}`}>
+                                {getStatusFromCode(extension.status_code || 0)}
+                              </span>
+                              {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
+                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 hidden lg:inline">
+                                  ({extension.device_state})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Status Code */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                          {extension.status_code !== undefined ? extension.status_code : 0}
+                        </div>
+                      </td>
+
+                      {/* Status Text */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {getStatusText(extension.status_code || 0)}
+                        </div>
+                      </td>
 
                      {/* Last Status Change */}
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">

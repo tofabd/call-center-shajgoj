@@ -174,7 +174,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           if (!update.ended_at) {
             const newCall: LiveCall = {
               id: update.id,
-              _id: update.id, // For compatibility
               linkedid: update.linkedid,
               direction: update.direction,
               other_party: update.other_party,
@@ -506,7 +505,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
               <div className="p-4 space-y-3">
                 {sortedCalls.map((call) => (
                   <div
-                    key={`${call.id || call._id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
+                    key={`${call.id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
                      className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
                        selectedCallId === call.id
                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
