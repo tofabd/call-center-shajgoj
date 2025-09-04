@@ -86,30 +86,34 @@ class ExtensionController extends Controller
     }
 
     /**
-     * Refresh extensions from Asterisk AMI
+     * Refresh extensions from Asterisk AMI using new AMI service
      */
     public function refresh(): JsonResponse
     {
         try {
-            // Execute the GetAsteriskExtensions artisan command to refresh from AMI
-            \Artisan::call('extensions:get-asterisk');
-            $commandOutput = \Artisan::output();
+            $amiService = new \App\Services\Ami\AmiServiceProvider();
+            
+            $result = $amiService->executeWithConnection(function($ami) {
+                return $ami->extensions()->refreshAll();
+            });
 
-            // Get updated extension count after refresh
-            $extensionsChecked = Extension::count();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Extension refresh completed via Asterisk AMI',
-                'data' => [
-                    'extensionsChecked' => $extensionsChecked,
-                    'lastQueryTime' => now()->toISOString(),
-                    'statistics' => [
-                        'successfulQueries' => $extensionsChecked,
-                        'failedQueries' => 0
+            if ($result['success']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Extension refresh completed via Asterisk AMI',
+                    'data' => [
+                        'extensionsChecked' => $result['extensionsChecked'],
+                        'lastQueryTime' => $result['lastQueryTime'],
+                        'statistics' => $result['statistics']
                     ]
-                ]
-            ]);
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Extension refresh failed: ' . ($result['error'] ?? 'Unknown error')
+                ], 500);
+            }
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
