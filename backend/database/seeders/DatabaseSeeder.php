@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         // Call the UserSeeder to create CRM users
         $this->call([
             UserSeeder::class,
+            ExtensionSeeder::class
         ]);
     }
 }

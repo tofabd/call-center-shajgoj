@@ -155,8 +155,8 @@ class ExtensionController extends Controller
             'agent_name' => 'nullable|string|max:255',
             'team' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255', // Support both team and department
-            'status_code' => 'nullable|integer|min:0|max:99',
-            'device_state' => 'nullable|string|max:20',
+            'status_code' => 'nullable|integer',
+            'availability_status' => 'nullable|in:online,offline,unknown,invalid',
             'is_active' => 'nullable|boolean',
         ]);
 
@@ -173,10 +173,8 @@ class ExtensionController extends Controller
                 'extension' => $request->extension,
                 'agent_name' => $request->agent_name,
                 'team' => $request->team ?: $request->department, // Support both team and department fields
-                'status' => 'unknown',
-                'status_code' => $request->status_code ?? 3,
-                'device_state' => $request->device_state ?? 'UNAVAILABLE',
-                'last_status_change' => now(),
+                'status_code' => $request->status_code ?? -1,
+                'availability_status' => $request->availability_status ?? 'unknown',
                 'is_active' => $request->is_active ?? true,
             ]);
 
@@ -203,9 +201,8 @@ class ExtensionController extends Controller
             'agent_name' => 'nullable|string|max:255',
             'team' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255', // Support both team and department
-            'status' => 'nullable|in:online,offline,unknown',
-            'status_code' => 'nullable|integer|min:0|max:99',
-            'device_state' => 'nullable|string|max:20',
+            'status_code' => 'nullable|integer',
+            'availability_status' => 'nullable|in:online,offline,unknown,invalid',
             'is_active' => 'nullable|boolean',
         ]);
 
@@ -218,22 +215,14 @@ class ExtensionController extends Controller
         }
 
         try {
-            // Track if status-related fields changed
-            $statusChanged = $request->has('status') || $request->has('status_code') || $request->has('device_state');
-
             // Update fields - support both team and department
-            $updateData = $request->only(['extension', 'agent_name', 'status', 'status_code', 'device_state', 'is_active']);
+            $updateData = $request->only(['extension', 'agent_name', 'status_code', 'availability_status', 'is_active']);
 
             // Handle team/department field mapping
             if ($request->has('team')) {
                 $updateData['team'] = $request->team;
             } elseif ($request->has('department')) {
                 $updateData['team'] = $request->department;
-            }
-
-            // Add last_status_change if status-related fields changed
-            if ($statusChanged) {
-                $updateData['last_status_change'] = now();
             }
 
             $extension->update($updateData);
@@ -347,9 +336,7 @@ class ExtensionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'extension' => 'required|string',
-            'status' => 'required|in:online,offline,unknown',
-            'status_code' => 'nullable|integer|min:0|max:99',
-            'device_state' => 'nullable|string|max:20',
+            'status_code' => 'required|integer',
         ]);
 
         if ($validator->fails()) {
@@ -361,11 +348,9 @@ class ExtensionController extends Controller
         }
 
         try {
-            $success = $this->extensionService->updateExtensionStatus(
+            $success = $this->extensionService->updateExtensionFromAsterisk(
                 $request->extension,
-                $request->status,
-                $request->status_code,
-                $request->device_state
+                $request->status_code
             );
 
             if ($success) {

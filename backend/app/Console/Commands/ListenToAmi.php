@@ -765,44 +765,38 @@ use App\Services\ExtensionService;
         }
 
         try {
-            // Map the status value (handles both numeric and text values)
-            $mappedStatus = $this->mapExtensionStatus($status);
-            
-            // Map status to device state for storage
-            $deviceState = $this->mapStatusToDeviceState($status, $statusText);
+            // Map status for database update
+            $statusCode = (int)$status;
+            $availabilityStatus = $this->mapStatusToAvailabilityStatus($statusCode);
 
             Log::info("📱 Mapping extension status", [
                 'extension' => $extension,
-                'raw_status' => $status,
-                'mapped_status' => $mappedStatus,
-                'status_text' => $statusText,
-                'device_state' => $deviceState
+                'status_code' => $statusCode,
+                'availability_status' => $availabilityStatus,
+                'status_text' => $statusText
             ]);
 
-            // Update extension status in database with all values
-            $success = $this->extensionService->updateExtensionStatus(
+            // Update extension status in database
+            $success = $this->extensionService->updateExtensionFromAsterisk(
                 $extension, 
-                $mappedStatus, 
-                (int)$status, // Pass raw status as status_code
-                $deviceState  // Pass device state
+                $statusCode,
+                $statusText
             );
 
             if ($success) {
-                $this->info("📱 Extension status updated: {$extension} -> {$status} ({$statusText}) -> {$mappedStatus} [{$deviceState}]");
+                $this->info("📱 Extension status updated: {$extension} -> {$statusCode} ({$statusText}) -> {$availabilityStatus}");
                 Log::info("Extension status updated successfully", [
                     'extension' => $extension,
-                    'raw_status' => $status,
-                    'mapped_status' => $mappedStatus,
-                    'status_text' => $statusText,
-                    'device_state' => $deviceState
+                    'status_code' => $statusCode,
+                    'availability_status' => $availabilityStatus,
+                    'status_text' => $statusText
                 ]);
             } else {
-                $this->warn("⚠️ Failed to update extension status: {$extension} -> {$status}");
+                $this->warn("⚠️ Failed to update extension status: {$extension} -> {$statusCode}");
                 Log::warning("Failed to update extension status", [
                     'extension' => $extension,
-                    'status' => $status,
-                    'mapped_status' => $mappedStatus,
-                    'device_state' => $deviceState
+                    'status_code' => $statusCode,
+                    'availability_status' => $availabilityStatus
                 ]);
             }
 
@@ -867,6 +861,20 @@ use App\Services\ExtensionService;
         ]);
 
         return 'unknown';
+    }
+
+    /**
+     * Map Asterisk status code to availability status
+     */
+    private function mapStatusToAvailabilityStatus(int $statusCode): string
+    {
+        return match($statusCode) {
+            0, 1, 2, 8, 16 => 'online',    // All online states
+            4 => 'offline',                 // UNAVAILABLE
+            32 => 'invalid',                // Invalid state
+            -1 => 'unknown',                // Unknown state
+            default => 'unknown'            // Others
+        };
     }
 
     /**

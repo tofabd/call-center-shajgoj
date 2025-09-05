@@ -3,12 +3,13 @@ export interface Extension {
   extension: string;
   agent_name: string | null;
   team: string | null;
+  team_id: number | null;
+  team_name: string | null;
   status_code: number;
-  device_state: string;
-  status_text: string | null;
-  status: 'online' | 'offline' | 'unknown';
-  last_status_change: string | null;
-  last_seen: string | null;
+  status_text: string | null; // Database field from Asterisk
+  availability_status: 'online' | 'offline' | 'unknown' | 'invalid';
+  status_changed_at: string | null; // When availability status last changed
+  device_state: string; // Computed property
   is_active: boolean;
   department: string | null; // Alias for team for backward compatibility
   createdAt: string;
@@ -19,12 +20,13 @@ export interface ExtensionStatusUpdate {
   extension: string;
   agent_name: string | null;
   team: string | null;
-  status: 'online' | 'offline' | 'unknown';
+  team_id: number | null;
+  team_name: string | null;
+  availability_status: 'online' | 'offline' | 'unknown' | 'invalid';
+  status_changed_at: string | null; // When availability status last changed
   status_code: number;
-  device_state: string;
-  status_text: string | null;
-  last_status_change: string | null;
-  last_seen: string | null;
+  status_text: string | null; // Database field from Asterisk
+  device_state: string; // Computed property
   department: string | null; // Alias for team for backward compatibility
   is_active: boolean;
 }
@@ -68,9 +70,11 @@ export const DEVICE_STATES = {
   UNKNOWN: 'UNKNOWN'
 } as const;
 
-// Status constants
-export const STATUSES = {
+// Availability status constants
+export const AVAILABILITY_STATUSES = {
   ONLINE: 'online',
   OFFLINE: 'offline',
-  UNKNOWN: 'unknown'
+  UNKNOWN: 'unknown',
+  INVALID: 'invalid'
 } as const;
+

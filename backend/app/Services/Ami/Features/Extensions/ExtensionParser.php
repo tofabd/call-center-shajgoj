@@ -58,9 +58,8 @@ class ExtensionParser
             'extension' => $finalResponse['Exten'] ?? null,
             'context' => $finalResponse['Context'] ?? null,
             'status_code' => (int)$finalResponse['Status'],
-            'status' => $this->mapStatusCodeToStatus((int)$finalResponse['Status']),
+            'availability_status' => $this->mapToAvailabilityStatus((int)$finalResponse['Status']),
             'device_state' => $this->mapStatusCodeToDeviceState((int)$finalResponse['Status']),
-            'hint' => $finalResponse['Hint'] ?? null,
             'status_text' => $finalResponse['StatusText'] ?? null
         ];
     }
@@ -126,9 +125,8 @@ class ExtensionParser
             'extension' => $extension,
             'context' => $context,
             'status_code' => $statusCode,
-            'status' => $this->mapStatusCodeToStatus($statusCode),
+            'availability_status' => $this->mapToAvailabilityStatus($statusCode),
             'device_state' => $this->mapStatusCodeToDeviceState($statusCode),
-            'hint' => $event['Hint'] ?? null,
             'status_text' => $event['StatusText'] ?? null,
             'raw_status' => $event['Status'] ?? null,
             'parsed_at' => now()->toISOString()
@@ -137,7 +135,7 @@ class ExtensionParser
         Log::debug('✅ [Extension Parser] Parsed extension', [
             'extension' => $extension,
             'status_code' => $statusCode,
-            'status' => $parsed['status'],
+            'availability_status' => $parsed['availability_status'],
             'device_state' => $parsed['device_state']
         ]);
 
@@ -152,6 +150,20 @@ class ExtensionParser
             'state_desc' => $event['StateDesc'] ?? null,
             'parsed_at' => now()->toISOString()
         ];
+    }
+
+    /**
+     * Map Asterisk status code to availability status
+     */
+    private function mapToAvailabilityStatus(int $statusCode): string
+    {
+        return match($statusCode) {
+            0, 1, 2, 8, 16 => 'online',    // All online states
+            4 => 'offline',                 // UNAVAILABLE
+            32 => 'invalid',                // Invalid state
+            -1 => 'unknown',                // Unknown state
+            default => 'unknown'            // Others
+        };
     }
 
     private function mapStatusCodeToStatus(int $statusCode): string

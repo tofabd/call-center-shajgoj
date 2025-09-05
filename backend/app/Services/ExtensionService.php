@@ -270,7 +270,64 @@ class ExtensionService
     }
 
     /**
-     * Update extension status
+     * Update extension status from Asterisk AMI event
+     */
+    public function updateExtensionFromAsterisk(string $extension, int $statusCode, ?string $statusText = null): bool
+    {
+        try {
+            $ext = Extension::where('extension', $extension)->first();
+
+            if (!$ext) {
+                Log::warning("Extension not found for status update", [
+                    'extension' => $extension,
+                    'status_code' => $statusCode
+                ]);
+                return false;
+            }
+
+            $oldAvailabilityStatus = $ext->availability_status;
+            $result = $ext->updateFromAsteriskEvent($statusCode, $statusText);
+
+            Log::info("Extension status update from Asterisk", [
+                'extension' => $extension,
+                'old_availability' => $oldAvailabilityStatus,
+                'new_availability' => $ext->availability_status,
+                'status_code' => $statusCode,
+                'status_text' => $statusText,
+                'result' => $result
+            ]);
+
+            // Broadcast status update if availability actually changed
+            if ($result && $oldAvailabilityStatus !== $ext->availability_status) {
+                $ext->refresh(); // Refresh to get updated timestamps
+
+                try {
+                    broadcast(new \App\Events\ExtensionStatusUpdated($ext));
+                    Log::info("Extension status broadcasted successfully", [
+                        'extension' => $extension,
+                        'availability_status' => $ext->availability_status
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to broadcast extension status update", [
+                        'extension' => $extension,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("Error updating extension from Asterisk", [
+                'extension' => $extension,
+                'status_code' => $statusCode,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Update extension status (legacy method - kept for backward compatibility)
      */
     public function updateExtensionStatus(string $extension, string $status, ?int $statusCode = null, ?string $deviceState = null): bool
     {
