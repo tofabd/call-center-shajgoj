@@ -5,6 +5,7 @@ export interface Extension {
   team: string | null;
   status_code: number;
   device_state: string;
+  status_text: string | null;
   status: 'online' | 'offline' | 'unknown';
   last_status_change: string | null;
   last_seen: string | null;
@@ -21,6 +22,7 @@ export interface ExtensionStatusUpdate {
   status: 'online' | 'offline' | 'unknown';
   status_code: number;
   device_state: string;
+  status_text: string | null;
   last_status_change: string | null;
   last_seen: string | null;
   department: string | null; // Alias for team for backward compatibility

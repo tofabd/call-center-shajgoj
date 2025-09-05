@@ -7,6 +7,7 @@ export interface Extension {
   team?: string;
   status_code: number;
   device_state: string;
+  status_text?: string;
   status: 'online' | 'offline' | 'unknown';
   last_status_change?: string;
   last_seen?: string;
@@ -57,6 +58,8 @@ export interface RefreshResult {
   message: string;
   lastQueryTime: string;
   extensionsChecked: number;
+  extensions: number;
+  duration_ms: number;
   statistics: {
     successfulQueries: number;
     failedQueries: number;
@@ -152,6 +155,7 @@ export const extensionService = {
       // Ensure new fields have proper default values
       status_code: ext.status_code ?? 0,
       device_state: ext.device_state ?? 'NOT_INUSE',
+      status_text: ext.status_text ?? null,
       last_status_change: ext.last_status_change ?? null,
       last_seen: ext.last_seen ?? null,
       team: ext.team ?? null,
@@ -232,12 +236,6 @@ export const extensionService = {
   // Manual refresh extension status from AMI
   async refreshStatus(): Promise<RefreshResult> {
     const response = await api.post('/extensions/refresh');
-    return response.data.data;
-  },
-
-  // Get extension state list with detailed status information
-  async getExtensionStateList(): Promise<{ extensions: Array<{ extension: string; status: number; statusText: string; hint: string; context: string }> }> {
-    const response = await api.get('/extensions/extension-state-list');
     return response.data.data;
   },
 

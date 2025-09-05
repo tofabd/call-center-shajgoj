@@ -63,7 +63,7 @@ const ExtensionManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     extension: '',
     agent_name: '',
-    department: '',
+    team: '',
     is_active: true
   });
 
@@ -109,11 +109,11 @@ const ExtensionManagement: React.FC = () => {
   const handleSync = async () => {
     try {
       setSyncing(true);
-      console.log('🔄 Starting Asterisk extension refresh with ExtensionStateList...');
+      console.log('🔄 Starting Asterisk extension refresh...');
       
-      // Call ExtensionStateList to get all extensions with detailed status
-      const stateListResult = await extensionService.getExtensionStateList();
-      console.log('✅ ExtensionStateList completed:', stateListResult);
+      // Call refresh endpoint (POST method) instead of ExtensionStateList
+      const refreshResult = await extensionService.refreshStatus();
+      console.log('✅ Extension refresh completed:', refreshResult);
       
       // Add delay to ensure processing completes
       console.log('⏳ Waiting for processing to complete...');
@@ -124,8 +124,9 @@ const ExtensionManagement: React.FC = () => {
       await loadExtensions();
       
       // Show success message with count
-      const extensionsCount = stateListResult.extensions?.length || 0;
-      toast.success(`Extensions refreshed successfully from Asterisk (${extensionsCount} extensions processed)`, {
+      const extensionsCount = refreshResult.extensions || 0;
+      const duration = refreshResult.duration_ms || 0;
+      toast.success(`Extensions refreshed successfully from Asterisk (${extensionsCount} extensions processed in ${duration}ms)`, {
         position: "top-right",
         autoClose: 4000,
         hideProgressBar: false,
@@ -155,10 +156,10 @@ const ExtensionManagement: React.FC = () => {
       await extensionService.createExtension({
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
-        department: formData.department || undefined
+        team: formData.team || undefined
       });
       setIsAddModalOpen(false);
-      setFormData({ extension: '', agent_name: '', department: '', is_active: true });
+      setFormData({ extension: '', agent_name: '', team: '', is_active: true });
       await loadExtensions();
       
       toast.success(`Extension ${formData.extension} added successfully`, {
@@ -191,10 +192,10 @@ const ExtensionManagement: React.FC = () => {
       await extensionService.updateExtension(editingExtension.id, {
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
-        department: formData.department || undefined
+        team: formData.team || undefined
       });
       setEditingExtension(null);
-      setFormData({ extension: '', agent_name: '', department: '', is_active: true });
+      setFormData({ extension: '', agent_name: '', team: '', is_active: true });
       await loadExtensions();
       
       toast.success(`Extension ${formData.extension} updated successfully`, {
@@ -303,7 +304,7 @@ const ExtensionManagement: React.FC = () => {
   };
 
   const openAddModal = () => {
-    setFormData({ extension: '', agent_name: '', department: '', is_active: true });
+    setFormData({ extension: '', agent_name: '', team: '', is_active: true });
     setIsAddModalOpen(true);
   };
 
@@ -311,7 +312,7 @@ const ExtensionManagement: React.FC = () => {
     setFormData({
       extension: extension.extension,
       agent_name: extension.agent_name || '',
-      department: extension.department || '',
+      team: extension.team || '',
       is_active: extension.is_active
     });
     setEditingExtension(extension);
@@ -320,7 +321,7 @@ const ExtensionManagement: React.FC = () => {
   const filteredExtensions = extensions.filter(ext =>
     ext.extension.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (ext.agent_name && ext.agent_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (ext.department && ext.department.toLowerCase().includes(searchTerm.toLowerCase()))
+    (ext.team && ext.team.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   // Utility function to format date in 12-hour format
@@ -341,8 +342,8 @@ const ExtensionManagement: React.FC = () => {
     return date.toLocaleString('en-US', options);
   };
 
-  // Department options - updated to match seeder teams
-  const departmentOptions = [
+  // Team options - updated to match seeder teams
+  const teamOptions = [
     { value: '', label: 'No Team' },
     { value: 'Sales', label: 'Sales' },
     { value: 'Support', label: 'Support' },
@@ -350,8 +351,8 @@ const ExtensionManagement: React.FC = () => {
     { value: 'Admin', label: 'Admin' }
   ];
 
-  const getDepartmentColor = (department: string | null) => {
-    switch (department) {
+  const getTeamColor = (team: string | null) => {
+    switch (team) {
       case 'Support':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300';
       case 'Sales':
@@ -518,11 +519,11 @@ const ExtensionManagement: React.FC = () => {
                        </div>
                      </td>
 
-                     {/* Department */}
+                     {/* Team */}
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                       {extension.department ? (
-                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getDepartmentColor(extension.department)}`}>
-                           {extension.department}
+                       {extension.team ? (
+                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTeamColor(extension.team)}`}>
+                           {extension.team}
                          </span>
                         ) : (
                           <span className="text-sm text-gray-400 dark:text-gray-500 italic">No team</span>
@@ -551,7 +552,7 @@ const ExtensionManagement: React.FC = () => {
                                   : 'bg-yellow-500'
                               }`}></div>
                               <span className={`text-sm font-medium ${getStatusColor(getStatusFromCode(extension.status_code || 0))}`}>
-                                {getStatusFromCode(extension.status_code || 0)}
+                                {extension.status_text || getStatusFromCode(extension.status_code || 0)}
                               </span>
                               {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
                                 <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 hidden lg:inline">
@@ -686,7 +687,7 @@ const ExtensionManagement: React.FC = () => {
                       <div>
                         <p className="font-medium text-yellow-800 dark:text-yellow-300">✗ What will NOT be affected:</p>
                         <ul className="text-yellow-700 dark:text-yellow-400 ml-4 list-disc">
-                          <li>Agent names and departments</li>
+                          <li>Agent names and teams</li>
                           <li>Call history and logs</li>
                           <li>Extension configurations</li>
                         </ul>
@@ -748,14 +749,14 @@ const ExtensionManagement: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Department
+                  Team
                 </label>
                 <select
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  value={formData.team}
+                  onChange={(e) => setFormData({ ...formData, team: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                 >
-                  {departmentOptions.map((option) => (
+                  {teamOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -813,14 +814,14 @@ const ExtensionManagement: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Department
+                  Team
                 </label>
                 <select
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  value={formData.team}
+                  onChange={(e) => setFormData({ ...formData, team: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                 >
-                  {departmentOptions.map((option) => (
+                  {teamOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>

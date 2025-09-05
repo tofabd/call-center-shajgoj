@@ -98,13 +98,18 @@ class ExtensionController extends Controller
             });
 
             if ($result['success']) {
+                // Create debug file
+                $this->createDebugFile($result);
+                
                 return response()->json([
                     'success' => true,
                     'message' => 'Extension refresh completed via Asterisk AMI',
                     'data' => [
-                        'extensionsChecked' => $result['extensionsChecked'],
-                        'lastQueryTime' => $result['lastQueryTime'],
-                        'statistics' => $result['statistics']
+                        'extensions' => $result['details']['ami_extensions_found'] ?? 0,
+                        'lastQueryTime' => $result['lastQueryTime'] ?? now()->toISOString(),
+                        'statistics' => $result['statistics'] ?? [],
+                        'extensionsChecked' => $result['extensionsChecked'] ?? 0,
+                        'duration_ms' => $result['duration_ms'] ?? 0
                     ]
                 ]);
             } else {
@@ -291,8 +296,53 @@ class ExtensionController extends Controller
     }
 
     /**
-     * Update extension status
+     * Create debug file for extension data
      */
+    private function createDebugFile(array $result): void
+    {
+        try {
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $filename = "extension_refresh_{$timestamp}.json";
+            $debugPath = base_path('debug');
+            
+            // Ensure debug directory exists
+            if (!file_exists($debugPath)) {
+                mkdir($debugPath, 0755, true);
+            }
+            
+            $debugData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'source' => 'ExtensionController::refresh',
+                    'ami_host' => config('ami.connection.host', env('AMI_HOST')),
+                    'ami_port' => config('ami.connection.port', env('AMI_PORT')),
+                    'query_type' => 'ExtensionStateList',
+                    'filename' => $filename
+                ],
+                'result' => $result,
+                'summary' => [
+                    'total_extensions_processed' => $result['extensionsChecked'] ?? 0,
+                    'duration_ms' => $result['duration_ms'] ?? 0,
+                    'successful_queries' => $result['statistics']['successfulQueries'] ?? 0,
+                    'failed_queries' => $result['statistics']['failedQueries'] ?? 0,
+                    'status_changes' => $result['statistics']['statusChanges'] ?? 0
+                ]
+            ];
+            
+            file_put_contents($debugPath . '/' . $filename, json_encode($debugData, JSON_PRETTY_PRINT));
+            
+            \Log::info('Extension debug file created', [
+                'filename' => $filename,
+                'path' => $debugPath . '/' . $filename,
+                'size_bytes' => filesize($debugPath . '/' . $filename)
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Failed to create extension debug file', [
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
     public function updateStatus(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

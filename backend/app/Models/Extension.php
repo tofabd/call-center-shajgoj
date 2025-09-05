@@ -17,6 +17,7 @@ class Extension extends Model
         'status',
         'status_code',
         'device_state',
+        'status_text',
         'last_status_change',
         'last_seen',
         'is_active',

@@ -3,6 +3,7 @@
 namespace App\Services\Ami\Features\Extensions;
 
 use App\Services\Ami\Core\AmiManager;
+use App\Services\Ami\Features\Extensions\ExtensionStateListCommand;
 use App\Models\Extension;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -26,15 +27,25 @@ class ExtensionService
         $startTime = microtime(true);
         
         try {
-            // Get all extensions from AMI
+            // STEP 1: Query ExtensionStateList from AMI
+            Log::info('📡 [Extension Service] Step 1: Querying ExtensionStateList from AMI...');
             $amiExtensions = $this->getAllExtensionsFromAmi();
             
             if ($amiExtensions->isEmpty()) {
                 throw new \Exception('No extensions found in AMI response');
             }
 
-            // Update database with AMI data
+            Log::info('✅ [Extension Service] Step 1 Complete: Found ' . $amiExtensions->count() . ' extensions from AMI');
+
+            // STEP 2: Write ALL parsed extensions to JSON file FIRST (before database update)
+            Log::info('📄 [Extension Service] Step 2: Writing parsed extensions to JSON debug file...');
+            $debugFileName = $this->createDebugFileFirst($amiExtensions, $startTime);
+            Log::info('✅ [Extension Service] Step 2 Complete: JSON debug file created: ' . $debugFileName);
+
+            // STEP 3: Update database with AMI data (after JSON file is saved)
+            Log::info('🗄️ [Extension Service] Step 3: Updating database with parsed extension data...');
             $updateStats = $this->updateDatabaseExtensions($amiExtensions);
+            Log::info('✅ [Extension Service] Step 3 Complete: Database updated with statistics', $updateStats);
             
             // Calculate final statistics
             $endTime = microtime(true);
@@ -46,6 +57,7 @@ class ExtensionService
                 'duration_ms' => $duration,
                 'extensionsChecked' => $amiExtensions->count() + ($updateStats['marked_offline'] ?? 0),
                 'lastQueryTime' => now()->toISOString(),
+                'debug_file' => $debugFileName,
                 'statistics' => [
                     'successfulQueries' => ($updateStats['created'] ?? 0) + ($updateStats['updated'] ?? 0) + ($updateStats['unchanged'] ?? 0),
                     'failedQueries' => $updateStats['errors'] ?? 0,
@@ -59,13 +71,18 @@ class ExtensionService
                     'unchanged' => $updateStats['unchanged'] ?? 0,
                     'marked_offline' => $updateStats['marked_offline'] ?? 0,
                     'errors' => $updateStats['errors'] ?? 0,
-                ]
+                ],
+                'ami_raw_data' => $amiExtensions->toArray() // Include raw AMI data in response
             ];
 
-            // Create debug file
-            $this->createDebugFile($amiExtensions, $result);
+            // STEP 4: Update the JSON file with final results
+            $this->updateDebugFileWithResults($debugFileName, $result);
 
-            Log::info('✅ [Extension Service] Extension refresh completed', $result);
+            Log::info('✅ [Extension Service] All steps completed successfully', [
+                'total_duration_ms' => $duration,
+                'extensions_processed' => $amiExtensions->count(),
+                'debug_file' => $debugFileName
+            ]);
             
             return $result;
 
@@ -74,7 +91,8 @@ class ExtensionService
             
             Log::error('❌ [Extension Service] Extension refresh failed', [
                 'error' => $e->getMessage(),
-                'duration_ms' => $duration
+                'duration_ms' => $duration,
+                'trace' => $e->getTraceAsString()
             ]);
             
             return [
@@ -276,6 +294,7 @@ class ExtensionService
                 'status' => $amiExt['status'],
                 'status_code' => $amiExt['status_code'],
                 'device_state' => $amiExt['device_state'],
+                'status_text' => $amiExt['status_text'] ?? null,
                 'last_status_change' => now(),
                 'last_seen' => now(),
                 'is_active' => true,
@@ -298,6 +317,7 @@ class ExtensionService
                 'status' => $amiExt['status'],
                 'status_code' => $amiExt['status_code'],
                 'device_state' => $amiExt['device_state'],
+                'status_text' => $amiExt['status_text'] ?? $dbExtension->status_text,
                 'last_status_change' => now(),
                 'last_seen' => now()
             ]);
@@ -327,16 +347,145 @@ class ExtensionService
                 'summary' => $result
             ];
 
-            $filename = 'extension-refresh/refresh-' . now()->format('Y-m-d-H-i-s') . '.json';
-            Storage::disk('local')->put($filename, json_encode($debugData, JSON_PRETTY_PRINT));
+            // Use debug directory instead of storage
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $filename = "extension_refresh_{$timestamp}.json";
+            $debugPath = base_path('debug');
+            
+            // Ensure debug directory exists
+            if (!file_exists($debugPath)) {
+                mkdir($debugPath, 0755, true);
+            }
+            
+            file_put_contents($debugPath . '/' . $filename, json_encode($debugData, JSON_PRETTY_PRINT));
 
             Log::info('📄 [Extension Service] Debug file created', [
                 'filename' => $filename,
-                'extension_count' => $amiExtensions->count()
+                'path' => $debugPath . '/' . $filename,
+                'extension_count' => $amiExtensions->count(),
+                'size_bytes' => filesize($debugPath . '/' . $filename)
             ]);
 
         } catch (\Exception $e) {
             Log::warning('⚠️ [Extension Service] Failed to create debug file', [
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Create initial debug file with parsed AMI extensions (Step 2)
+     */
+    private function createDebugFileFirst(Collection $amiExtensions, float $startTime): string
+    {
+        try {
+            $currentTime = microtime(true);
+            $parseTime = round(($currentTime - $startTime) * 1000, 2);
+            
+            $debugData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'ami_host' => config('ami.connection.host', 'unknown'),
+                    'ami_port' => config('ami.connection.port', 'unknown'),
+                    'query_type' => 'ExtensionStateList',
+                    'total_extensions' => $amiExtensions->count(),
+                    'parsing_duration_ms' => $parseTime,
+                    'status' => 'parsed_extensions_ready',
+                    'next_step' => 'database_update_pending'
+                ],
+                'raw_ami_response' => [
+                    'parsed_extensions' => $amiExtensions->toArray(),
+                    'parsing_timestamp' => now()->toISOString(),
+                    'notes' => 'This is the raw parsed data from AMI ExtensionStateList before database updates'
+                ],
+                'database_operations' => [
+                    'status' => 'pending',
+                    'message' => 'Database operations will be performed after this file is created'
+                ]
+            ];
+
+            // Create filename with timestamp
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $filename = "extension_refresh_{$timestamp}.json";
+            $debugPath = base_path('debug');
+            
+            // Ensure debug directory exists
+            if (!file_exists($debugPath)) {
+                mkdir($debugPath, 0755, true);
+            }
+            
+            // Write initial debug file
+            $fullPath = $debugPath . '/' . $filename;
+            file_put_contents($fullPath, json_encode($debugData, JSON_PRETTY_PRINT));
+
+            Log::info('📄 [Extension Service] Initial debug file created with parsed extensions', [
+                'filename' => $filename,
+                'path' => $fullPath,
+                'extension_count' => $amiExtensions->count(),
+                'parsing_duration_ms' => $parseTime,
+                'size_bytes' => filesize($fullPath)
+            ]);
+
+            return $filename;
+
+        } catch (\Exception $e) {
+            Log::warning('⚠️ [Extension Service] Failed to create initial debug file', [
+                'error' => $e->getMessage()
+            ]);
+            return 'debug_file_creation_failed.json';
+        }
+    }
+
+    /**
+     * Update debug file with final results after database operations (Step 4)
+     */
+    private function updateDebugFileWithResults(string $filename, array $finalResult): void
+    {
+        try {
+            $debugPath = base_path('debug');
+            $fullPath = $debugPath . '/' . $filename;
+            
+            // Read existing debug file
+            if (!file_exists($fullPath)) {
+                Log::warning('⚠️ [Extension Service] Debug file not found for update', ['filename' => $filename]);
+                return;
+            }
+            
+            $existingData = json_decode(file_get_contents($fullPath), true);
+            
+            // Update with final results
+            $existingData['final_results'] = [
+                'timestamp' => now()->toISOString(),
+                'total_duration_ms' => $finalResult['duration_ms'],
+                'database_operations' => [
+                    'status' => 'completed',
+                    'created' => $finalResult['details']['created'],
+                    'updated' => $finalResult['details']['updated'],
+                    'unchanged' => $finalResult['details']['unchanged'],
+                    'marked_offline' => $finalResult['details']['marked_offline'],
+                    'errors' => $finalResult['details']['errors']
+                ],
+                'statistics' => $finalResult['statistics'],
+                'success' => $finalResult['success']
+            ];
+            
+            $existingData['metadata']['status'] = 'completed';
+            $existingData['metadata']['total_duration_ms'] = $finalResult['duration_ms'];
+            $existingData['database_operations']['status'] = 'completed';
+            
+            // Write updated debug file
+            file_put_contents($fullPath, json_encode($existingData, JSON_PRETTY_PRINT));
+
+            Log::info('📄 [Extension Service] Debug file updated with final results', [
+                'filename' => $filename,
+                'path' => $fullPath,
+                'total_duration_ms' => $finalResult['duration_ms'],
+                'final_size_bytes' => filesize($fullPath)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning('⚠️ [Extension Service] Failed to update debug file with results', [
+                'filename' => $filename,
                 'error' => $e->getMessage()
             ]);
         }
