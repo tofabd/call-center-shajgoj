@@ -3,6 +3,7 @@ import api from './api';
 
 type Team = TeamTypes.Team;
 type TeamStats = TeamTypes.TeamStats;
+type TeamStatsResponse = TeamTypes.TeamStatsResponse;
 type CreateTeamData = TeamTypes.CreateTeamData;
 type UpdateTeamData = TeamTypes.UpdateTeamData;
 
@@ -51,7 +52,7 @@ class TeamService {
     } catch (error: any) {
       console.error('Error creating team:', error.response?.data || error.message);
       
-      if (error.response?.status === 400 || error.response?.status === 409) {
+      if (error.response?.status === 400 || error.response?.status === 409 || error.response?.status === 422) {
         throw new Error(error.response.data.message || 'Validation error');
       }
       
@@ -89,19 +90,12 @@ class TeamService {
     }
   }
 
-  async getTeamStats(): Promise<TeamStats> {
+  async getTeamStats(): Promise<TeamStatsResponse> {
     try {
       const response = await api.get(`${this.baseUrl}/statistics`);
       
       if (response.data.success && response.data.data) {
-        const apiStats = response.data.data.summary;
-        return {
-          total_teams: apiStats.total_teams,
-          active_teams: apiStats.active_teams,
-          inactive_teams: apiStats.inactive_teams,
-          teams_with_users: apiStats.teams_with_users,
-          empty_teams: apiStats.empty_teams
-        };
+        return response.data.data;
       }
       
       throw new Error('Failed to fetch team statistics');
@@ -111,22 +105,32 @@ class TeamService {
     }
   }
 
-  async toggleTeamStatus(id: number, is_active: boolean): Promise<Team> {
-    return this.updateTeam(id, { is_active });
-  }
-
-  async getTeamsSimple(): Promise<Array<{id: number, name: string, member_count: number}>> {
+  async toggleTeamStatus(id: number): Promise<{ id: string; is_active: boolean }> {
     try {
-      const response = await api.get(`${this.baseUrl}/simple`);
+      const response = await api.post(`${this.baseUrl}/${id}/toggle-active`);
       
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
       
-      throw new Error('Failed to fetch teams list');
+      throw new Error('Failed to toggle team status');
     } catch (error: any) {
-      console.error('Error fetching teams list:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || 'Failed to fetch teams list. Please ensure the API server is running.');
+      console.error('Error toggling team status:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to toggle team status. Please ensure the API server is running.');
+    }
+  }
+
+  async getTeamsSimple(): Promise<Array<{id: number, name: string, extensions_count: number}>> {
+    try {
+      const teams = await this.getTeams();
+      return teams.map(team => ({
+        id: team.id,
+        name: team.name,
+        extensions_count: team.extensions_count
+      }));
+    } catch (error: any) {
+      console.error('Error fetching teams list:', error);
+      throw new Error('Failed to fetch teams list. Please ensure the API server is running.');
     }
   }
 

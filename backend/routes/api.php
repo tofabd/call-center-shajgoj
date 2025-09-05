@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\ExtensionController;
+use App\Http\Controllers\TeamController;
 
 // Public routes (no authentication required)
 Route::post('/login', [AuthController::class, 'login']);
@@ -37,4 +38,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/extensions/{extension}', [ExtensionController::class, 'destroy']);
     Route::post('/extensions/sync', [ExtensionController::class, 'sync']);
     Route::put('/extensions/status', [ExtensionController::class, 'updateStatus']);
+
+    // Team routes
+    Route::get('/teams', [TeamController::class, 'index']);
+    Route::get('/teams/statistics', [TeamController::class, 'statistics']);
+    Route::post('/teams', [TeamController::class, 'store']);
+    Route::get('/teams/{team}', [TeamController::class, 'show']);
+    Route::put('/teams/{team}', [TeamController::class, 'update']);
+    Route::delete('/teams/{team}', [TeamController::class, 'destroy']);
+    Route::post('/teams/{team}/toggle-active', [TeamController::class, 'toggleActive']);
 });

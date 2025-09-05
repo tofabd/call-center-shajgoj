@@ -17,35 +17,30 @@ interface ExtensionWithActive extends Extension {
   is_active: boolean;
 }
 
-// Status code mapping as per specification: 0=Unknown, 1=Online, 2=Online, 3=Online, 4=Invalid, 5=Offline, 6=Online, 7=Online, 8=Online
-const getStatusFromCode = (statusCode: number): string => {
-  const statusMap: Record<number, string> = {
-    0: 'unknown',
-    1: 'online',
-    2: 'online', 
-    3: 'online',
-    4: 'invalid',
-    5: 'offline',
-    6: 'online',
-    7: 'online',
-    8: 'online'
+// Map availability_status to user-friendly display
+const getStatusFromAvailability = (availabilityStatus: string): string => {
+  const statusMap: Record<string, string> = {
+    'online': 'online',
+    'offline': 'offline', 
+    'unknown': 'unknown',
+    'invalid': 'invalid'
   };
-  return statusMap[statusCode] || 'unknown';
+  return statusMap[availabilityStatus] || 'unknown';
 };
 
-const getStatusText = (statusCode: number): string => {
-  const statusTextMap: Record<number, string> = {
-    0: 'Unknown',
-    1: 'Online',
-    2: 'Online',
-    3: 'Online', 
-    4: 'Invalid',
-    5: 'Offline',
-    6: 'Online',
-    7: 'Online',
-    8: 'Online'
+const getStatusText = (availabilityStatus: string, statusText?: string): string => {
+  // Use backend status_text if available
+  if (statusText) {
+    return statusText;
+  }
+
+  const statusTextMap: Record<string, string> = {
+    'online': 'Online',
+    'offline': 'Offline',
+    'unknown': 'Unknown',
+    'invalid': 'Invalid'
   };
-  return statusTextMap[statusCode] || 'Unknown';
+  return statusTextMap[availabilityStatus] || 'Unknown';
 };
 
 const ExtensionManagement: React.FC = () => {
@@ -459,78 +454,102 @@ const ExtensionManagement: React.FC = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[800px]">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
-                <tr>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                    Extension
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                    Agent Details
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
-                     Team
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
-                    Status Code
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
-                    Status Text
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
-                    Last Status Change
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
-                    Active
-                  </th>
-                  <th className="px-3 sm:px-6 py-4 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                 {filteredExtensions.map((extension) => (
-                   <tr 
-                     key={extension.id} 
-                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
-                         deletingExtensionId === extension.id 
-                           ? 'bg-red-50 dark:bg-red-950/20 opacity-80' 
-                           : 'bg-white dark:bg-gray-800'
-                       }`}
-                   >
-                     {/* Extension Number */}
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                       <span className="text-lg font-mono font-bold text-gray-900 dark:text-white">
-                         {extension.extension}
-                       </span>
-                     </td>
+               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
+                 <tr>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                     #
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                     Extension
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                     Agent
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+                      Team
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                     Status Code
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                     Status Text
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                     Availability
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                     Status Updated
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                     Active
+                   </th>
+                   <th className="px-3 sm:px-6 py-4 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                     Actions
+                   </th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                  {filteredExtensions.map((extension, index) => (
+                    <tr 
+                      key={extension.id} 
+                       className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 ${
+                          deletingExtensionId === extension.id 
+                            ? 'bg-red-50 dark:bg-red-950/20 opacity-80' 
+                            : 'bg-white dark:bg-gray-800'
+                        }`}
+                    >
+                      {/* Serial Number */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          {index + 1}
+                        </span>
+                      </td>
 
-                     {/* Agent Details */}
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                       <div>
-                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                           {extension.agent_name || 'Unnamed Agent'}
-                         </div>
-                         <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-                           Last seen: {formatDateTime(extension.last_seen)}
-                         </div>
-                       </div>
-                     </td>
+                      {/* Extension Number */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                          {extension.extension}
+                        </span>
+                      </td>
 
-                     {/* Team */}
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                       {extension.team ? (
-                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTeamColor(extension.team)}`}>
-                           {extension.team}
-                         </span>
-                        ) : (
-                          <span className="text-sm text-gray-400 dark:text-gray-500 italic">No team</span>
-                        )}
-                     </td>
+                      {/* Agent */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {extension.agent_name || 'Unnamed Agent'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                            Created: {formatDateTime(extension.created_at)}
+                          </div>
+                        </div>
+                      </td>
 
-                      {/* Status */}
+                      {/* Team */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                        {extension.team ? (
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTeamColor(extension.team)}`}>
+                            {extension.team}
+                          </span>
+                         ) : (
+                           <span className="text-sm text-gray-400 dark:text-gray-500 italic">No team</span>
+                         )}
+                      </td>
+
+                      {/* Status Code */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {extension.status_code !== undefined ? extension.status_code : -1}
+                        </div>
+                      </td>
+
+                      {/* Status Text */}
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {extension.status_text || getStatusText(extension.availability_status || 'unknown')}
+                        </div>
+                      </td>
+
+                      {/* Availability */}
                       <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           {!extension.is_active ? (
@@ -542,53 +561,34 @@ const ExtensionManagement: React.FC = () => {
                             </div>
                           ) : (
                             <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${
-                                getStatusFromCode(extension.status_code || 0) === 'online' 
-                                  ? 'bg-green-500' 
-                                  : getStatusFromCode(extension.status_code || 0) === 'offline' 
-                                  ? 'bg-red-500' 
-                                  : getStatusFromCode(extension.status_code || 0) === 'invalid'
-                                  ? 'bg-orange-500'
-                                  : 'bg-yellow-500'
-                              }`}></div>
-                              <span className={`text-sm font-medium ${getStatusColor(getStatusFromCode(extension.status_code || 0))}`}>
-                                {extension.status_text || getStatusFromCode(extension.status_code || 0)}
-                              </span>
-                              {extension.device_state && extension.device_state !== 'NOT_INUSE' && (
-                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 hidden lg:inline">
-                                  ({extension.device_state})
-                                </span>
-                              )}
+                               <div className={`w-2 h-2 rounded-full mr-2 ${
+                                 extension.availability_status === 'online' 
+                                   ? 'bg-green-500' 
+                                   : extension.availability_status === 'offline' 
+                                   ? 'bg-red-500' 
+                                   : extension.availability_status === 'invalid'
+                                   ? 'bg-orange-500'
+                                   : 'bg-yellow-500'
+                               }`}></div>
+                               <span className={`text-sm font-medium capitalize ${getStatusColor(extension.availability_status || 'unknown')}`}>
+                                 {extension.availability_status || 'unknown'}
+                               </span>
                             </div>
                           )}
                         </div>
                       </td>
 
-                      {/* Status Code */}
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
-                        <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                          {extension.status_code !== undefined ? extension.status_code : 0}
-                        </div>
-                      </td>
-
-                      {/* Status Text */}
+                      {/* Status Updated */}
                       <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {getStatusText(extension.status_code || 0)}
+                          {formatDateTime(extension.status_changed_at)}
                         </div>
+                        {extension.status_changed_at && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(extension.status_changed_at).toLocaleDateString()}
+                          </div>
+                        )}
                       </td>
-
-                     {/* Last Status Change */}
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
-                       <div className="text-sm text-gray-900 dark:text-white">
-                         {formatDateTime(extension.last_status_change)}
-                       </div>
-                       {extension.last_status_change && (
-                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                           {new Date(extension.last_status_change).toLocaleDateString()}
-                         </div>
-                       )}
-                     </td>
 
                      {/* Active Toggle */}
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
@@ -649,7 +649,7 @@ const ExtensionManagement: React.FC = () => {
                      </td>
                    </tr>
                  ))}
-              </tbody>
+               </tbody>
             </table>
           </div>
         )}

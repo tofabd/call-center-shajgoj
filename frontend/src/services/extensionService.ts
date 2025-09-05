@@ -4,19 +4,20 @@ export interface Extension {
   id: string;
   extension: string;
   agent_name?: string;
-  team?: string;
+  team_id?: number;
+  team_name?: string;
+  team?: string; // Backward compatibility - computed from team_name
   status_code: number;
-  device_state: string;
   status_text?: string;
-  status: 'online' | 'offline' | 'unknown';
-  last_status_change?: string;
-  last_seen?: string;
+  availability_status: 'online' | 'offline' | 'unknown' | 'invalid';
+  status_changed_at?: string; // New timestamp field
+  device_state: string;
   is_active: boolean;
-  department?: string; // Alias for team for backward compatibility
-  createdAt: string;
-  updatedAt: string;
-  created_at: string; // For backward compatibility
-  updated_at: string; // For backward compatibility
+  department?: string; // Alias for team_name for backward compatibility
+  created_at: string;
+  updated_at: string;
+  createdAt: string; // For backward compatibility
+  updatedAt: string; // For backward compatibility
   statusLabel?: string; // Human-readable status label
 }
 
@@ -114,56 +115,54 @@ export const extensionService = {
     const response = await api.get('/extensions');
     const extensions = response.data.data;
     
-    // Status label mapping based on device state
-    const getStatusLabel = (deviceState: string, statusCode: number): string => {
-      const deviceStateMap: Record<string, string> = {
-        'NOT_INUSE': 'Free',
-        'INUSE': 'On Call',
-        'BUSY': 'Busy',
-        'UNAVAILABLE': 'Offline',
-        'INVALID': 'Offline',
-        'RINGING': 'Ringing',
-        'RING*INUSE': 'Call Waiting',
-        'ONHOLD': 'On Hold',
-        'UNKNOWN': 'Unknown'
-      };
-
-      // Use device state if available
-      if (deviceState && deviceStateMap[deviceState]) {
-        return deviceStateMap[deviceState];
+    // Status label mapping based on availability_status and device state
+    const getStatusLabel = (availabilityStatus: string, deviceState: string, statusText?: string): string => {
+      // Use status_text from backend if available
+      if (statusText && statusText !== 'Unknown') {
+        return statusText;
       }
 
-      // Fallback to status code mapping
-      const statusCodeMap: Record<number, string> = {
-        0: 'Free',
-        1: 'On Call',
-        2: 'Busy',
-        3: 'Offline',
-        4: 'Ringing',
-        5: 'Call Waiting',
-        6: 'On Hold',
-        7: 'On Call + On Hold',
-        8: 'Ringing + On Hold'
+      // Map availability_status to user-friendly labels
+      if (availabilityStatus === 'online') {
+        const deviceStateMap: Record<string, string> = {
+          'NOT_INUSE': 'Available',
+          'INUSE': 'On Call',
+          'BUSY': 'Busy',
+          'RINGING': 'Ringing',
+          'RING*INUSE': 'Call Waiting',
+          'RINGINUSE': 'Call Waiting',
+          'ONHOLD': 'On Hold'
+        };
+        return deviceStateMap[deviceState] || 'Online';
+      }
+
+      const statusMap: Record<string, string> = {
+        'online': 'Available',
+        'offline': 'Offline',
+        'unknown': 'Unknown',
+        'invalid': 'Invalid'
       };
 
-      return statusCodeMap[statusCode] || 'Unknown';
+      return statusMap[availabilityStatus] || 'Unknown';
     };
 
-    // Map MongoDB response to frontend interface
-    const mappedExtensions = extensions.map((ext: Record<string, unknown>) => ({
+    // Map backend response to frontend interface
+    const mappedExtensions = extensions.map((ext: any) => ({
       ...ext,
-      // Ensure new fields have proper default values
-      status_code: ext.status_code ?? 0,
-      device_state: ext.device_state ?? 'NOT_INUSE',
-      status_text: ext.status_text ?? null,
-      last_status_change: ext.last_status_change ?? null,
-      last_seen: ext.last_seen ?? null,
-      team: ext.team ?? null,
-      department: ext.department ?? ext.team ?? null, // Support both fields
-      created_at: ext.created_at || ext.createdAt, // Map createdAt to created_at
-      updated_at: ext.updated_at || ext.updatedAt, // Map updatedAt to updated_at
+      // Map new backend fields to frontend format
+      team: ext.team_name || ext.department, // Use team_name from backend
+      department: ext.team_name || ext.department, // Backward compatibility
+      status_changed_at: ext.status_changed_at, // New timestamp field
+      created_at: ext.created_at,
+      updated_at: ext.updated_at,
+      createdAt: ext.created_at, // Backward compatibility
+      updatedAt: ext.updated_at, // Backward compatibility
       // Add human-readable status label
-      statusLabel: getStatusLabel(ext.device_state as string ?? 'NOT_INUSE', ext.status_code as number ?? 0)
+      statusLabel: getStatusLabel(
+        ext.availability_status || 'unknown', 
+        ext.device_state || 'UNKNOWN',
+        ext.status_text
+      )
     }));
     
     return mappedExtensions;
