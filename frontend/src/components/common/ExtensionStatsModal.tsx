@@ -1,11 +1,10 @@
 import React from 'react';
 import { X, Phone, PhoneIncoming, PhoneOutgoing, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import type { ExtensionCallStats } from '../../services/extensionService';
 
 interface ExtensionStatsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  stats: ExtensionCallStats | null;
+  stats: any | null;
   loading: boolean;
   error: string | null;
 }

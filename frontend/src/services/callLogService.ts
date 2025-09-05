@@ -74,7 +74,7 @@ export interface CallDetails {
   extensionChanges?: ExtensionChange[];
 }
 
-// Legacy CallStats interface (deprecated - use PeriodStats instead)
+// Legacy CallStats interface
 export interface CallStats {
   total_calls: number;
   incoming_calls: number;
@@ -120,85 +120,6 @@ export interface CallStats {
   date: string;
 }
 
-// New enhanced PeriodStats interface
-export type TimeRange = 'today' | 'weekly' | 'monthly' | 'custom';
-
-export interface HourlyBreakdown {
-  hour: number;              // 0-23
-  call_count: number;
-  answered: number;
-  missed: number;
-}
-
-export interface DailyBreakdown {
-  date: string;              // "2024-12-09"
-  day_name: string;          // "Monday"
-  call_count: number;
-  answered: number;
-  missed: number;
-}
-
-export interface PeriodStats {
-  period: TimeRange;
-  date_range: {
-    start: string;
-    end: string;
-    period_name: string;     // "Today", "This Week", "December 2024"
-  };
-  totals: {
-    total_calls: number;
-    incoming_calls: number;
-    outgoing_calls: number;
-    answered_calls: number;
-    missed_calls: number;
-    busy_calls: number;
-    failed_calls: number;
-  };
-  // Separate incoming call metrics
-  incoming_metrics: {
-    total: number;
-    answered: number;
-    missed: number;
-    busy: number;
-    failed: number;
-    answer_rate: number;      // percentage
-    avg_ring_time: number;    // seconds
-    avg_talk_time: number;    // seconds
-    total_talk_time: number;  // seconds
-  };
-  // Separate outgoing call metrics  
-  outgoing_metrics: {
-    total: number;
-    answered: number;
-    missed: number;
-    busy: number;
-    failed: number;
-    answer_rate: number;      // percentage
-    avg_ring_time: number;    // seconds
-    avg_talk_time: number;    // seconds
-    total_talk_time: number;  // seconds
-  };
-  performance_metrics: {
-    answer_rate: number;        // percentage (overall)
-    avg_ring_time: number;      // seconds (overall)
-    avg_talk_time: number;      // seconds (overall)
-    total_talk_time: number;    // seconds (overall)
-    peak_hour: string;          // "14:00-15:00"
-    busiest_day?: string;       // "Monday" (weekly/monthly only)
-  };
-  hourly_breakdown?: HourlyBreakdown[];   // Today only
-  daily_breakdown?: DailyBreakdown[];     // Weekly/Monthly only
-  comparison?: {               // vs previous period
-    total_calls_change: number;    // +15 or -8
-    total_calls_change_pct: number; // +12.5% or -5.2%
-    answer_rate_change: number;     // +2.1% or -1.8%
-    incoming_calls_change: number;  // +10 or -5
-    incoming_calls_change_pct: number; // +8.5% or -3.2%
-    outgoing_calls_change: number;  // +5 or -3
-    outgoing_calls_change_pct: number; // +15.2% or -7.1%
-  };
-}
-
 class CallLogService {
   async getCallLogs(): Promise<CallLog[]> {
     try {
@@ -215,97 +136,6 @@ class CallLogService {
   async getTodayStats(): Promise<CallStats> {
     const response = await api.get<CallStats>('/calls/today-stats');
     return response.data;
-  }
-
-  // New enhanced statistics methods (temporarily return legacy format)
-  async getTodayStatsEnhanced(): Promise<PeriodStats> {
-    // For now, convert CallStats to PeriodStats format
-    const stats = await this.getTodayStats();
-    
-    // Convert Laravel CallStats to PeriodStats format
-    return {
-      period: 'today',
-      date_range: {
-        start: stats.date,
-        end: stats.date,
-        period_name: 'Today'
-      },
-      totals: {
-        total_calls: stats.total_calls,
-        incoming_calls: stats.incoming_calls,
-        outgoing_calls: stats.outgoing_calls,
-        answered_calls: stats.calls_by_status?.completed || 0,
-        missed_calls: stats.calls_by_status?.no_answer || 0,
-        busy_calls: stats.calls_by_status?.busy || 0,
-        failed_calls: stats.calls_by_status?.failed || 0,
-      },
-      incoming_metrics: {
-        total: stats.incoming_calls,
-        answered: stats.incoming_by_status?.completed || 0,
-        missed: stats.incoming_by_status?.no_answer || 0,
-        busy: stats.incoming_by_status?.busy || 0,
-        failed: stats.incoming_by_status?.failed || 0,
-        answer_rate: stats.incoming_calls ? Math.round(((stats.incoming_by_status?.completed || 0) / stats.incoming_calls) * 100) : 0,
-        avg_ring_time: 0,
-        avg_talk_time: 0,
-        total_talk_time: 0,
-      },
-      outgoing_metrics: {
-        total: stats.outgoing_calls,
-        answered: stats.outgoing_by_status?.completed || 0,
-        missed: stats.outgoing_by_status?.no_answer || 0,
-        busy: stats.outgoing_by_status?.busy || 0,
-        failed: stats.outgoing_by_status?.failed || 0,
-        answer_rate: stats.outgoing_calls ? Math.round(((stats.outgoing_by_status?.completed || 0) / stats.outgoing_calls) * 100) : 0,
-        avg_ring_time: 0,
-        avg_talk_time: 0,
-        total_talk_time: 0,
-      },
-      performance_metrics: {
-        answer_rate: stats.total_calls ? Math.round(((stats.calls_by_status?.completed || 0) / stats.total_calls) * 100) : 0,
-        avg_ring_time: 0,
-        avg_talk_time: 0,
-        total_talk_time: 0,
-        peak_hour: '12:00-13:00'
-      }
-    } as PeriodStats;
-  }
-
-  async getWeeklyStats(): Promise<PeriodStats> {
-    // Fallback to today stats for now
-    return this.getTodayStatsEnhanced();
-  }
-
-  async getMonthlyStats(): Promise<PeriodStats> {
-    // Fallback to today stats for now
-    return this.getTodayStatsEnhanced();
-  }
-
-  async getPeriodStats(startDate: string, endDate: string): Promise<PeriodStats> {
-    // Fallback to today stats for now
-    return this.getTodayStatsEnhanced();
-  }
-
-  // Method to get stats based on time range
-  async getStatsByRange(range: TimeRange, customRange?: { start: Date; end: Date }): Promise<PeriodStats> {
-    switch (range) {
-      case 'today':
-        return this.getTodayStatsEnhanced();
-      case 'weekly':
-        return this.getWeeklyStats();
-      case 'monthly':
-        return this.getMonthlyStats();
-      case 'custom':
-        if (!customRange) {
-          throw new Error('Custom range requires start and end dates');
-        }
-        return this.getPeriodStats(
-          customRange.start.toISOString(),
-          customRange.end.toISOString()
-        );
-      default:
-        throw new Error(`Invalid time range: ${range}`);
-    }
   }
 
   async getCallDetails(id: string): Promise<CallDetails> {

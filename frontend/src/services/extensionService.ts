@@ -42,18 +42,6 @@ export interface ExtensionStatsResponse {
   top_agents: TopAgent[];
 }
 
-export interface QueryServiceStatus {
-  connected: boolean;
-  queryInterval: number;
-  lastQueryTime?: string;
-  extensionsMonitored: number;
-  statistics: {
-    successfulQueries: number;
-    failedQueries: number;
-  };
-  isQuerying: boolean;
-}
-
 export interface RefreshResult {
   success: boolean;
   message: string;
@@ -61,52 +49,6 @@ export interface RefreshResult {
   extensionsChecked: number;
   extensions: number;
   duration_ms: number;
-  statistics: {
-    successfulQueries: number;
-    failedQueries: number;
-  };
-  jsonFile?: {
-    filename: string;
-    fileSize: number;
-    message: string;
-  };
-}
-
-export interface ExtensionCallStats {
-  extension: string;
-  agentName: string;
-  date: string;
-  summary: {
-    totalCalls: number;
-    answeredCalls: number;
-    missedCalls: number;
-    answerRate: number;
-  };
-  byDirection: {
-    incoming: number;
-    outgoing: number;
-  };
-  byStatus: Record<string, number>;
-  averages: {
-    ringTime: number;
-    talkTime: number;
-    totalTalkTime: number;
-  };
-  recentCalls: Array<{
-    id: string;
-    linkedid: string;
-    direction?: 'incoming' | 'outgoing';
-    other_party?: string;
-    started_at: string;
-    answered_at?: string;
-    ended_at?: string;
-    ring_seconds?: number;
-    talk_seconds?: number;
-    caller_number?: string;
-    caller_name?: string;
-    disposition?: string;
-    status: string;
-  }>;
 }
 
 export const extensionService = {
@@ -238,29 +180,5 @@ export const extensionService = {
     return response.data.data;
   },
 
-  // Get AMI Query Service status
-  async getQueryServiceStatus(): Promise<QueryServiceStatus> {
-    const response = await api.get('/extensions/query-service/status');
-    return response.data.data;
-  },
 
-  // Get extension call statistics for today
-  async getExtensionCallStatistics(extensionId: string): Promise<ExtensionCallStats> {
-    const response = await api.get(`/extensions/${extensionId}/call-statistics`);
-    return response.data.data;
-  },
-
-  // List available AMI response JSON files
-  async getAmiResponseFiles(): Promise<{ files: Array<{ filename: string; fileSize: number; createdAt: string; modifiedAt: string }>; totalFiles: number }> {
-    const response = await api.get('/extensions/ami-responses');
-    return response.data.data;
-  },
-
-  // Download specific AMI response JSON file
-  async downloadAmiResponseFile(filename: string): Promise<Blob> {
-    const response = await api.get(`/extensions/ami-responses/${filename}`, {
-      responseType: 'blob'
-    });
-    return response.data;
-  }
 };

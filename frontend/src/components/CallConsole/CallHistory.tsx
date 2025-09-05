@@ -1,7 +1,5 @@
 import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
-import callRealtimeService from '../../services/callRealtimeService';
-import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 
 // Interface for individual call
@@ -66,8 +64,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   const [isPageVisible, setIsPageVisible] = React.useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<NodeJS.Timeout | null>(null);
   const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
-  const [connectionHealth, setConnectionHealth] = React.useState<'good' | 'poor' | 'stale'>('good');
-  const [realtimeStatus, setRealtimeStatus] = React.useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   const [countdown, setCountdown] = React.useState(30);
   
   // Use prop isRefreshing if provided, otherwise use local state
@@ -128,16 +124,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     }
   }, [onRefresh, autoRefreshInterval, isPageVisible, isRefreshing]);
 
-  // Subscribe to unified connection health service
+  // Page visibility handling
   React.useEffect(() => {
-    console.log('📡 CallHistory: Subscribing to unified connection health service');
-    
-    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
-      console.log('📡 CallHistory: Received connection health update:', health);
-      setConnectionHealth(health.health);
-      setRealtimeStatus(health.status);
-    });
-    
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden;
       setIsPageVisible(isVisible);
@@ -154,7 +142,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
-      unsubscribeHealth();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [onRefresh, isPageVisible, isRefreshing]);
@@ -252,29 +239,6 @@ const CallHistory: React.FC<CallHistoryProps> = ({
             <div className="flex-1">
               <div className="flex items-center space-x-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h3>
-                {/* Real-time status indicator with reusable StatusTooltip */}
-                <div className="flex items-center">
-                  <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                    <span className="relative flex size-3 cursor-help group">
-                      {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                      )}
-                      <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                        realtimeStatus === 'connected'
-                          ? connectionHealth === 'good'
-                            ? 'bg-green-500 group-hover:bg-green-600'
-                            : connectionHealth === 'poor'
-                            ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                            : 'bg-orange-500 group-hover:bg-orange-600'
-                          : realtimeStatus === 'reconnecting'
-                            ? 'bg-blue-500 group-hover:bg-blue-600'
-                            : realtimeStatus === 'checking'
-                            ? 'bg-gray-500 group-hover:bg-gray-600'
-                            : 'bg-red-500 group-hover:bg-red-600'
-                      }`}></span>
-                    </span>
-                  </StatusTooltip>
-                </div>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and ended calls</p>
             </div>

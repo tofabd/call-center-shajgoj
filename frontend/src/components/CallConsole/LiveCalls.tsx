@@ -3,7 +3,6 @@ import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw
 import callRealtimeService from '../../services/callRealtimeService';
 import type { CallUpdate } from '../../services/callRealtimeService';
 import type { LiveCall } from '../../services/callService';
-import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 import { getUnifiedCallStatus, isCallRinging, getStatusPriority as getUnifiedStatusPriority, debugStatusMismatch } from '../../utils/statusUtils';
 
@@ -46,8 +45,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
-  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -205,14 +202,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // Subscribe to call updates
     const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
     
-    // Subscribe to unified connection health service
-    console.log('📡 LiveCalls: Subscribing to unified connection health service');
-    
-    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
-      console.log('📡 LiveCalls: Received connection health update:', health);
-      setConnectionHealth(health.health);
-      setRealtimeStatus(health.status);
-    });
     
     // Handle page visibility changes
     const handleVisibilityChange = () => {
@@ -230,7 +219,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     // Cleanup
     return () => {
       unsubscribe();
-      unsubscribeHealth();
       if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
       }
@@ -402,29 +390,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             <div className="flex-1">
               <div className="flex items-center space-x-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Calls</h3>
-                {/* Real-time status indicator with reusable StatusTooltip */}
-                <div className="flex items-center">
-                  <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                    <span className="relative flex size-3 cursor-help group">
-                      {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                      )}
-                      <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                        realtimeStatus === 'connected'
-                          ? connectionHealth === 'good'
-                            ? 'bg-green-500 group-hover:bg-green-600'
-                            : connectionHealth === 'poor'
-                            ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                            : 'bg-orange-500 group-hover:bg-orange-600'
-                          : realtimeStatus === 'reconnecting'
-                            ? 'bg-blue-500 group-hover:bg-blue-600'
-                            : realtimeStatus === 'checking'
-                            ? 'bg-gray-500 group-hover:bg-gray-600'
-                            : 'bg-red-500 group-hover:bg-red-600'
-                      }`}></span>
-                    </span>
-                  </StatusTooltip>
-                </div>
               </div>
                              <div className="flex items-center space-x-4 text-sm">
                  <div className="flex items-center space-x-1">

@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
-import type { Extension, ExtensionCallStats } from '../../services/extensionService';
+import type { Extension } from '../../services/extensionService';
 import extensionRealtimeService, { type ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
-import { connectionHealthService, type ConnectionHealth } from '../../services/connectionHealthService';
 import { StatusTooltip } from '../common/StatusTooltip';
 import { getUnifiedExtensionStatus, isExtensionOnCall, debugStatusMismatch } from '../../utils/statusUtils';
 
@@ -64,13 +63,9 @@ const ExtensionsStatus: React.FC = () => {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [extensionStats, setExtensionStats] = useState<ExtensionCallStats | null>(null);
+  const [extensionStats, setExtensionStats] = useState<any | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
-  
-  // Connection health monitoring
-  const [connectionHealth, setConnectionHealth] = useState<'good' | 'poor' | 'stale'>('good');
-  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'checking'>('checking');
   
 
 
@@ -180,14 +175,6 @@ const ExtensionsStatus: React.FC = () => {
     const unsubscribe = extensionRealtimeService.subscribeToAll(handleExtensionUpdate);
     console.log('📡 ExtensionsStatus: Subscribed to real-time extension updates');
     
-    // Subscribe to unified connection health service
-    console.log('📡 ExtensionsStatus: Subscribing to unified connection health service');
-    
-    const unsubscribeHealth = connectionHealthService.subscribe((health: ConnectionHealth) => {
-      console.log('📡 ExtensionsStatus: Received connection health update:', health);
-      setConnectionHealth(health.health);
-      setRealtimeStatus(health.status);
-    });
     
     // Handle page visibility changes
     const handleVisibilityChange = () => {
@@ -230,8 +217,7 @@ const ExtensionsStatus: React.FC = () => {
       
       // Clean up WebSocket listeners
       unsubscribe();
-      unsubscribeHealth();
-      console.log('📡 ExtensionsStatus: Cleaned up Echo listeners and health subscription');
+      console.log('📡 ExtensionsStatus: Cleaned up Echo listeners');
       
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -403,9 +389,9 @@ const ExtensionsStatus: React.FC = () => {
     setExtensionStats(null);
 
     try {
-      const stats = await extensionService.getExtensionCallStatistics(extension._id);
-      setExtensionStats(stats);
-      console.log('✅ Extension statistics loaded:', stats);
+      // Extension statistics not yet implemented in backend
+      setStatsError('Extension statistics feature coming soon');
+      console.log('⚠️ Extension statistics not yet available');
     } catch (error) {
       console.error('❌ Failed to load extension statistics:', error);
       setStatsError('Failed to load call statistics for this extension');
@@ -537,29 +523,6 @@ const ExtensionsStatus: React.FC = () => {
               <div>
                 <div className="flex items-center space-x-3">
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Extensions Status</h3>
-                  {/* Real-time status indicator with reusable StatusTooltip */}
-                  <div className="flex items-center">
-                    <StatusTooltip status={realtimeStatus} health={connectionHealth}>
-                      <span className="relative flex size-3 cursor-help group">
-                        {realtimeStatus === 'connected' && connectionHealth === 'good' && (
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                        )}
-                        <span className={`relative inline-flex size-3 rounded-full transition-all duration-200 ${
-                          realtimeStatus === 'connected'
-                            ? connectionHealth === 'good'
-                              ? 'bg-green-500 group-hover:bg-green-600'
-                              : connectionHealth === 'poor'
-                              ? 'bg-yellow-500 group-hover:bg-yellow-600'
-                              : 'bg-orange-500 group-hover:bg-orange-600'
-                            : realtimeStatus === 'reconnecting'
-                              ? 'bg-blue-500 group-hover:bg-blue-600'
-                              : realtimeStatus === 'checking'
-                              ? 'bg-gray-500 group-hover:bg-gray-600'
-                              : 'bg-red-500 group-hover:bg-red-600'
-                        }`}></span>
-                      </span>
-                    </StatusTooltip>
-                  </div>
                 </div>
                 <div className="flex items-center space-x-4 text-sm">
                    <div className="flex items-center space-x-1">
