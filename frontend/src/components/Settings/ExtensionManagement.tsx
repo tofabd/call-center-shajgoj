@@ -53,6 +53,7 @@ const ExtensionManagement: React.FC = () => {
   const [deletingExtensionId, setDeletingExtensionId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showRefreshConfirmation, setShowRefreshConfirmation] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -147,7 +148,10 @@ const ExtensionManagement: React.FC = () => {
   };
 
   const handleAdd = async () => {
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       await extensionService.createExtension({
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
@@ -177,13 +181,16 @@ const ExtensionManagement: React.FC = () => {
         draggable: true,
         theme: "colored",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleEdit = async () => {
-    if (!editingExtension) return;
+    if (!editingExtension || submitting) return;
     
     try {
+      setSubmitting(true);
       await extensionService.updateExtension(editingExtension.id, {
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
@@ -213,6 +220,8 @@ const ExtensionManagement: React.FC = () => {
         draggable: true,
         theme: "colored",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -389,6 +398,14 @@ const ExtensionManagement: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
@@ -408,13 +425,14 @@ const ExtensionManagement: React.FC = () => {
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             <span>Refresh from Asterisk</span>
           </button>
-          <button
-            onClick={openAddModal}
-            className="flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Extension</span>
-          </button>
+           <button
+             onClick={openAddModal}
+             disabled={submitting}
+             className="flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+           >
+             <Plus className="h-4 w-4" />
+             <span>Add Extension</span>
+           </button>
         </div>
       </div>
 
@@ -432,16 +450,9 @@ const ExtensionManagement: React.FC = () => {
         </div>
       </div>
 
-
-
       {/* Extensions Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center">
-            <RefreshCw className="h-10 w-10 animate-spin mx-auto mb-4 text-indigo-500" />
-            <p className="text-gray-500 dark:text-gray-400 text-lg">Loading extensions...</p>
-          </div>
-        ) : filteredExtensions.length === 0 ? (
+        {filteredExtensions.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
               <Users className="h-8 w-8 text-gray-400" />
@@ -765,19 +776,27 @@ const ExtensionManagement: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-8">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                disabled={!formData.extension}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                Add Extension
-              </button>
+               <button
+                 onClick={() => setIsAddModalOpen(false)}
+                 disabled={submitting}
+                 className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleAdd}
+                 disabled={!formData.extension || submitting}
+                 className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium min-w-[120px]"
+               >
+                 {submitting ? (
+                   <div className="flex items-center justify-center">
+                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white mr-2"></div>
+                     Adding...
+                   </div>
+                 ) : (
+                   'Add Extension'
+                 )}
+               </button>
             </div>
           </div>
         </div>
@@ -830,18 +849,27 @@ const ExtensionManagement: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-8">
-              <button
-                onClick={() => setEditingExtension(null)}
-                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEdit}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-              >
-                Update Extension
-              </button>
+               <button
+                 onClick={() => setEditingExtension(null)}
+                 disabled={submitting}
+                 className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleEdit}
+                 disabled={submitting}
+                 className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium min-w-[120px]"
+               >
+                 {submitting ? (
+                   <div className="flex items-center justify-center">
+                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white mr-2"></div>
+                     Updating...
+                   </div>
+                 ) : (
+                   'Update Extension'
+                 )}
+               </button>
             </div>
           </div>
         </div>
@@ -869,17 +897,20 @@ const ExtensionManagement: React.FC = () => {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleDelete}
-                disabled={deletingExtensionId === deletingExtension?.id}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {deletingExtensionId === deletingExtension?.id ? (
-                  <span>Deleting...</span>
-                ) : (
-                  <span>Delete Extension</span>
-                )}
-              </button>
+               <button
+                 onClick={handleDelete}
+                 disabled={deletingExtensionId === deletingExtension?.id}
+                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[120px]"
+               >
+                 {deletingExtensionId === deletingExtension?.id ? (
+                   <div className="flex items-center justify-center">
+                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white mr-2"></div>
+                     Deleting...
+                   </div>
+                 ) : (
+                   'Delete Extension'
+                 )}
+               </button>
             </div>
           </div>
         </div>
