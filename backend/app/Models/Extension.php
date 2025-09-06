@@ -27,6 +27,19 @@ class Extension extends Model
         'status_changed_at' => 'datetime',
     ];
 
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Extension $extension) {
+            // Auto-update status_changed_at when availability_status changes
+            if ($extension->isDirty('availability_status')) {
+                $extension->status_changed_at = now();
+            }
+        });
+    }
+
 
     /**
      * Get the team that owns this extension
@@ -41,16 +54,11 @@ class Extension extends Model
      */
     public function updateFromAsteriskEvent(int $statusCode, ?string $statusText = null): bool
     {
-        $oldAvailabilityStatus = $this->availability_status;
         $newAvailabilityStatus = $this->mapToAvailabilityStatus($statusCode);
         
         $this->status_code = $statusCode;
-        
-        // Update availability status and timestamp if status changed
-        if ($oldAvailabilityStatus !== $newAvailabilityStatus) {
-            $this->availability_status = $newAvailabilityStatus;
-            $this->status_changed_at = now();
-        }
+        $this->availability_status = $newAvailabilityStatus;
+        // status_changed_at will be auto-updated by the booted() method if availability_status changed
         
         if ($statusText !== null) {
             $this->status_text = $statusText;

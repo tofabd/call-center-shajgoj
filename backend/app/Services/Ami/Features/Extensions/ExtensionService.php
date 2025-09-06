@@ -268,8 +268,7 @@ class ExtensionService
                     'availability_status' => 'offline',
                     'status_code' => 4,
                     'status_text' => 'Unavailable',
-                    'status_changed_at' => now(),
-                    'updated_at' => now()
+                    // status_changed_at will be auto-updated by Extension model since availability_status changed
                 ]);
                 
                 if ($updateResult) {
@@ -304,7 +303,7 @@ class ExtensionService
                 'availability_status' => $amiExt['availability_status'],
                 'status_code' => $amiExt['status_code'],
                 'status_text' => $amiExt['status_text'] ?? null,
-                'status_changed_at' => now(),
+                // status_changed_at will be auto-set by Extension model since this is a new record with availability_status
                 'is_active' => true,
                 'agent_name' => null,
                 'team_id' => null
@@ -336,7 +335,7 @@ class ExtensionService
                 'availability_status' => $amiExt['availability_status'],
                 'status_code' => $amiExt['status_code'],
                 'status_text' => $amiExt['status_text'] ?? $dbExtension->status_text,
-                'status_changed_at' => now()
+                // status_changed_at will be auto-updated by Extension model if availability_status changed
             ];
             
             $updateResult = $dbExtension->update($updateData);
