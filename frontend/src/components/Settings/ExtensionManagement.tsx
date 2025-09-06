@@ -84,6 +84,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -128,6 +129,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -139,6 +141,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -167,6 +170,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -178,6 +182,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -206,6 +211,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -217,6 +223,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -251,6 +258,7 @@ const ExtensionManagement: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });

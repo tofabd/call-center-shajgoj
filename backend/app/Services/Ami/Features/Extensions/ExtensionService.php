@@ -47,7 +47,7 @@ class ExtensionService
             
             // Create 3 separate JSON files
             $debugFiles = $this->createSeparateDebugFiles($amiExtensions, $rawAmiResponse, $rawExtensions, $startTime);
-            Log::info('✅ [Extension Service] Step 2 Complete: 3 separate JSON debug files created', $debugFiles);
+            Log::info('✅ [Extension Service] Step 2 Complete: 4 separate JSON debug files created', $debugFiles);
 
             // STEP 3: Update database with AMI data (after JSON file is saved)
             Log::info('🗄️ [Extension Service] Step 3: Updating database with parsed extension data...');
@@ -79,7 +79,7 @@ class ExtensionService
                     'marked_offline' => $updateStats['marked_offline'] ?? 0,
                     'errors' => $updateStats['errors'] ?? 0,
                 ],
-                'ami_raw_data' => $amiExtensions->toArray() // Include parsed AMI data in response
+                'ami_parsed_data' => $amiExtensions->toArray() // Include parsed AMI extension data in response
             ];
 
             // STEP 4: Update the JSON files with final results
@@ -253,7 +253,7 @@ class ExtensionService
             $amiExtensionNumbers = $amiExtensions->pluck('extension')->toArray();
             $dbExtensions = Extension::where('is_active', true)
                 ->whereNotIn('extension', $amiExtensionNumbers)
-                ->where('status', '!=', 'offline')
+                ->where('availability_status', '!=', 'offline')
                 ->get();
 
             if ($dbExtensions->count() > 0) {
@@ -267,6 +267,7 @@ class ExtensionService
                 $updateResult = $dbExt->update([
                     'availability_status' => 'offline',
                     'status_code' => 4,
+                    'status_text' => 'Unavailable',
                     'status_changed_at' => now(),
                     'updated_at' => now()
                 ]);
@@ -483,13 +484,58 @@ class ExtensionService
             file_put_contents($debugPath . '/' . $filteredFileName, json_encode($filteredData, JSON_PRETTY_PRINT));
             $files['filtered'] = $filteredFileName;
             
+            // FILE 4: Extension Refresh Results (placeholder - will be populated after database operations)
+            $resultFileName = "extension_refresh_result_{$timestamp}.json";
+            $resultData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'type' => 'extension_refresh_result',
+                    'description' => 'Complete extension refresh operation results and statistics',
+                    'status' => 'pending_completion',
+                    'initial_parsing_duration_ms' => $parseTime
+                ],
+                'operation_summary' => [
+                    'ami_query_completed' => true,
+                    'parsing_completed' => true,
+                    'database_update_status' => 'pending',
+                    'ami_extensions_found' => $amiExtensions->count(),
+                    'filtered_extensions_count' => count($filteredExtensions),
+                    'raw_events_processed' => $rawAmiResponse->getEventCount()
+                ],
+                'database_operations' => [
+                    'status' => 'pending',
+                    'created' => 'TBD',
+                    'updated' => 'TBD', 
+                    'unchanged' => 'TBD',
+                    'marked_offline' => 'TBD',
+                    'errors' => 'TBD'
+                ],
+                'final_statistics' => [
+                    'status' => 'will_be_populated_after_completion'
+                ],
+                'timing' => [
+                    'start_time' => now()->subMilliseconds(intval($parseTime))->toISOString(),
+                    'parsing_duration_ms' => $parseTime,
+                    'total_duration_ms' => 'TBD'
+                ],
+                'debug_files_created' => [
+                    'raw_ami' => $rawFileName,
+                    'parsed_extensions' => $parsedFileName,
+                    'filtered_extensions' => $filteredFileName,
+                    'this_result_file' => $resultFileName
+                ]
+            ];
+            file_put_contents($debugPath . '/' . $resultFileName, json_encode($resultData, JSON_PRETTY_PRINT));
+            $files['result'] = $resultFileName;
+            
             $files['base_name'] = "extension_debug_{$timestamp}";
             $files['path'] = $debugPath;
             
-            Log::info('📄 [Extension Service] 3 separate debug files created successfully', [
+            Log::info('📄 [Extension Service] 4 separate debug files created successfully', [
                 'raw_file' => $rawFileName,
                 'parsed_file' => $parsedFileName,
                 'filtered_file' => $filteredFileName,
+                'result_file' => $resultFileName,
                 'path' => $debugPath,
                 'raw_events' => $rawAmiResponse->getEventCount(),
                 'parsed_extensions' => count($this->getMinimalParsedExtensions($rawAmiResponse)),
@@ -551,7 +597,7 @@ class ExtensionService
                     $filteredExtensions[] = [
                         'extension' => $extension,
                         'context' => $context,
-                        'status' => $event['Status'] ?? null,
+                        'status_code' => $event['Status'] ?? null,
                         'status_text' => $event['StatusText'] ?? null,
                         'raw_fields' => [
                             'Exten' => $event['Exten'] ?? null,
@@ -601,18 +647,46 @@ class ExtensionService
             ];
             
             // Update each file with final results
-            foreach (['raw', 'parsed', 'filtered'] as $type) {
+            foreach (['raw', 'parsed', 'filtered', 'result'] as $type) {
                 if (isset($debugFiles[$type])) {
                     $filePath = $debugPath . '/' . $debugFiles[$type];
                     if (file_exists($filePath)) {
                         $existingData = json_decode(file_get_contents($filePath), true);
-                        $existingData = array_merge($existingData, $finalResults);
+                        
+                        if ($type === 'result') {
+                            // For result file, update the placeholder data with complete results
+                            $existingData['metadata']['status'] = 'completed';
+                            $existingData['metadata']['completion_timestamp'] = now()->toISOString();
+                            $existingData['operation_summary']['database_update_status'] = 'completed';
+                            $existingData['database_operations'] = [
+                                'status' => 'completed',
+                                'created' => $finalResult['details']['created'],
+                                'updated' => $finalResult['details']['updated'],
+                                'unchanged' => $finalResult['details']['unchanged'],
+                                'marked_offline' => $finalResult['details']['marked_offline'],
+                                'errors' => $finalResult['details']['errors']
+                            ];
+                            $existingData['final_statistics'] = $finalResult['statistics'];
+                            $existingData['timing']['total_duration_ms'] = $finalResult['duration_ms'];
+                            $existingData['timing']['completion_time'] = now()->toISOString();
+                            $existingData['operation_result'] = [
+                                'success' => $finalResult['success'],
+                                'extensions_processed' => $finalResult['extensionsChecked'],
+                                'status_changes' => $finalResult['statistics']['statusChanges'],
+                                'no_changes' => $finalResult['statistics']['noChanges'],
+                                'total_queries' => $finalResult['statistics']['successfulQueries'] + $finalResult['statistics']['failedQueries']
+                            ];
+                        } else {
+                            // For other files, append final results as before
+                            $existingData = array_merge($existingData, $finalResults);
+                        }
+                        
                         file_put_contents($filePath, json_encode($existingData, JSON_PRETTY_PRINT));
                     }
                 }
             }
             
-            Log::info('📄 [Extension Service] All debug files updated with final results');
+            Log::info('📄 [Extension Service] All 4 debug files updated with final results');
             
         } catch (\Exception $e) {
             Log::warning('⚠️ [Extension Service] Failed to update debug files with results', [
