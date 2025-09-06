@@ -59,7 +59,6 @@ class ExtensionParser
             'context' => $finalResponse['Context'] ?? null,
             'status_code' => (int)$finalResponse['Status'],
             'availability_status' => $this->mapToAvailabilityStatus((int)$finalResponse['Status']),
-            'device_state' => $this->mapStatusCodeToDeviceState((int)$finalResponse['Status']),
             'status_text' => $finalResponse['StatusText'] ?? null
         ];
     }
@@ -99,6 +98,70 @@ class ExtensionParser
         ];
     }
 
+    /**
+     * Parse raw extension state list - only real 3-5 digit extensions, no extra fields
+     */
+    public function parseRawExtensionStateList(AmiResponse $response): Collection
+    {
+        $extensions = collect();
+        
+        if (!$response->isSuccessful()) {
+            Log::warning('⚠️ [Extension Parser] Raw parser - Response was not successful', [
+                'errors' => $response->getErrors()
+            ]);
+            return $extensions;
+        }
+
+        $events = $response->getEvents();
+        Log::debug('📋 [Extension Parser] Raw parser - Processing extension state list', [
+            'total_events' => count($events)
+        ]);
+
+        foreach ($events as $event) {
+            if (isset($event['Event']) && $event['Event'] === 'ExtensionStatus') {
+                $parsed = $this->parseRawExtensionStatusEvent($event);
+                if ($parsed) {
+                    $extensions->push($parsed);
+                }
+            }
+        }
+
+        Log::info('✅ [Extension Parser] Raw parser completed', [
+            'total_events' => count($events),
+            'real_extensions_found' => $extensions->count(),
+            'duration_ms' => $response->getDuration()
+        ]);
+
+        return $extensions;
+    }
+
+    /**
+     * Parse individual extension status event - raw data only, 3-5 digit extensions only
+     */
+    private function parseRawExtensionStatusEvent(array $event): ?array
+    {
+        // Only get extension and context
+        $extension = $event['Exten'] ?? null;
+        $context = $event['Context'] ?? null;
+        
+        if (!$extension || !$context) {
+            return null;
+        }
+
+        // Filter: Only 3-5 digit extensions in ext-local context
+        if (!preg_match('/^\d{3,5}$/', $extension) || $context !== 'ext-local') {
+            return null;
+        }
+
+        // Return only the raw AMI fields - no processing, no extra fields
+        return [
+            'Exten' => $extension,
+            'Context' => $context,
+            'Status' => $event['Status'] ?? null,
+            'StatusText' => $event['StatusText'] ?? null
+        ];
+    }
+
     private function parseExtensionStatusEvent(array $event): ?array
     {
         // Filter for valid extensions (3-5 digits in ext-local context)
@@ -126,7 +189,6 @@ class ExtensionParser
             'context' => $context,
             'status_code' => $statusCode,
             'availability_status' => $this->mapToAvailabilityStatus($statusCode),
-            'device_state' => $this->mapStatusCodeToDeviceState($statusCode),
             'status_text' => $event['StatusText'] ?? null,
             'raw_status' => $event['Status'] ?? null,
             'parsed_at' => now()->toISOString()
@@ -135,8 +197,7 @@ class ExtensionParser
         Log::debug('✅ [Extension Parser] Parsed extension', [
             'extension' => $extension,
             'status_code' => $statusCode,
-            'availability_status' => $parsed['availability_status'],
-            'device_state' => $parsed['device_state']
+            'availability_status' => $parsed['availability_status']
         ]);
 
         return $parsed;
@@ -181,31 +242,16 @@ class ExtensionParser
         return $statusMap[$statusCode] ?? 'unknown';
     }
 
-    private function mapStatusCodeToDeviceState(int $statusCode): string
-    {
-        $deviceStateMap = [
-            -1 => 'UNKNOWN',
-            0 => 'NOT_INUSE',
-            1 => 'INUSE',
-            2 => 'BUSY',
-            4 => 'UNAVAILABLE',
-            8 => 'RINGING',
-            16 => 'RING*INUSE'
-        ];
-
-        return $deviceStateMap[$statusCode] ?? 'UNKNOWN';
-    }
-
     public function getStatusCodeMapping(): array
     {
         return [
-            -1 => ['status' => 'unknown', 'device_state' => 'UNKNOWN', 'description' => 'Unknown'],
-            0 => ['status' => 'online', 'device_state' => 'NOT_INUSE', 'description' => 'Not In Use'],
-            1 => ['status' => 'online', 'device_state' => 'INUSE', 'description' => 'In Use'],
-            2 => ['status' => 'online', 'device_state' => 'BUSY', 'description' => 'Busy'],
-            4 => ['status' => 'offline', 'device_state' => 'UNAVAILABLE', 'description' => 'Unavailable'],
-            8 => ['status' => 'online', 'device_state' => 'RINGING', 'description' => 'Ringing'],
-            16 => ['status' => 'online', 'device_state' => 'RING*INUSE', 'description' => 'Ringing + In Use']
+            -1 => ['status' => 'unknown', 'description' => 'Unknown'],
+            0 => ['status' => 'online', 'description' => 'Not In Use'],
+            1 => ['status' => 'online', 'description' => 'In Use'],
+            2 => ['status' => 'online', 'description' => 'Busy'],
+            4 => ['status' => 'offline', 'description' => 'Unavailable'],
+            8 => ['status' => 'online', 'description' => 'Ringing'],
+            16 => ['status' => 'online', 'description' => 'Ringing + In Use']
         ];
     }
 }

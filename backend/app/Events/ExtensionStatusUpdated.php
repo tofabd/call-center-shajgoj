@@ -54,10 +54,10 @@ class ExtensionStatusUpdated implements ShouldBroadcast
             'id' => $this->extension->id,
             'extension' => $this->extension->extension,
             'agent_name' => $this->extension->agent_name,
-            'status' => $this->extension->status,
+            'availability_status' => $this->extension->availability_status,
             'status_code' => $this->extension->status_code,
-            'device_state' => $this->extension->device_state,
-            'last_seen' => $this->extension->last_seen,
+            'status_text' => $this->extension->status_text,
+            'status_changed_at' => $this->extension->status_changed_at,
             'updated_at' => $this->extension->updated_at,
         ];
     }

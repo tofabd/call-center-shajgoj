@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Extension extends Model
@@ -28,11 +27,6 @@ class Extension extends Model
         'status_changed_at' => 'datetime',
     ];
 
-    protected $appends = [
-        'department', // Add department as virtual attribute for frontend compatibility
-        'team_name', // Add team name for easy access
-        'device_state' // Computed from status_code
-    ];
 
     /**
      * Get the team that owns this extension
@@ -40,51 +34,6 @@ class Extension extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
-    }
-
-    /**
-     * Get team name attribute
-     */
-    public function getTeamNameAttribute(): ?string
-    {
-        return $this->team?->name;
-    }
-
-    /**
-     * Get department attribute (alias for team for backward compatibility)
-     */
-    public function getDepartmentAttribute(): ?string
-    {
-        return $this->team?->name;
-    }
-
-    /**
-     * Set department attribute (maps to team_id by finding team by name)
-     */
-    public function setDepartmentAttribute(?string $value): void
-    {
-        if ($value) {
-            $team = Team::where('name', $value)->first();
-            $this->team_id = $team?->id;
-        } else {
-            $this->team_id = null;
-        }
-    }
-
-    /**
-     * Get the calls associated with this extension
-     */
-    public function calls(): HasMany
-    {
-        return $this->hasMany(Call::class, 'agent_exten', 'extension');
-    }
-
-    /**
-     * Get the bridge segments associated with this extension
-     */
-    public function bridgeSegments(): HasMany
-    {
-        return $this->hasMany(BridgeSegment::class, 'agent_exten', 'extension');
     }
 
     /**
@@ -121,24 +70,6 @@ class Extension extends Model
             32 => 'invalid',                // Invalid state
             -1 => 'unknown',                // Unknown state
             default => 'unknown'            // Others
-        };
-    }
-
-    /**
-     * Get device state from status code (computed property)
-     */
-    public function getDeviceStateAttribute(): string
-    {
-        return match($this->status_code) {
-            -1 => 'UNKNOWN',
-            0 => 'NOT_INUSE',
-            1 => 'INUSE',
-            2 => 'BUSY',
-            4 => 'UNAVAILABLE',
-            8 => 'RINGING',
-            16 => 'RINGINUSE',
-            32 => 'INVALID',
-            default => 'UNKNOWN'
         };
     }
 

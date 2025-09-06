@@ -19,6 +19,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/debug
 Homestead.json
 Homestead.yaml
 npm-debug.log

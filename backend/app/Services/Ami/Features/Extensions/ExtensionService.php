@@ -29,7 +29,9 @@ class ExtensionService
         try {
             // STEP 1: Query ExtensionStateList from AMI
             Log::info('📡 [Extension Service] Step 1: Querying ExtensionStateList from AMI...');
-            $amiExtensions = $this->getAllExtensionsFromAmi();
+            $amiResult = $this->getAllExtensionsFromAmi();
+            $amiExtensions = $amiResult['parsed_extensions'];
+            $rawAmiResponse = $amiResult['raw_ami_response'];
             
             if ($amiExtensions->isEmpty()) {
                 throw new \Exception('No extensions found in AMI response');
@@ -37,10 +39,15 @@ class ExtensionService
 
             Log::info('✅ [Extension Service] Step 1 Complete: Found ' . $amiExtensions->count() . ' extensions from AMI');
 
-            // STEP 2: Write ALL parsed extensions to JSON file FIRST (before database update)
-            Log::info('📄 [Extension Service] Step 2: Writing parsed extensions to JSON debug file...');
-            $debugFileName = $this->createDebugFileFirst($amiExtensions, $startTime);
-            Log::info('✅ [Extension Service] Step 2 Complete: JSON debug file created: ' . $debugFileName);
+            // STEP 2: Write separate JSON files for different data types
+            Log::info('📄 [Extension Service] Step 2: Creating separate JSON files for raw, parsed, and filtered data...');
+            
+            // Get raw extension list (3-5 digits only, minimal fields)
+            $rawExtensions = $this->parser->parseRawExtensionStateList($rawAmiResponse);
+            
+            // Create 3 separate JSON files
+            $debugFiles = $this->createSeparateDebugFiles($amiExtensions, $rawAmiResponse, $rawExtensions, $startTime);
+            Log::info('✅ [Extension Service] Step 2 Complete: 3 separate JSON debug files created', $debugFiles);
 
             // STEP 3: Update database with AMI data (after JSON file is saved)
             Log::info('🗄️ [Extension Service] Step 3: Updating database with parsed extension data...');
@@ -57,7 +64,7 @@ class ExtensionService
                 'duration_ms' => $duration,
                 'extensionsChecked' => $amiExtensions->count() + ($updateStats['marked_offline'] ?? 0),
                 'lastQueryTime' => now()->toISOString(),
-                'debug_file' => $debugFileName,
+                'debug_files' => $debugFiles,
                 'statistics' => [
                     'successfulQueries' => ($updateStats['created'] ?? 0) + ($updateStats['updated'] ?? 0) + ($updateStats['unchanged'] ?? 0),
                     'failedQueries' => $updateStats['errors'] ?? 0,
@@ -72,16 +79,16 @@ class ExtensionService
                     'marked_offline' => $updateStats['marked_offline'] ?? 0,
                     'errors' => $updateStats['errors'] ?? 0,
                 ],
-                'ami_raw_data' => $amiExtensions->toArray() // Include raw AMI data in response
+                'ami_raw_data' => $amiExtensions->toArray() // Include parsed AMI data in response
             ];
 
-            // STEP 4: Update the JSON file with final results
-            $this->updateDebugFileWithResults($debugFileName, $result);
+            // STEP 4: Update the JSON files with final results
+            $this->updateDebugFilesWithResults($debugFiles, $result);
 
             Log::info('✅ [Extension Service] All steps completed successfully', [
                 'total_duration_ms' => $duration,
                 'extensions_processed' => $amiExtensions->count(),
-                'debug_file' => $debugFileName
+                'debug_files' => $debugFiles
             ]);
             
             return $result;
@@ -152,7 +159,7 @@ class ExtensionService
         return $results;
     }
 
-    private function getAllExtensionsFromAmi(): Collection
+    private function getAllExtensionsFromAmi(): array
     {
         Log::info('📡 [Extension Service] Querying all extensions from AMI...');
         
@@ -171,7 +178,11 @@ class ExtensionService
             'duration_ms' => $response->getDuration()
         ]);
 
-        return $extensions;
+        // Return both parsed extensions and raw response
+        return [
+            'parsed_extensions' => $extensions,
+            'raw_ami_response' => $response
+        ];
     }
 
     private function updateDatabaseExtensions(Collection $amiExtensions): array
@@ -196,11 +207,6 @@ class ExtensionService
                     $newExt = $this->createExtensionFromAmi($amiExt);
                     
                     if ($newExt) {
-                        Log::debug('✨ [Extension Service] Created new extension', [
-                            'extension' => $amiExt['extension'],
-                            'status_code' => $amiExt['status_code'],
-                            'device_state' => $amiExt['device_state']
-                        ]);
                         $stats['created']++;
                     } else {
                         $stats['errors']++;
@@ -210,43 +216,32 @@ class ExtensionService
 
                 // Extension exists - check if active
                 if (!$dbExtension->is_active) {
-                    Log::debug('🚫 [Extension Service] Extension inactive, skipping', [
-                        'extension' => $amiExt['extension']
-                    ]);
                     continue;
                 }
 
                 // Check if status actually changed
                 $statusChanged = (
                     $dbExtension->status_code !== $amiExt['status_code'] ||
-                    $dbExtension->device_state !== $amiExt['device_state']
+                    $dbExtension->availability_status !== $amiExt['availability_status']
                 );
 
                 if ($statusChanged) {
-                    $this->updateExtensionFromAmi($dbExtension, $amiExt);
+                    $updateResult = $this->updateExtensionFromAmi($dbExtension, $amiExt);
                     
-                    Log::debug('✅ [Extension Service] Updated extension', [
-                        'extension' => $amiExt['extension'],
-                        'old_status_code' => $dbExtension->status_code,
-                        'new_status_code' => $amiExt['status_code'],
-                        'old_device_state' => $dbExtension->device_state,
-                        'new_device_state' => $amiExt['device_state']
-                    ]);
-                    $stats['updated']++;
+                    if ($updateResult) {
+                        $stats['updated']++;
+                    } else {
+                        $stats['errors']++;
+                    }
                 } else {
-                    Log::debug('📝 [Extension Service] Extension unchanged', [
-                        'extension' => $amiExt['extension'],
-                        'status_code' => $amiExt['status_code']
-                    ]);
                     $stats['unchanged']++;
-                    
                     // Still update last_seen timestamp
                     $dbExtension->update(['last_seen' => now()]);
                 }
 
             } catch (\Exception $e) {
-                Log::error('❌ [Extension Service] Error processing extension', [
-                    'extension' => $amiExt['extension'],
+                Log::error('❌ [DB] Process error', [
+                    'ext' => $amiExt['extension'],
                     'error' => $e->getMessage()
                 ]);
                 $stats['errors']++;
@@ -261,27 +256,41 @@ class ExtensionService
                 ->where('status', '!=', 'offline')
                 ->get();
 
+            if ($dbExtensions->count() > 0) {
+                Log::info('🔴 [DB] Marking offline', [
+                    'count' => $dbExtensions->count(),
+                    'extensions' => $dbExtensions->pluck('extension')->toArray()
+                ]);
+            }
+
             foreach ($dbExtensions as $dbExt) {
-                $dbExt->update([
-                    'status' => 'offline',
-                    'status_code' => 4, // Unavailable
-                    'device_state' => 'UNAVAILABLE',
-                    'last_status_change' => now(),
-                    'last_seen' => now()
+                $updateResult = $dbExt->update([
+                    'availability_status' => 'offline',
+                    'status_code' => 4,
+                    'status_changed_at' => now(),
+                    'updated_at' => now()
                 ]);
                 
-                Log::debug('🔴 [Extension Service] Marked extension offline', [
-                    'extension' => $dbExt->extension
-                ]);
-                $stats['marked_offline']++;
+                if ($updateResult) {
+                    $stats['marked_offline']++;
+                }
             }
 
         } catch (\Exception $e) {
-            Log::error('❌ [Extension Service] Error marking missing extensions offline', [
+            Log::error('❌ [DB] Mark offline failed', [
                 'error' => $e->getMessage()
             ]);
             $stats['errors']++;
         }
+
+        // Database operations summary
+        Log::info('📊 [DB] Operations complete', [
+            'created' => $stats['created'],
+            'updated' => $stats['updated'],
+            'unchanged' => $stats['unchanged'],
+            'offline' => $stats['marked_offline'],
+            'errors' => $stats['errors']
+        ]);
 
         return $stats;
     }
@@ -289,21 +298,29 @@ class ExtensionService
     private function createExtensionFromAmi(array $amiExt): ?Extension
     {
         try {
-            return Extension::create([
+            $createData = [
                 'extension' => $amiExt['extension'],
-                'status' => $amiExt['status'],
+                'availability_status' => $amiExt['availability_status'],
                 'status_code' => $amiExt['status_code'],
-                'device_state' => $amiExt['device_state'],
                 'status_text' => $amiExt['status_text'] ?? null,
-                'last_status_change' => now(),
-                'last_seen' => now(),
+                'status_changed_at' => now(),
                 'is_active' => true,
-                'agent_name' => null, // Will be set manually later
-                'team' => null
+                'agent_name' => null,
+                'team_id' => null
+            ];
+            
+            $newExtension = Extension::create($createData);
+            
+            Log::info('✅ [DB] Created extension', [
+                'ext' => $amiExt['extension'],
+                'id' => $newExtension->id,
+                'status' => $amiExt['status_code']
             ]);
+            
+            return $newExtension;
         } catch (\Exception $e) {
-            Log::error('❌ [Extension Service] Failed to create extension', [
-                'extension' => $amiExt['extension'],
+            Log::error('❌ [DB] Create failed', [
+                'ext' => $amiExt['extension'],
                 'error' => $e->getMessage()
             ]);
             return null;
@@ -313,18 +330,26 @@ class ExtensionService
     private function updateExtensionFromAmi(Extension $dbExtension, array $amiExt): bool
     {
         try {
-            $dbExtension->update([
-                'status' => $amiExt['status'],
+            $oldStatus = $dbExtension->status_code;
+            $updateData = [
+                'availability_status' => $amiExt['availability_status'],
                 'status_code' => $amiExt['status_code'],
-                'device_state' => $amiExt['device_state'],
                 'status_text' => $amiExt['status_text'] ?? $dbExtension->status_text,
-                'last_status_change' => now(),
-                'last_seen' => now()
+                'status_changed_at' => now()
+            ];
+            
+            $updateResult = $dbExtension->update($updateData);
+            
+            Log::info('✅ [DB] Updated extension', [
+                'ext' => $amiExt['extension'],
+                'id' => $dbExtension->id,
+                'change' => $oldStatus . '→' . $amiExt['status_code']
             ]);
+            
             return true;
         } catch (\Exception $e) {
-            Log::error('❌ [Extension Service] Failed to update extension', [
-                'extension' => $amiExt['extension'],
+            Log::error('❌ [DB] Update failed', [
+                'ext' => $amiExt['extension'],
                 'error' => $e->getMessage()
             ]);
             return false;
@@ -374,39 +399,14 @@ class ExtensionService
     }
 
     /**
-     * Create initial debug file with parsed AMI extensions (Step 2)
+     * Create 3 separate debug files for different data types
      */
-    private function createDebugFileFirst(Collection $amiExtensions, float $startTime): string
+    private function createSeparateDebugFiles(Collection $amiExtensions, $rawAmiResponse, Collection $rawExtensions, float $startTime): array
     {
         try {
             $currentTime = microtime(true);
             $parseTime = round(($currentTime - $startTime) * 1000, 2);
-            
-            $debugData = [
-                'metadata' => [
-                    'timestamp' => now()->toISOString(),
-                    'ami_host' => config('ami.connection.host', 'unknown'),
-                    'ami_port' => config('ami.connection.port', 'unknown'),
-                    'query_type' => 'ExtensionStateList',
-                    'total_extensions' => $amiExtensions->count(),
-                    'parsing_duration_ms' => $parseTime,
-                    'status' => 'parsed_extensions_ready',
-                    'next_step' => 'database_update_pending'
-                ],
-                'raw_ami_response' => [
-                    'parsed_extensions' => $amiExtensions->toArray(),
-                    'parsing_timestamp' => now()->toISOString(),
-                    'notes' => 'This is the raw parsed data from AMI ExtensionStateList before database updates'
-                ],
-                'database_operations' => [
-                    'status' => 'pending',
-                    'message' => 'Database operations will be performed after this file is created'
-                ]
-            ];
-
-            // Create filename with timestamp
             $timestamp = now()->format('Y-m-d_H-i-s');
-            $filename = "extension_refresh_{$timestamp}.json";
             $debugPath = base_path('debug');
             
             // Ensure debug directory exists
@@ -414,25 +414,210 @@ class ExtensionService
                 mkdir($debugPath, 0755, true);
             }
             
-            // Write initial debug file
-            $fullPath = $debugPath . '/' . $filename;
-            file_put_contents($fullPath, json_encode($debugData, JSON_PRETTY_PRINT));
-
-            Log::info('📄 [Extension Service] Initial debug file created with parsed extensions', [
-                'filename' => $filename,
-                'path' => $fullPath,
-                'extension_count' => $amiExtensions->count(),
-                'parsing_duration_ms' => $parseTime,
-                'size_bytes' => filesize($fullPath)
+            $files = [];
+            
+            // FILE 1: Raw AMI Response Only
+            $rawFileName = "raw_ami_response_{$timestamp}.json";
+            $rawData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'ami_host' => config('ami.connection.host', 'unknown'),
+                    'ami_port' => config('ami.connection.port', 'unknown'),
+                    'query_type' => 'ExtensionStateList',
+                    'type' => 'raw_ami_data',
+                    'description' => 'Complete raw AMI response - unprocessed events and responses'
+                ],
+                'raw_events' => $rawAmiResponse->getEvents(),
+                'final_response' => $rawAmiResponse->getFinalResponse(),
+                'event_count' => $rawAmiResponse->getEventCount(),
+                'duration_ms' => $rawAmiResponse->getDuration(),
+                'errors' => $rawAmiResponse->getErrors(),
+                'is_successful' => $rawAmiResponse->isSuccessful()
+            ];
+            file_put_contents($debugPath . '/' . $rawFileName, json_encode($rawData, JSON_PRETTY_PRINT));
+            $files['raw'] = $rawFileName;
+            
+            // FILE 2: Parsed Extensions (minimal, no extra fields)
+            $parsedFileName = "parsed_extensions_{$timestamp}.json";
+            $parsedExtensions = $this->getMinimalParsedExtensions($rawAmiResponse);
+            $parsedData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'type' => 'parsed_extensions',
+                    'description' => 'All parsed extension events - minimal processing, core AMI fields only (no filtering)',
+                    'total_ami_events' => $rawAmiResponse->getEventCount(),
+                    'parsed_extensions_count' => count($parsedExtensions),
+                    'parsing_duration_ms' => $parseTime
+                ],
+                'extensions' => $parsedExtensions,
+                'count' => count($parsedExtensions),
+                'summary' => [
+                    'includes_all_extensions' => 'All extension types from AMI response',
+                    'no_filtering_applied' => 'Includes SIP peers, trunks, and other non-user extensions'
+                ]
+            ];
+            file_put_contents($debugPath . '/' . $parsedFileName, json_encode($parsedData, JSON_PRETTY_PRINT));
+            $files['parsed'] = $parsedFileName;
+            
+            // FILE 3: Filtered 3-5 Digit Extensions Only
+            $filteredFileName = "filtered_extensions_{$timestamp}.json";
+            $filteredExtensions = $this->getFiltered3to5DigitExtensions($rawAmiResponse);
+            $filteredData = [
+                'metadata' => [
+                    'timestamp' => now()->toISOString(),
+                    'type' => 'filtered_extensions',
+                    'description' => 'Only 3-5 digit numeric extensions in ext-local context',
+                    'filter_criteria' => 'Extensions matching /^\\d{3,5}$/ in ext-local context',
+                    'total_ami_events' => $rawAmiResponse->getEventCount(),
+                    'filtered_count' => count($filteredExtensions),
+                    'parsing_duration_ms' => $parseTime
+                ],
+                'extensions' => $filteredExtensions,
+                'count' => count($filteredExtensions),
+                'summary' => [
+                    'criteria' => '3-5 digit numeric extensions only',
+                    'context_filter' => 'ext-local',
+                    'regex_pattern' => '^\\d{3,5}$'
+                ]
+            ];
+            file_put_contents($debugPath . '/' . $filteredFileName, json_encode($filteredData, JSON_PRETTY_PRINT));
+            $files['filtered'] = $filteredFileName;
+            
+            $files['base_name'] = "extension_debug_{$timestamp}";
+            $files['path'] = $debugPath;
+            
+            Log::info('📄 [Extension Service] 3 separate debug files created successfully', [
+                'raw_file' => $rawFileName,
+                'parsed_file' => $parsedFileName,
+                'filtered_file' => $filteredFileName,
+                'path' => $debugPath,
+                'raw_events' => $rawAmiResponse->getEventCount(),
+                'parsed_extensions' => count($this->getMinimalParsedExtensions($rawAmiResponse)),
+                'filtered_extensions' => count($filteredExtensions),
+                'parsing_duration_ms' => $parseTime
             ]);
-
-            return $filename;
-
+            
+            return $files;
+            
         } catch (\Exception $e) {
-            Log::warning('⚠️ [Extension Service] Failed to create initial debug file', [
+            Log::warning('⚠️ [Extension Service] Failed to create separate debug files', [
                 'error' => $e->getMessage()
             ]);
-            return 'debug_file_creation_failed.json';
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get minimal parsed extensions - only core AMI fields, no extra processing
+     */
+    private function getMinimalParsedExtensions($rawAmiResponse): array
+    {
+        $extensions = [];
+        $events = $rawAmiResponse->getEvents();
+        
+        foreach ($events as $event) {
+            if (isset($event['Event']) && $event['Event'] === 'ExtensionStatus') {
+                // Only include core AMI fields - no extra processing
+                $extensions[] = [
+                    'Exten' => $event['Exten'] ?? null,
+                    'Context' => $event['Context'] ?? null,
+                    'Status' => $event['Status'] ?? null,
+                    'StatusText' => $event['StatusText'] ?? null
+                ];
+            }
+        }
+        
+        return $extensions;
+    }
+
+    /**
+     * Get filtered 3-5 digit extensions - only numerical extensions with 3-5 digits
+     */
+    private function getFiltered3to5DigitExtensions($rawAmiResponse): array
+    {
+        $filteredExtensions = [];
+        $events = $rawAmiResponse->getEvents();
+        
+        foreach ($events as $event) {
+            if (isset($event['Event']) && $event['Event'] === 'ExtensionStatus') {
+                $extension = $event['Exten'] ?? null;
+                $context = $event['Context'] ?? null;
+                
+                // Filter: Only 3-5 digit numerical extensions in ext-local context
+                if ($extension && $context && 
+                    preg_match('/^\d{3,5}$/', $extension) && 
+                    $context === 'ext-local') {
+                    
+                    $filteredExtensions[] = [
+                        'extension' => $extension,
+                        'context' => $context,
+                        'status' => $event['Status'] ?? null,
+                        'status_text' => $event['StatusText'] ?? null,
+                        'raw_fields' => [
+                            'Exten' => $event['Exten'] ?? null,
+                            'Context' => $event['Context'] ?? null,
+                            'Status' => $event['Status'] ?? null,
+                            'StatusText' => $event['StatusText'] ?? null
+                        ]
+                    ];
+                }
+            }
+        }
+        
+        // Sort by extension number for better readability
+        usort($filteredExtensions, function($a, $b) {
+            return (int)$a['extension'] <=> (int)$b['extension'];
+        });
+        
+        return $filteredExtensions;
+    }
+
+    /**
+     * Update all debug files with final results
+     */
+    private function updateDebugFilesWithResults(array $debugFiles, array $finalResult): void
+    {
+        if (isset($debugFiles['error'])) {
+            return; // Skip if files weren't created successfully
+        }
+        
+        try {
+            $debugPath = $debugFiles['path'];
+            $finalResults = [
+                'final_results' => [
+                    'timestamp' => now()->toISOString(),
+                    'total_duration_ms' => $finalResult['duration_ms'],
+                    'database_operations' => [
+                        'status' => 'completed',
+                        'created' => $finalResult['details']['created'],
+                        'updated' => $finalResult['details']['updated'],
+                        'unchanged' => $finalResult['details']['unchanged'],
+                        'marked_offline' => $finalResult['details']['marked_offline'],
+                        'errors' => $finalResult['details']['errors']
+                    ],
+                    'statistics' => $finalResult['statistics'],
+                    'success' => $finalResult['success']
+                ]
+            ];
+            
+            // Update each file with final results
+            foreach (['raw', 'parsed', 'filtered'] as $type) {
+                if (isset($debugFiles[$type])) {
+                    $filePath = $debugPath . '/' . $debugFiles[$type];
+                    if (file_exists($filePath)) {
+                        $existingData = json_decode(file_get_contents($filePath), true);
+                        $existingData = array_merge($existingData, $finalResults);
+                        file_put_contents($filePath, json_encode($existingData, JSON_PRETTY_PRINT));
+                    }
+                }
+            }
+            
+            Log::info('📄 [Extension Service] All debug files updated with final results');
+            
+        } catch (\Exception $e) {
+            Log::warning('⚠️ [Extension Service] Failed to update debug files with results', [
+                'error' => $e->getMessage()
+            ]);
         }
     }
 

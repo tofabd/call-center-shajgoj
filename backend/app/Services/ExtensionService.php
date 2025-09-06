@@ -329,7 +329,7 @@ class ExtensionService
     /**
      * Update extension status (legacy method - kept for backward compatibility)
      */
-    public function updateExtensionStatus(string $extension, string $status, ?int $statusCode = null, ?string $deviceState = null): bool
+    public function updateExtensionStatus(string $extension, string $status, ?int $statusCode = null): bool
     {
         try {
             $ext = Extension::where('extension', $extension)->first();
@@ -342,27 +342,32 @@ class ExtensionService
                 return false;
             }
 
-            $oldStatus = $ext->status;
-            $result = $ext->updateStatus($status, null, $statusCode, $deviceState);
+            $oldStatus = $ext->availability_status;
+            
+            // If no status code provided, map status string to status code
+            if ($statusCode === null) {
+                $statusCode = $status === 'online' ? 0 : 4; // Default mapping
+            }
+            
+            $result = $ext->updateFromAsteriskEvent($statusCode);
 
             Log::info("Extension status update attempt", [
                 'extension' => $extension,
                 'old_status' => $oldStatus,
                 'new_status' => $status,
                 'status_code' => $statusCode,
-                'device_state' => $deviceState,
                 'result' => $result
             ]);
 
             // Broadcast status update if status actually changed
-            if ($result && $oldStatus !== $status) {
+            if ($result && $oldStatus !== $ext->availability_status) {
                 $ext->refresh(); // Refresh to get updated timestamps
 
                 try {
                     broadcast(new \App\Events\ExtensionStatusUpdated($ext));
                     Log::info("Extension status broadcasted successfully", [
                         'extension' => $extension,
-                        'status' => $status
+                        'status' => $ext->availability_status
                     ]);
                 } catch (\Exception $e) {
                     Log::error("Failed to broadcast extension status update", [
@@ -374,11 +379,11 @@ class ExtensionService
 
             return $result;
         } catch (\Exception $e) {
-            Log::error("Error updating extension status", [
+            Log::error("Exception in updateExtensionStatus", [
                 'extension' => $extension,
                 'status' => $status,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'status_code' => $statusCode,
+                'error' => $e->getMessage()
             ]);
             return false;
         }
