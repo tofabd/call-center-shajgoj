@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
-import { StatusTooltip } from '../common/StatusTooltip';
+
 
 // Interface for individual call
 interface IndividualCall {

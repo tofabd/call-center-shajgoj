@@ -3,7 +3,7 @@ import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw
 import callRealtimeService from '../../services/callRealtimeService';
 import type { CallUpdate } from '../../services/callRealtimeService';
 import type { LiveCall } from '../../services/callService';
-import { StatusTooltip } from '../common/StatusTooltip';
+
 import { getUnifiedCallStatus, isCallRinging, getStatusPriority as getUnifiedStatusPriority, debugStatusMismatch } from '../../utils/statusUtils';
 
 interface LiveCallsProps {

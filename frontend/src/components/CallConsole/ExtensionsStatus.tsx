@@ -4,7 +4,7 @@ import ExtensionStatsModal from '../common/ExtensionStatsModal';
 import { extensionService } from '../../services/extensionService';
 import type { Extension } from '../../services/extensionService';
 import extensionRealtimeService, { type ExtensionStatusUpdate } from '../../services/extensionRealtimeService';
-import { StatusTooltip } from '../common/StatusTooltip';
+
 import { getUnifiedExtensionStatus, isExtensionOnCall, debugStatusMismatch } from '../../utils/statusUtils';
 
 // Utility function to calculate duration since status change
@@ -222,12 +222,6 @@ const ExtensionsStatus: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isPageVisible, isRefreshing]);
-
-  // Subscribe to unified connection health service
-  useEffect(() => {
-    // No WebSocket or real-time connections needed
-    // Only database polling every 30 seconds
-  }, []);
 
   const loadExtensions = async (isRefresh = false, retryCount = 0) => {
     const dbStartTime = Date.now();
