@@ -192,7 +192,7 @@ const ExtensionManagement: React.FC = () => {
       await extensionService.createExtension({
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
-        team: formData.team || undefined
+        team: formData.team // Send empty string directly instead of converting to undefined
       });
       setIsAddModalOpen(false);
       setFormData({ extension: '', agent_name: '', team: '', is_active: true });
@@ -233,7 +233,7 @@ const ExtensionManagement: React.FC = () => {
       await extensionService.updateExtension(editingExtension.id, {
         extension: formData.extension,
         agent_name: formData.agent_name || undefined,
-        team: formData.team || undefined
+        team: formData.team // Send empty string directly instead of converting to undefined
       });
       setEditingExtension(null);
       setFormData({ extension: '', agent_name: '', team: '', is_active: true });

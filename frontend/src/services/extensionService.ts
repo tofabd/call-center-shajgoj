@@ -118,11 +118,11 @@ export const extensionService = {
 
   // Create new extension
   async createExtension(data: { extension: string; agent_name?: string; department?: string; team?: string }): Promise<Extension> {
-    // Support both department and team fields - prefer team if provided
+    // Support both department and team fields - prefer team if provided, including empty strings
     const requestData = {
       extension: data.extension,
       agent_name: data.agent_name,
-      team: data.team || data.department
+      team: data.team !== undefined ? data.team : data.department
     };
     
     const response = await api.post('/extensions', requestData);
@@ -131,10 +131,10 @@ export const extensionService = {
 
   // Update extension
   async updateExtension(id: string, data: { extension?: string; agent_name?: string; department?: string; team?: string; is_active?: boolean }): Promise<Extension> {
-    // Support both department and team fields - prefer team if provided
+    // Support both department and team fields - prefer team if provided, including empty strings
     const requestData = {
       ...data,
-      team: data.team || data.department
+      team: data.team !== undefined ? data.team : data.department
     };
     
     // Remove department from request data to avoid sending both

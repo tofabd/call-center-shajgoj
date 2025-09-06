@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Team Color Test</title>
+    <style>
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 5px;
+        }
+        
+        .predefined-blue { background-color: #dbeafe; color: #1e40af; }
+        .predefined-red { background-color: #fecaca; color: #991b1b; }
+        .predefined-green { background-color: #dcfce7; color: #166534; }
+        
+        .custom { color: white; }
+        
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h2 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Team Badge Color Test</h1>
+    
+    <h2>Predefined Colors (should use Tailwind-like classes)</h2>
+    <div>
+        <span class="badge predefined-blue">#3B82F6 Blue Team</span>
+        <span class="badge predefined-red">#EF4444 Red Team</span>
+        <span class="badge predefined-green">#10B981 Green Team</span>
+    </div>
+    
+    <h2>Custom Colors (should use inline styles)</h2>
+    <div>
+        <span class="badge custom" style="background-color: #FF6B35;">Custom Orange Team</span>
+        <span class="badge custom" style="background-color: #7B68EE;">Custom Purple Team</span>
+        <span class="badge custom" style="background-color: #20B2AA;">Custom Teal Team</span>
+        <span class="badge custom" style="background-color: #FFD700;">Custom Gold Team</span>
+    </div>
+    
+    <h2>Test Data</h2>
+    <pre id="test-output"></pre>
+    
+    <script>
+        // Simulate the team data that might come from the API
+        const sampleTeams = [
+            { name: "Sales", color: "#3B82F6" },      // Predefined blue
+            { name: "Support", color: "#EF4444" },    // Predefined red
+            { name: "Marketing", color: "#FF6B35" },  // Custom orange
+            { name: "HR", color: null },              // No color
+            { name: "IT", color: "" },                // Empty color
+        ];
+        
+        // Function to test color logic (similar to frontend)
+        function getTeamColorLogic(color) {
+            if (!color) return "NO COLOR - would use default";
+            
+            const normalizedColor = color.toUpperCase();
+            const predefinedColors = [
+                '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', 
+                '#06B6D4', '#84CC16', '#F97316', '#6366F1', '#14B8A6', '#F43F5E',
+                '#9333EA', '#D97706', '#059669', '#DC2626'
+            ];
+            
+            if (predefinedColors.includes(normalizedColor)) {
+                return "PREDEFINED - would use Tailwind classes";
+            } else if (color.startsWith('#') && color.length === 7) {
+                return "CUSTOM HEX - would use inline styles";
+            } else {
+                return "INVALID - would use fallback";
+            }
+        }
+        
+        let output = "Team Color Analysis:\n\n";
+        sampleTeams.forEach(team => {
+            output += `${team.name}: ${team.color || 'null'} -> ${getTeamColorLogic(team.color)}\n`;
+        });
+        
+        document.getElementById('test-output').textContent = output;
+    </script>
+</body>
+</html>

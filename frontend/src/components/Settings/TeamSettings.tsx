@@ -23,6 +23,9 @@ const getRandomColor = (): string => {
 
 // Helper function to get light color styling based on team color
 const getTeamLightColor = (color: string): string => {
+  // Normalize the color to uppercase for consistent matching
+  const normalizedColor = color.toUpperCase();
+  
   // Convert hex to lighter variant for background and keep text darker
   const colorMap: Record<string, string> = {
     '#3B82F6': 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300', // Blue
@@ -43,7 +46,19 @@ const getTeamLightColor = (color: string): string => {
     '#DC2626': 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300', // Red variant
   };
   
-  return colorMap[color] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  // If color is in the predefined map, use it
+  if (colorMap[normalizedColor]) {
+    return colorMap[normalizedColor];
+  }
+  
+  // For custom colors not in the map, generate dynamic styling using the actual hex color
+  if (color.startsWith('#') && color.length === 7) {
+    // Use CSS custom properties with the actual color for badges with custom colors
+    return `text-white dark:text-gray-200`;
+  }
+  
+  // Fallback for invalid colors
+  return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
 };
 
 // Helper function to generate slug from name
@@ -91,6 +106,7 @@ const TeamSettings: React.FC = () => {
         teamService.getTeams(),
         teamService.getTeamStats()
       ]);
+      
       setTeams(teamsData);
       setStatsResponse(statsData);
       setError(null);
@@ -494,11 +510,37 @@ const TeamSettings: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-medium">
                       {index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTeamLightColor(team.color || '#6366F1')}`}>
-                        {team.name}
-                      </span>
-                    </td>
+                     <td className="px-6 py-4 whitespace-nowrap">
+                       {(() => {
+                         const teamColor = team.color || '#6366F1';
+                         const normalizedColor = teamColor.toUpperCase();
+                         const predefinedColors = [
+                           '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', 
+                           '#06B6D4', '#84CC16', '#F97316', '#6366F1', '#14B8A6', '#F43F5E',
+                           '#9333EA', '#D97706', '#059669', '#DC2626'
+                         ];
+                         const isCustomColor = !predefinedColors.includes(normalizedColor);
+                         
+                         if (isCustomColor) {
+                           // Use inline styles for custom colors
+                           return (
+                             <span 
+                               className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-white"
+                               style={{ backgroundColor: teamColor }}
+                             >
+                               {team.name}
+                             </span>
+                           );
+                         } else {
+                           // Use Tailwind classes for predefined colors
+                           return (
+                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTeamLightColor(teamColor)}`}>
+                               {team.name}
+                             </span>
+                           );
+                         }
+                       })()}
+                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-300 font-mono bg-gray-100 dark:bg-gray-700 px-2.5 py-1 rounded-md">
                         {team.slug}
