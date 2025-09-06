@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CallController;
+use App\Http\Controllers\CallStatisticsController;
 use App\Http\Controllers\ExtensionController;
 use App\Http\Controllers\TeamController;
 
@@ -22,6 +23,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/calls/today-stats', [CallController::class, 'getTodayStats']);
     Route::get('/calls/{id}/details', [CallController::class, 'getCallDetails']);
     Route::get('/calls/{id}/debug-status', [CallController::class, 'debugCallStatus']);
+
+    // Enhanced statistics routes
+    Route::prefix('calls/statistics')->group(function () {
+        Route::get('/today', [CallStatisticsController::class, 'getTodayStats']);
+        Route::get('/week', [CallStatisticsController::class, 'getWeekStats']);
+        Route::get('/last-week', [CallStatisticsController::class, 'getLastWeekStats']);
+        Route::get('/month', [CallStatisticsController::class, 'getMonthStats']);
+        Route::get('/date-range', [CallStatisticsController::class, 'getDateRangeStats']);
+        Route::get('/hourly-trends', [CallStatisticsController::class, 'getHourlyTrends']);
+        Route::get('/agents', [CallStatisticsController::class, 'getAgentStats']);
+        Route::get('/comparison', [CallStatisticsController::class, 'getComparisonStats']);
+    });
 
     // Test route to verify authentication
     Route::get('/user', function (Request $request) {

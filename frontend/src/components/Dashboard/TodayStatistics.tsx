@@ -1,67 +1,41 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart3, RefreshCw } from 'lucide-react';
-
-// Call Stats Interface
-interface CallStats {
-  total_calls: number;
-  incoming_calls: number;
-  outgoing_calls: number;
-  calls_by_status?: {
-    completed?: number;
-    in_progress?: number;
-    ringing?: number;
-    'no_answer'?: number;
-    busy?: number;
-    failed?: number;
-    canceled?: number;
-    rejected?: number;
-    unknown?: number;
-  };
-  incoming_by_status?: {
-    completed?: number;
-    in_progress?: number;
-    ringing?: number;
-    'no_answer'?: number;
-    busy?: number;
-    failed?: number;
-    canceled?: number;
-    rejected?: number;
-    unknown?: number;
-  };
-  outgoing_by_status?: {
-    completed?: number;
-    in_progress?: number;
-    ringing?: number;
-    'no_answer'?: number;
-    busy?: number;
-    failed?: number;
-    canceled?: number;
-    rejected?: number;
-    unknown?: number;
-  };
-  summary?: {
-    active_calls: number;
-    completed_calls: number;
-    total_handled_calls: number;
-  };
-}
+import { callService } from '@/services/callService';
+import type { CallStatistics } from '@/services/callService';
 
 interface TodayStatisticsProps {
-  loading: boolean;
-  error: string | null;
-  callStats: CallStats | null;
   onRefresh?: () => void;
 }
 
-const TodayStatistics: React.FC<TodayStatisticsProps> = ({
-  loading,
-  error,
-  callStats,
-  onRefresh
-}) => {
-  const [countdown, setCountdown] = useState(10);
-  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+const TodayStatistics: React.FC<TodayStatisticsProps> = ({ onRefresh }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [callStats, setCallStats] = useState<CallStatistics | null>(null);
+  const [countdown, setCountdown] = useState(60);
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(() => {
+    const saved = localStorage.getItem('dashboard-auto-refresh');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await callService.getTodayStats();
+      setCallStats(data);
+    } catch (err) {
+      setError('Failed to load today\'s statistics');
+      console.error('Today stats error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Auto-refresh countdown effect
   useEffect(() => {
@@ -71,36 +45,35 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
       setCountdown((prev) => {
         if (prev <= 1) {
           // Trigger silent refresh when countdown reaches 0
-          if (onRefresh) {
-            onRefresh();
-          }
-          return 10; // Reset countdown
+          fetchData();
+          return 60; // Reset countdown to 60 seconds
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isAutoRefreshEnabled, onRefresh]);
+  }, [isAutoRefreshEnabled, fetchData]);
 
   // Manual refresh function
-  const handleManualRefresh = useCallback(() => {
+  const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
-    if (onRefresh) {
-      onRefresh();
-    }
+    await fetchData();
+    if (onRefresh) onRefresh();
     // Reset manual refreshing state and countdown after update completes
     setTimeout(() => {
       setIsManualRefreshing(false);
-      setCountdown(10); // Reset countdown after update is complete
+      setCountdown(60); // Reset countdown to 60 seconds after update is complete
     }, 1000);
-  }, [onRefresh]);
+  }, [fetchData, onRefresh]);
 
   // Toggle auto-refresh
   const toggleAutoRefresh = useCallback(() => {
-    setIsAutoRefreshEnabled(!isAutoRefreshEnabled);
-    if (!isAutoRefreshEnabled) {
-      setCountdown(10);
+    const newValue = !isAutoRefreshEnabled;
+    setIsAutoRefreshEnabled(newValue);
+    localStorage.setItem('dashboard-auto-refresh', JSON.stringify(newValue));
+    if (newValue) {
+      setCountdown(60);
     }
   }, [isAutoRefreshEnabled]);
   return (
@@ -309,6 +282,48 @@ const TodayStatistics: React.FC<TodayStatisticsProps> = ({
                         <span className="font-medium text-teal-900 dark:text-teal-100">{callStats.outgoing_by_status?.failed || 0}</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl border border-amber-200 dark:border-amber-800 p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-lg">⏱️</span>
+                      <h5 className="text-md font-semibold text-amber-900 dark:text-amber-300">Average Handle Time</h5>
+                    </div>
+                    <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      {callStats.metrics?.average_handle_time ? Math.round(callStats.metrics.average_handle_time / 60) : 0} min
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      Per completed call
+                    </p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-lg">✅</span>
+                      <h5 className="text-md font-semibold text-emerald-900 dark:text-emerald-300">Answer Rate</h5>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {callStats.metrics?.answer_rate || 0}%
+                    </p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                      Success rate
+                    </p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 rounded-xl border border-rose-200 dark:border-rose-800 p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-lg">🔴</span>
+                      <h5 className="text-md font-semibold text-rose-900 dark:text-rose-300">Active Calls</h5>
+                    </div>
+                    <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+                      {callStats.metrics?.active_calls || 0}
+                    </p>
+                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                      Currently ongoing
+                    </p>
                   </div>
                 </div>
 

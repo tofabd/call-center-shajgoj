@@ -20,17 +20,78 @@ export interface LiveCall {
 }
 
 export interface CallStatistics {
+  period?: {
+    type: string;
+    date?: string;
+    start_date?: string;
+    end_date?: string;
+    label: string;
+  };
   total_calls: number;
   incoming_calls: number;
   outgoing_calls: number;
   calls_by_status: Record<string, number>;
   incoming_by_status: Record<string, number>;
   outgoing_by_status: Record<string, number>;
-  date: string;
-  summary: {
+  date?: string;
+  metrics: {
+    active_calls: number;
+    completed_calls: number;
+    answered_calls: number;
+    answer_rate: number;
+    average_handle_time: number;
+  };
+  summary?: {
     active_calls: number;
     completed_calls: number;
     total_handled_calls: number;
+  };
+}
+
+export interface HourlyTrend {
+  hour: number;
+  hour_label: string;
+  total_calls: number;
+  incoming_calls: number;
+  outgoing_calls: number;
+  completed_calls: number;
+}
+
+export interface HourlyTrendData {
+  date: string;
+  date_label: string;
+  hourly_data: HourlyTrend[];
+}
+
+export interface AgentStat {
+  agent_extension: string;
+  total_calls: number;
+  answered_calls: number;
+  completed_calls: number;
+  answer_rate: number;
+  average_handle_time: number;
+  incoming_calls: number;
+  outgoing_calls: number;
+}
+
+export interface AgentStatsResponse {
+  period: string;
+  period_label: string;
+  start_date: string;
+  end_date: string;
+  agents: AgentStat[];
+}
+
+export interface ComparisonStats {
+  period: string;
+  current: CallStatistics;
+  previous: CallStatistics;
+  changes: {
+    total_calls: number;
+    incoming_calls: number;
+    outgoing_calls: number;
+    answer_rate: number;
+    completed_calls: number;
   };
 }
 
@@ -88,6 +149,55 @@ export const callService = {
   // Get today's call statistics from Laravel
   async getCallStatistics(): Promise<CallStatistics> {
     const response = await api.get('/calls/today-stats');
+    return response.data;
+  },
+
+  // Enhanced statistics methods
+  async getTodayStats(): Promise<CallStatistics> {
+    const response = await api.get('/calls/statistics/today');
+    return response.data;
+  },
+
+  async getWeekStats(): Promise<CallStatistics> {
+    const response = await api.get('/calls/statistics/week');
+    return response.data;
+  },
+
+  async getLastWeekStats(): Promise<CallStatistics> {
+    const response = await api.get('/calls/statistics/last-week');
+    return response.data;
+  },
+
+  async getMonthStats(): Promise<CallStatistics> {
+    const response = await api.get('/calls/statistics/month');
+    return response.data;
+  },
+
+  async getDateRangeStats(startDate: string, endDate: string): Promise<CallStatistics> {
+    const response = await api.get('/calls/statistics/date-range', {
+      params: { start_date: startDate, end_date: endDate }
+    });
+    return response.data;
+  },
+
+  async getHourlyTrends(date?: string): Promise<HourlyTrendData> {
+    const response = await api.get('/calls/statistics/hourly-trends', {
+      params: date ? { date } : {}
+    });
+    return response.data;
+  },
+
+  async getAgentStats(period: 'today' | 'week' | 'month' = 'today'): Promise<AgentStatsResponse> {
+    const response = await api.get('/calls/statistics/agents', {
+      params: { period }
+    });
+    return response.data;
+  },
+
+  async getComparisonStats(period: 'week' | 'month' = 'week'): Promise<ComparisonStats> {
+    const response = await api.get('/calls/statistics/comparison', {
+      params: { period }
+    });
     return response.data;
   },
 
