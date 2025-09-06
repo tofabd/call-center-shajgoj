@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { extensionService } from '../../services/extensionService';
 import type { Extension } from '../../services/extensionService';
+import teamService from '../../services/teamService';
+import type { Team } from '../../types/team';
 
 interface ExtensionWithActive extends Extension {
   is_active: boolean;
@@ -45,7 +47,9 @@ const getStatusText = (availabilityStatus: string, statusText?: string): string 
 
 const ExtensionManagement: React.FC = () => {
   const [extensions, setExtensions] = useState<ExtensionWithActive[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamsLoading, setTeamsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingExtension, setEditingExtension] = useState<ExtensionWithActive | null>(null);
@@ -65,6 +69,7 @@ const ExtensionManagement: React.FC = () => {
 
   useEffect(() => {
     loadExtensions();
+    loadTeams();
   }, []);
 
   const loadExtensions = async () => {
@@ -92,6 +97,35 @@ const ExtensionManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadTeams = async () => {
+    try {
+      setTeamsLoading(true);
+      const data = await teamService.getTeams();
+      // Only include active teams in the dropdown
+      const activeTeams = data.filter(team => team.is_active);
+      setTeams(activeTeams);
+    } catch (err) {
+      toast.error('Failed to load teams', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        pauseOnFocusLoss: false,
+        draggable: true,
+        theme: "colored",
+      });
+      console.error('Error loading teams:', err);
+    } finally {
+      setTeamsLoading(false);
+    }
+  };
+
+  // Optional: Add a function to refresh teams without reloading extensions
+  const refreshTeams = async () => {
+    await loadTeams();
   };
 
   const handleRefreshClick = () => {
@@ -354,17 +388,51 @@ const ExtensionManagement: React.FC = () => {
     return date.toLocaleString('en-US', options);
   };
 
-  // Team options - updated to match seeder teams
+  // Team options - dynamically loaded from database
   const teamOptions = [
     { value: '', label: 'No Team' },
-    { value: 'Sales', label: 'Sales' },
-    { value: 'Support', label: 'Support' },
-    { value: 'Marketing', label: 'Marketing' },
-    { value: 'Admin', label: 'Admin' }
+    ...teams.map(team => ({
+      value: team.name,
+      label: team.name,
+      color: team.color
+    }))
   ];
 
-  const getTeamColor = (team: string | null) => {
-    switch (team) {
+  const getTeamColor = (teamName: string | null) => {
+    if (!teamName) {
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+
+    // Find the team by name to get its color
+    const team = teams.find(t => t.name === teamName);
+    if (team && team.color) {
+      // Convert hex color to appropriate Tailwind classes
+      const getColorClasses = (color: string) => {
+        // Map common colors to Tailwind classes for better consistency
+        const colorMap: Record<string, string> = {
+          '#3b82f6': 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300',
+          '#ef4444': 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300',
+          '#10b981': 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300',
+          '#f59e0b': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300',
+          '#8b5cf6': 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300',
+          '#ec4899': 'bg-pink-100 text-pink-800 dark:bg-pink-950/50 dark:text-pink-300',
+          '#06b6d4': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-300',
+          '#84cc16': 'bg-lime-100 text-lime-800 dark:bg-lime-950/50 dark:text-lime-300',
+        };
+
+        // Return mapped color or default based on team name for fallback
+        return colorMap[color.toLowerCase()] || getTeamColorFallback(teamName);
+      };
+      
+      return getColorClasses(team.color);
+    }
+
+    // Fallback to hardcoded colors for backward compatibility
+    return getTeamColorFallback(teamName);
+  };
+
+  const getTeamColorFallback = (teamName: string) => {
+    switch (teamName) {
       case 'Support':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300';
       case 'Sales':
@@ -406,7 +474,7 @@ const ExtensionManagement: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || teamsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -775,11 +843,15 @@ const ExtensionManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, team: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                 >
-                  {teamOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                   {teamsLoading ? (
+                     <option>Loading teams...</option>
+                   ) : (
+                     teamOptions.map((option) => (
+                       <option key={option.value} value={option.value}>
+                         {option.label}
+                       </option>
+                     ))
+                   )}
                 </select>
               </div>
             </div>
@@ -848,11 +920,15 @@ const ExtensionManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, team: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                 >
-                  {teamOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                   {teamsLoading ? (
+                     <option>Loading teams...</option>
+                   ) : (
+                     teamOptions.map((option) => (
+                       <option key={option.value} value={option.value}>
+                         {option.label}
+                       </option>
+                     ))
+                   )}
                 </select>
               </div>
             </div>

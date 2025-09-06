@@ -23,7 +23,14 @@ class ExtensionController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $extensions = Extension::orderBy('extension')->get();
+            $extensions = Extension::with('team')->orderBy('extension')->get();
+
+            // Add team_name to the response for frontend compatibility
+            $extensions = $extensions->map(function ($extension) {
+                $extension->team_name = $extension->team ? $extension->team->name : null;
+                $extension->department = $extension->team_name; // Backward compatibility
+                return $extension;
+            });
 
             return response()->json([
                 'success' => true,
@@ -133,6 +140,10 @@ class ExtensionController extends Controller
     public function show(Extension $extension): JsonResponse
     {
         try {
+            $extension->load('team');
+            $extension->team_name = $extension->team ? $extension->team->name : null;
+            $extension->department = $extension->team_name; // Backward compatibility
+
             return response()->json([
                 'success' => true,
                 'data' => $extension
@@ -169,14 +180,27 @@ class ExtensionController extends Controller
         }
 
         try {
+            // Resolve team_id from team name
+            $teamId = null;
+            $teamName = $request->team ?: $request->department;
+            if ($teamName) {
+                $team = \App\Models\Team::where('name', $teamName)->first();
+                $teamId = $team ? $team->id : null;
+            }
+
             $extension = Extension::create([
                 'extension' => $request->extension,
                 'agent_name' => $request->agent_name,
-                'team' => $request->team ?: $request->department, // Support both team and department fields
+                'team_id' => $teamId,
                 'status_code' => $request->status_code ?? -1,
                 'availability_status' => $request->availability_status ?? 'unknown',
                 'is_active' => $request->is_active ?? true,
             ]);
+
+            // Load team relationship for response
+            $extension->load('team');
+            $extension->team_name = $extension->team ? $extension->team->name : null;
+            $extension->department = $extension->team_name; // Backward compatibility
 
             return response()->json([
                 'success' => true,
@@ -215,17 +239,33 @@ class ExtensionController extends Controller
         }
 
         try {
-            // Update fields - support both team and department
+            // Update fields
             $updateData = $request->only(['extension', 'agent_name', 'status_code', 'availability_status', 'is_active']);
 
             // Handle team/department field mapping
+            $teamName = null;
             if ($request->has('team')) {
-                $updateData['team'] = $request->team;
+                $teamName = $request->team;
             } elseif ($request->has('department')) {
-                $updateData['team'] = $request->department;
+                $teamName = $request->department;
+            }
+
+            // Resolve team_id from team name
+            if ($teamName !== null) {
+                if ($teamName === '' || $teamName === null) {
+                    $updateData['team_id'] = null;
+                } else {
+                    $team = \App\Models\Team::where('name', $teamName)->first();
+                    $updateData['team_id'] = $team ? $team->id : null;
+                }
             }
 
             $extension->update($updateData);
+
+            // Load team relationship for response
+            $extension->load('team');
+            $extension->team_name = $extension->team ? $extension->team->name : null;
+            $extension->department = $extension->team_name; // Backward compatibility
 
             return response()->json([
                 'success' => true,

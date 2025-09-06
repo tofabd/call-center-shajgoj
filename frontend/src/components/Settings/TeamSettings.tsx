@@ -102,6 +102,7 @@ const TeamSettings: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -167,6 +168,7 @@ const TeamSettings: React.FC = () => {
           hideProgressBar: false,
           closeOnClick: true,
           pauseOnHover: true,
+          pauseOnFocusLoss: false,
           draggable: true,
           theme: "colored",
         });
@@ -179,6 +181,7 @@ const TeamSettings: React.FC = () => {
           hideProgressBar: false,
           closeOnClick: true,
           pauseOnHover: true,
+          pauseOnFocusLoss: false,
           draggable: true,
           theme: "colored",
         });
@@ -200,6 +203,7 @@ const TeamSettings: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -234,6 +238,7 @@ const TeamSettings: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
@@ -253,6 +258,7 @@ const TeamSettings: React.FC = () => {
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
+        pauseOnFocusLoss: false,
         draggable: true,
         theme: "colored",
       });
