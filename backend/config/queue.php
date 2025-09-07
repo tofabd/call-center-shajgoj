@@ -65,9 +65,29 @@ return [
 
         'redis' => [
             'driver' => 'redis',
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue' => env('REDIS_QUEUE', 'default'),
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'), // Use dedicated queue connection
+            'queue' => env('REDIS_QUEUE', 'call_center_queue'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'block_for' => null, // Non-blocking for high throughput
+            'after_commit' => false,
+        ],
+
+        // High priority Redis queue for real-time events
+        'redis_priority' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
+            'queue' => 'priority',
+            'retry_after' => 60,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        // Background processing Redis queue
+        'redis_background' => [
+            'driver' => 'redis', 
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
+            'queue' => 'background',
+            'retry_after' => 300,
             'block_for' => null,
             'after_commit' => false,
         ],
