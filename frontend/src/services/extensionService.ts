@@ -88,24 +88,46 @@ export const extensionService = {
       return statusMap[availabilityStatus] || 'Unknown';
     };
 
-    // Map backend response to frontend interface
-    const mappedExtensions = extensions.map((ext: any) => ({
-      ...ext,
-      // Map new backend fields to frontend format
-      team: ext.team_name || ext.department, // Use team_name from backend
-      department: ext.team_name || ext.department, // Backward compatibility
-      status_changed_at: ext.status_changed_at, // New timestamp field
-      created_at: ext.created_at,
-      updated_at: ext.updated_at,
-      createdAt: ext.created_at, // Backward compatibility
-      updatedAt: ext.updated_at, // Backward compatibility
-      // Add human-readable status label
-      statusLabel: getStatusLabel(
-        ext.availability_status || 'unknown', 
-        ext.device_state || 'UNKNOWN',
-        ext.status_text
-      )
-    }));
+    // Create device_state from status_code for compatibility
+    const getDeviceStateFromStatusCode = (statusCode: number): string => {
+      switch (statusCode) {
+        case 0: return 'NOT_INUSE';
+        case 1: return 'INUSE';
+        case 2: return 'BUSY';
+        case 8: return 'RINGING';
+        case 16: return 'RINGINUSE';
+        case 4: return 'UNAVAILABLE';
+        default: return 'UNKNOWN';
+      }
+    };
+
+    // Map backend response to frontend interface with compatibility layer
+    const mappedExtensions = extensions.map((ext: any) => {
+      const deviceState = getDeviceStateFromStatusCode(ext.status_code || 0);
+      
+      return {
+        ...ext,
+        // ✅ COMPATIBILITY MAPPINGS - Map backend fields to frontend expectations
+        status: ext.availability_status || 'unknown',           // Map availability_status -> status
+        last_status_change: ext.status_changed_at,              // Map status_changed_at -> last_status_change
+        device_state: deviceState,                              // Create device_state from status_code
+        
+        // Existing mappings
+        team: ext.team_name || ext.department,                  // Use team_name from backend
+        department: ext.team_name || ext.department,            // Backward compatibility
+        status_changed_at: ext.status_changed_at,               // Keep original field too
+        created_at: ext.created_at,
+        updated_at: ext.updated_at,
+        createdAt: ext.created_at,                              // Backward compatibility
+        updatedAt: ext.updated_at,                              // Backward compatibility
+        // Add human-readable status label
+        statusLabel: getStatusLabel(
+          ext.availability_status || 'unknown', 
+          deviceState,
+          ext.status_text
+        )
+      };
+    });
     
     return mappedExtensions;
   },

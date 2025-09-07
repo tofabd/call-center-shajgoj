@@ -5,11 +5,17 @@ export interface ExtensionStatusUpdate {
   id: number;
   extension: string;
   agent_name: string | null;
-  status: string;
-  status_code?: number;
-  device_state?: string;
-  last_seen: string | null;
+  availability_status: string;  // Updated to match backend broadcast
+  status_code: number;          // Updated to match backend broadcast
+  status_text?: string;         // Updated to match backend broadcast
+  status_changed_at?: string;   // Updated to match backend broadcast
   updated_at: string;
+  
+  // Legacy fields for compatibility (will be mapped)
+  status?: string;              // Mapped from availability_status
+  device_state?: string;        // Mapped from status_code
+  last_status_change?: string;  // Mapped from status_changed_at
+  last_seen?: string | null;    // Legacy field
 }
 
 class ExtensionRealtimeService {
@@ -28,13 +34,37 @@ class ExtensionRealtimeService {
       echo.channel('extensions')
         .listen('.extension.status.updated', (update: ExtensionStatusUpdate) => {
           console.log('📱 Real-time extension status update:', update);
-          this.notifyListeners(update);
+          
+          // Map backend broadcast data to frontend format for compatibility
+          const mappedUpdate: ExtensionStatusUpdate = {
+            ...update,
+            status: update.availability_status || update.status || 'unknown',
+            device_state: this.getDeviceStateFromStatusCode(update.status_code || 0),
+            last_status_change: update.status_changed_at || update.last_status_change,
+          };
+          
+          this.notifyListeners(mappedUpdate);
         });
 
       this.isListening = true;
       console.log('✅ Started listening to real-time extension updates');
     } catch (error) {
       console.error('❌ Failed to start real-time listening:', error);
+    }
+  }
+
+  /**
+   * Map status code to device state for compatibility
+   */
+  private getDeviceStateFromStatusCode(statusCode: number): string {
+    switch (statusCode) {
+      case 0: return 'NOT_INUSE';
+      case 1: return 'INUSE';
+      case 2: return 'BUSY';
+      case 8: return 'RINGING';
+      case 16: return 'RINGINUSE';
+      case 4: return 'UNAVAILABLE';
+      default: return 'UNKNOWN';
     }
   }
 

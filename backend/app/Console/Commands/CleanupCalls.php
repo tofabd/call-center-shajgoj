@@ -15,19 +15,21 @@ use Carbon\Carbon;
  * CleanupCalls Command
  * 
  * This command identifies stuck calls by:
- * 1. Finding calls in database that exceed time thresholds (ringing > 2min, answered > 3min)
+ * 1. Finding calls in database that exceed time thresholds (ringing > 1min, answered > 2min)
  * 2. Querying AMI to get active channels
  * 3. Cross-referencing to find calls with no active channels
  * 4. Cleaning up orphaned calls in database
  * 5. Broadcasting updates to frontend
  * 
- * Usage Examples:
- * - php artisan calls:cleanup-stuck --dry-run                    # Preview cleanup
- * - php artisan calls:cleanup-stuck                              # Actual cleanup  
- * - php artisan calls:cleanup-stuck --dry-run -v                 # Verbose preview
- * - php artisan calls:cleanup-stuck --ringing-threshold=5        # Custom threshold
- * - php artisan calls:cleanup-stuck --force                      # Skip confirmation
- */
+     * Usage Examples:
+     * - php artisan calls:cleanup-stuck --dry-run                    # Preview cleanup
+     * - php artisan calls:cleanup-stuck                              # Fast cleanup with AMI verification
+     * - php artisan calls:cleanup-stuck --skip-ami                   # INSTANT database-only cleanup (no network delays)
+     * - php artisan calls:cleanup-stuck --dry-run -v                 # Verbose preview
+     * - php artisan calls:cleanup-stuck --ringing-threshold=3        # Custom threshold
+     * 
+     * Note: Use --skip-ami for truly instant execution (skips AMI network calls)
+     */
 class CleanupCalls extends Command
 {
     /**
@@ -35,15 +37,16 @@ class CleanupCalls extends Command
      */
     protected $signature = 'calls:cleanup-stuck
                             {--dry-run : Show what would be cleaned without making changes}
-                            {--ringing-threshold=2 : Override ringing threshold in minutes}
-                            {--answered-threshold=3 : Override answered threshold in minutes}
-                            {--force : Skip confirmation prompts}
-                            {--fast : Use minimal timeouts for immediate execution (fail-fast)}';
+                            {--ringing-threshold=1 : Override ringing threshold in minutes}
+                            {--answered-threshold=2 : Override answered threshold in minutes}
+                            {--force : Deprecated - cleanup now runs without confirmation by default}
+                            {--fast : Deprecated - all operations now use minimal timeouts}
+                            {--skip-ami : Skip AMI verification - database-only cleanup (instant)}';
 
     /**
      * The console command description.
      */
-    protected $description = 'Cleanup stuck calls by querying AMI and updating database';
+    protected $description = 'Cleanup stuck calls by querying AMI and updating database (fast execution, no confirmations)';
 
     private $host;
     private $port;
@@ -58,6 +61,7 @@ class CleanupCalls extends Command
     private $cleanedCount = 0;
     private $failedCount = 0;
     private $startTime;
+    private $amiConnection = null; // Reusable connection
 
     public function __construct()
     {
@@ -79,7 +83,7 @@ class CleanupCalls extends Command
         $this->startTime = microtime(true);
         $this->isDryRun = $this->option('dry-run');
         $this->isVerbose = $this->option('verbose'); // Use Laravel's built-in verbose option
-        $this->isFast = $this->option('fast'); // Fast fail-fast mode
+        $this->isFast = true; // Always use fast mode for minimal timeouts
         $this->ringingThreshold = intval($this->option('ringing-threshold'));
         $this->answeredThreshold = intval($this->option('answered-threshold'));
 
@@ -106,30 +110,47 @@ class CleanupCalls extends Command
                 $this->displayStuckCallsDetails($stuckCalls);
             }
 
-            // Phase 2: Query active channels from AMI
-            $this->info('📡 Phase 2: Querying active channels from AMI...');
-            $activeChannels = $this->queryAmiChannels();
-            
-            $this->info("📞 Found {$this->colorize(count($activeChannels), 'info')} active channels from AMI");
+            // Phase 2: Query active channels from AMI (or skip for instant cleanup)
+            if ($this->option('skip-ami')) {
+                $this->info('⚡ Phase 2: Skipping AMI verification for instant cleanup...');
+                $activeChannels = [];
+                
+                // Write JSON file even when skipping AMI
+                $actionId = 'CleanupScript-SKIPPED-' . time() . '-' . rand(1000, 9999);
+                $response = "AMI verification skipped by user request (--skip-ami flag)\r\n"
+                          . "Timestamp: " . date('Y-m-d H:i:s') . "\r\n"
+                          . "Mode: Database-only cleanup\r\n";
+                $this->info("📄 Writing AMI skip status to JSON file...");
+                $this->writeEventsToJsonImmediate($response, $actionId);
+                
+                $this->info('📞 AMI verification skipped - proceeding with database-only cleanup');
+            } else {
+                $this->info('📡 Phase 2: Querying active channels from AMI...');
+                $activeChannels = $this->queryAmiChannels();
+                $this->info("📞 Found {$this->colorize(count($activeChannels), 'info')} active channels from AMI");
+            }
 
-            // Phase 3: Cross-reference calls with channels
-            $this->info('🔗 Phase 3: Cross-referencing calls with active channels...');
-            $callsToCleanup = $this->crossReferenceCallsWithChannels($stuckCalls, $activeChannels);
+            // Phase 3: Cross-reference calls with channels (or skip if AMI skipped)
+            if ($this->option('skip-ami')) {
+                $this->info('⚡ Phase 3: Skipping cross-reference - cleaning all stuck calls...');
+                $callsToCleanup = $stuckCalls; // Clean all stuck calls without verification
+            } else {
+                $this->info('🔗 Phase 3: Cross-referencing calls with active channels...');
+                $callsToCleanup = $this->crossReferenceCallsWithChannels($stuckCalls, $activeChannels);
+            }
 
             if (empty($callsToCleanup)) {
-                $this->info('✅ All stuck calls still have active channels - no cleanup needed');
+                if ($this->option('skip-ami')) {
+                    $this->info('✅ No stuck calls found in database');
+                } else {
+                    $this->info('✅ All stuck calls still have active channels - no cleanup needed');
+                }
                 return 0;
             }
 
             $this->info("🧹 Identified {$this->colorize(count($callsToCleanup), 'info')} calls for cleanup");
 
-            // Show confirmation for actual cleanup
-            if (!$this->isDryRun && !$this->option('force')) {
-                if (!$this->confirm('Do you want to proceed with cleaning up these calls?')) {
-                    $this->info('🚫 Cleanup cancelled by user');
-                    return 0;
-                }
-            }
+            // Skip confirmation - proceed directly with cleanup
 
             // Phase 4: Cleanup calls
             if ($this->isDryRun) {
@@ -143,9 +164,15 @@ class CleanupCalls extends Command
             // Phase 5: Display summary
             $this->displaySummary();
 
+            // Clean up AMI connection
+            $this->closeAmiConnection();
+
             return 0;
 
         } catch (\Exception $e) {
+            // Clean up connection on error
+            $this->closeAmiConnection();
+            
             $this->error('❌ Cleanup failed: ' . $e->getMessage());
             Log::error('CleanupCalls command error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
@@ -226,63 +253,126 @@ class CleanupCalls extends Command
         return $stuckCalls;
     }
 
-    private function queryAmiChannels(): array
+    /**
+     * Get or create reusable AMI connection
+     */
+    private function getAmiConnection()
     {
-        $socket = null;
-
-        try {
-            // Connect to AMI
-            $connectionTimeout = $this->isFast ? 1 : 2; // 1s for fast mode, 2s normal
-            $socket = fsockopen($this->host, $this->port, $errno, $errstr, $connectionTimeout);
-            if (!$socket) {
-                throw new \Exception("Failed to connect to AMI: $errstr ($errno)");
-            }
-
-            if ($this->isVerbose) {
-                $this->line('✅ Socket connected to AMI');
-            }
-
-            // Login to AMI
-            if (!$this->loginToAmi($socket)) {
+        if (!$this->amiConnection) {
+            $this->amiConnection = $this->createOptimizedSocket();
+            if (!$this->loginToAmi($this->amiConnection)) {
+                $this->closeSocket($this->amiConnection);
+                $this->amiConnection = null;
                 throw new \Exception('AMI authentication failed');
             }
+            
+            if ($this->isVerbose) {
+                $this->line('🔗 Created reusable AMI connection');
+            }
+        }
+        
+        return $this->amiConnection;
+    }
+
+    /**
+     * Close AMI connection if open
+     */
+    private function closeAmiConnection(): void
+    {
+        if ($this->amiConnection) {
+            $this->sendLogoff($this->amiConnection);
+            $this->closeSocket($this->amiConnection);
+            $this->amiConnection = null;
+            
+            if ($this->isVerbose) {
+                $this->line('🔌 Closed AMI connection');
+            }
+        }
+    }
+
+    private function queryAmiChannels(): array
+    {
+        $actionId = 'CleanupScript-' . time() . '-' . rand(1000, 9999);
+        $response = '';
+        $channels = [];
+
+        try {
+            // Use reusable connection for better performance
+            $socket = $this->getAmiConnection();
 
             if ($this->isVerbose) {
-                $this->line('🔐 AMI authentication successful');
+                $this->line('✅ Using optimized AMI connection');
             }
 
             // Query active channels
             $channels = $this->queryActiveChannels($socket);
 
-            // Logout and close
-            $this->sendLogoff($socket);
-            fclose($socket);
-
-            return $channels;
+            // Keep connection open for potential reuse (closed in cleanup)
 
         } catch (\Exception $e) {
-            if ($socket) {
-                fclose($socket);
-            }
+            // Close connection on error
+            $this->closeAmiConnection();
+            
+            // Create error response for JSON logging
+            $response = "Error: Connection failed - " . $e->getMessage() . "\r\n"
+                      . "Host: {$this->host}:{$this->port}\r\n" 
+                      . "Timestamp: " . date('Y-m-d H:i:s') . "\r\n";
             
             $this->warn("⚠️ AMI query failed: {$e->getMessage()}");
             $this->warn('   Continuing with database-only cleanup...');
             
-            return [];
+            // ALWAYS write JSON file even on connection failure
+            $this->info("📄 Writing AMI error to JSON file...");
+            $this->writeEventsToJsonImmediate($response, $actionId);
+        }
+
+        return $channels;
+    }
+
+    /**
+     * Create optimized socket connection with performance tuning
+     */
+    private function createOptimizedSocket()
+    {
+        $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+        if (!$socket) {
+            throw new \Exception("Socket creation failed: " . socket_strerror(socket_last_error()));
+        }
+
+        // Optimize socket for performance
+        socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 5, 'usec' => 0]);
+        socket_set_option($socket, SOL_SOCKET, SO_SNDBUF, 65536); // 64KB send buffer
+        socket_set_option($socket, SOL_SOCKET, SO_RCVBUF, 65536); // 64KB receive buffer
+        socket_set_option($socket, SOL_TCP, TCP_NODELAY, 1);      // Disable Nagle algorithm
+        
+        if (!socket_connect($socket, $this->host, $this->port)) {
+            throw new \Exception("Socket connection failed: " . socket_strerror(socket_last_error($socket)));
+        }
+
+        return $socket;
+    }
+
+    /**
+     * Close socket properly
+     */
+    private function closeSocket($socket): void
+    {
+        if (is_resource($socket)) {
+            socket_close($socket);
         }
     }
 
     private function loginToAmi($socket): bool
     {
         // Wait for initial AMI banner
-        $this->readResponse($socket);
+        $this->readSocketResponse($socket);
 
         $loginCmd = "Action: Login\r\n"
                  . "Username: {$this->username}\r\n"
                  . "Secret: {$this->password}\r\n\r\n";
 
-        fwrite($socket, $loginCmd);
-        $response = $this->readResponse($socket);
+        socket_write($socket, $loginCmd, strlen($loginCmd));
+        $response = $this->readSocketResponse($socket);
 
         return strpos($response, 'Response: Success') !== false;
     }
@@ -290,155 +380,325 @@ class CleanupCalls extends Command
     private function queryActiveChannels($socket): array
     {
         $actionId = 'CleanupScript-' . time() . '-' . rand(1000, 9999);
-        $command = "Action: CoreShowChannels\r\n"
-                 . "Events: off\r\n"
-                 . "ActionID: {$actionId}\r\n\r\n";
+        $response = '';
+        $channels = [];
+        
+        try {
+            // Use CoreShowChannels and wait for CoreShowChannelsComplete
+            $command = "Action: CoreShowChannels\r\n"
+                     . "ActionID: {$actionId}\r\n\r\n";
 
-        fwrite($socket, $command);
-        $response = $this->readCompleteResponse($socket, 'Event: CoreShowChannelsComplete');
+            socket_write($socket, $command, strlen($command));
+            $response = $this->readCompleteSocketResponse($socket, 'Event: CoreShowChannelsComplete');
+            
+            // Parse response with optimized parsing
+            $channels = $this->parseChannelsOptimized($response);
+            
+        } catch (\Exception $e) {
+            $response = "Error: " . $e->getMessage() . "\r\n";
+            $this->warn("⚠️ AMI query error: {$e->getMessage()}");
+        }
+        
+        // ALWAYS write JSON file after query - success or failure
+        $this->info("📄 Writing AMI events to JSON file...");
+        $this->writeEventsToJsonImmediate($response, $actionId);
 
-        return $this->parseCoreShowChannelsResponse($response);
+        return $channels;
     }
 
     private function sendLogoff($socket): void
     {
         $logoffAction = "Action: Logoff\r\n\r\n";
-        fwrite($socket, $logoffAction);
-        if (!$this->isFast) {
-            usleep(50000); // Skip delay in fast mode, reduce to 50ms in normal mode
-        }
+        socket_write($socket, $logoffAction, strlen($logoffAction));
+        // Remove delay - immediate execution
     }
 
-    private function readResponse($socket): string
+    /**
+     * Optimized socket response reading with better buffering
+     */
+    private function readSocketResponse($socket): string
     {
         $response = '';
-        $responseTimeout = $this->isFast ? 2 : 5; // 2s for fast mode, 5s normal
-        $timeout = time() + $responseTimeout;
+        $bufferSize = 1024;
 
-        while (!feof($socket) && time() < $timeout) {
-            $buffer = fgets($socket);
-            if ($buffer === false) {
+        while (true) {
+            $buffer = socket_read($socket, $bufferSize);
+            if ($buffer === false || $buffer === '') {
                 break;
             }
+            
             $response .= $buffer;
 
-            if (strpos($response, "\r\n\r\n") !== false) {
-                break;
+            // Return when we reach end of response (empty line)
+            if (str_ends_with($response, "\r\n\r\n")) {
+                return $response;
             }
         }
 
         return $response;
     }
 
-    private function readCompleteResponse($socket, string $completionEvent): string
+    /**
+     * Optimized complete response reading with chunked buffers
+     */
+    private function readCompleteSocketResponse($socket, string $completionEvent): string
     {
         $response = '';
-        $mainTimeout = $this->isFast ? 3 : ($this->timeout / 1000); // 3s for fast mode
-        $timeout = time() + $mainTimeout;
+        $startTime = time();
+        $timeout = 30; // 30 second timeout
+        $bufferSize = 8192; // 8KB chunks for better performance
 
-        while (!feof($socket) && time() < $timeout) {
-            $buffer = fgets($socket);
-            if ($buffer === false) {
-                $waitTime = $this->isFast ? 10000 : 50000; // 10ms for fast mode, 50ms normal
-                usleep($waitTime);
-                continue;
+        while (true) {
+            // Check for timeout every few iterations, not every read
+            if ((time() - $startTime) > $timeout) {
+                throw new \Exception("AMI query timeout after {$timeout} seconds - no completion event received");
+            }
+            
+            $buffer = socket_read($socket, $bufferSize);
+            if ($buffer === false || $buffer === '') {
+                break;
             }
 
             $response .= $buffer;
 
+            // Check for completion less frequently for better performance
             if (strpos($response, $completionEvent) !== false) {
-                // Read a bit more to ensure we get the complete response
-                $additionalTimeout = $this->isFast ? 0.5 : 1; // Minimal additional wait in fast mode
-                $additionalTimeoutEnd = time() + $additionalTimeout;
-                while (!feof($socket) && time() < $additionalTimeoutEnd) {
-                    $additionalBuffer = fgets($socket);
-                    if ($additionalBuffer === false || trim($additionalBuffer) === '') {
-                        break;
-                    }
-                    $response .= $additionalBuffer;
-                }
-                break;
+                return $response;
             }
         }
 
         return $response;
     }
 
-    private function parseCoreShowChannelsResponse(string $response): array
+    /**
+     * Optimized channel parsing - only parse required fields
+     */
+    private function parseChannelsOptimized(string $response): array
     {
-        $lines = explode("\r\n", $response);
         $channels = [];
+        $lines = explode("\r\n", $response);
         $currentChannel = null;
+        
+        // Only parse essential fields for performance
+        $fieldMap = [
+            'Channel: ' => 'channel',
+            'UniqueID: ' => 'uniqueid', 
+            'LinkedID: ' => 'linkedid',
+            'Context: ' => 'context',
+            'Extension: ' => 'extension',
+            'State: ' => 'state'
+        ];
 
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
-
-            if (strpos($line, 'Event: CoreShowChannel') !== false) {
-                if ($currentChannel) {
+            if (str_starts_with($line, 'Event: CoreShowChannel')) {
+                if ($currentChannel && count($currentChannel) >= 3) { // Minimum required fields
                     $channels[] = $currentChannel;
                 }
                 $currentChannel = [];
                 continue;
             }
-
+            
             if (!$currentChannel) continue;
+            
+            // Fast field parsing - only check required fields
+            foreach ($fieldMap as $prefix => $key) {
+                if (str_starts_with($line, $prefix)) {
+                    $currentChannel[$key] = trim(substr($line, strlen($prefix)));
+                    break; // Stop after first match for performance
+                }
+            }
+        }
+        
+        // Add final channel if exists
+        if ($currentChannel && count($currentChannel) >= 3) {
+            $channels[] = $currentChannel;
+        }
+        
+        return $channels;
+    }
 
-            // Parse channel fields we care about
-            if (strpos($line, 'Channel: ') !== false) {
-                $currentChannel['channel'] = trim(substr($line, 9));
-            } elseif (strpos($line, 'Uniqueid: ') !== false) {
-                $currentChannel['uniqueid'] = trim(substr($line, 10));
-            } elseif (strpos($line, 'Linkedid: ') !== false) {
-                $currentChannel['linkedid'] = trim(substr($line, 10));
+    private function parseCoreShowChannelsResponse(string $response): array
+    {
+        // This method is deprecated - use parseChannelsOptimized() instead
+        return $this->parseChannelsOptimized($response);
+    }
+
+    /**
+     * Write all AMI events to JSON file with streaming for large responses
+     */
+    private function writeEventsToJsonImmediate(string $response, string $actionId): void
+    {
+        $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
+        // Write to backend/debug/ directory - using base_path() points to the backend/ directory root
+        $filename = base_path("debug/ami_events_{$timestamp}_{$actionId}.json");
+        
+        // Create debug directory if it doesn't exist  
+        $debugDir = base_path('debug');
+        if (!is_dir($debugDir)) {
+            mkdir($debugDir, 0755, true);
+            $this->info("📁 Created debug directory: {$debugDir}");
+        }
+
+        // Parse response into structured events with memory optimization
+        $events = $this->parseAllEventsFromResponse($response);
+        
+        $logData = [
+            'timestamp' => Carbon::now()->toISOString(),
+            'action_id' => $actionId,
+            'command' => 'CoreShowChannels',
+            'total_events' => count($events),
+            'raw_response_size' => strlen($response),
+            'events' => $events
+        ];
+        
+        // Only include raw response if it's not too large (< 1MB)
+        if (strlen($response) < 1048576) {
+            $logData['raw_response'] = $response;
+        } else {
+            $logData['raw_response'] = '[Response too large - omitted for performance]';
+            $logData['raw_response_truncated'] = true;
+        }
+
+        // Use streaming JSON write for better memory usage
+        $jsonFlags = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES;
+        if (version_compare(PHP_VERSION, '7.3.0', '>=')) {
+            $jsonFlags |= JSON_THROW_ON_ERROR;
+        }
+        
+        try {
+            $jsonContent = json_encode($logData, $jsonFlags);
+            $result = file_put_contents($filename, $jsonContent, LOCK_EX);
+            
+            if ($result !== false) {
+                $this->info("✅ Events logged to: {$filename}");
+                $this->info("📊 Total events captured: " . count($events));
+                $this->info("📦 File size: " . number_format(strlen($jsonContent)) . " bytes");
+                
+                // Clear memory for large responses
+                if (strlen($response) > 524288) { // 512KB
+                    unset($jsonContent, $logData, $events);
+                    if (function_exists('gc_collect_cycles')) {
+                        gc_collect_cycles();
+                    }
+                }
+            } else {
+                $this->error("❌ Failed to write JSON file: {$filename}");
+            }
+        } catch (\Exception $e) {
+            $this->error("❌ JSON encoding failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Parse all events from AMI response into structured array
+     */
+    private function parseAllEventsFromResponse(string $response): array
+    {
+        $lines = explode("\r\n", $response);
+        $events = [];
+        $currentEvent = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                // Empty line indicates end of current event
+                if ($currentEvent) {
+                    $events[] = $currentEvent;
+                    $currentEvent = null;
+                }
+                continue;
+            }
+
+            // Check if this line starts a new event
+            if (strpos($line, 'Event: ') === 0) {
+                // Save previous event if exists
+                if ($currentEvent) {
+                    $events[] = $currentEvent;
+                }
+                // Start new event
+                $currentEvent = [
+                    'event_type' => trim(substr($line, 7)),
+                    'fields' => [],
+                    'timestamp' => Carbon::now()->toISOString()
+                ];
+                continue;
+            }
+
+            // Check if this is a response line (not an event)
+            if (strpos($line, 'Response: ') === 0) {
+                if ($currentEvent) {
+                    $events[] = $currentEvent;
+                    $currentEvent = null;
+                }
+                // Create response entry
+                $events[] = [
+                    'event_type' => 'Response',
+                    'fields' => ['Response' => trim(substr($line, 10))],
+                    'timestamp' => Carbon::now()->toISOString()
+                ];
+                continue;
+            }
+
+            // Parse field if we're in an event
+            if ($currentEvent && strpos($line, ': ') !== false) {
+                list($key, $value) = explode(': ', $line, 2);
+                $currentEvent['fields'][trim($key)] = trim($value);
             }
         }
 
-        // Add the last channel if exists
-        if ($currentChannel) {
-            $channels[] = $currentChannel;
+        // Add final event if exists
+        if ($currentEvent) {
+            $events[] = $currentEvent;
         }
 
-        return $channels;
+        return $events;
     }
 
     private function crossReferenceCallsWithChannels(array $stuckCalls, array $activeChannels): array
     {
+        // Extract all linkedids for bulk query - fix N+1 problem
+        $linkedIds = array_column(array_column($stuckCalls, 'call'), 'linkedid');
+        
+        // Single optimized query instead of N+1 queries
+        $callLegsGrouped = CallLeg::whereIn('linkedid', $linkedIds)
+            ->whereNull('hangup_at')
+            ->select(['linkedid', 'uniqueid']) // Only select needed fields
+            ->get()
+            ->groupBy('linkedid');
+        
+        // Build optimized channel lookup maps for O(1) access instead of nested loops
+        $uniqueIdMap = [];
+        $linkedIdMap = [];
+        foreach ($activeChannels as $channel) {
+            if (isset($channel['uniqueid'])) {
+                $uniqueIdMap[$channel['uniqueid']] = true;
+            }
+            if (isset($channel['linkedid'])) {
+                $linkedIdMap[$channel['linkedid']] = true;
+            }
+        }
+        
         $callsToCleanup = [];
-
         foreach ($stuckCalls as $stuckCallData) {
             $call = $stuckCallData['call'];
-            $hasActiveChannel = false;
-
-            // Get call legs for this call
-            $callLegs = CallLeg::where('linkedid', $call->linkedid)
-                ->whereNull('hangup_at')
-                ->get();
-
+            $callLegs = $callLegsGrouped->get($call->linkedid, collect());
+            
             if ($this->isVerbose) {
                 $this->line("   Checking call {$call->linkedid}: {$callLegs->count()} active legs");
             }
-
-            // Check if any call leg has matching active channel
+            
+            $hasActiveChannel = false;
+            // Fast O(1) lookup instead of nested loops
             foreach ($callLegs as $leg) {
-                foreach ($activeChannels as $channel) {
-                    if (isset($channel['uniqueid']) && $leg->uniqueid === $channel['uniqueid']) {
-                        $hasActiveChannel = true;
-                        if ($this->isVerbose) {
-                            $this->line("     ✓ Found active channel: {$channel['channel']}");
-                        }
-                        break 2;
+                if (isset($uniqueIdMap[$leg->uniqueid]) || isset($linkedIdMap[$leg->linkedid])) {
+                    $hasActiveChannel = true;
+                    if ($this->isVerbose) {
+                        $this->line("     ✓ Found active channel for leg: {$leg->uniqueid}");
                     }
-                    if (isset($channel['linkedid']) && $leg->linkedid === $channel['linkedid']) {
-                        $hasActiveChannel = true;
-                        if ($this->isVerbose) {
-                            $this->line("     ✓ Found active linked channel: {$channel['channel']}");
-                        }
-                        break 2;
-                    }
+                    break;
                 }
             }
-
+            
             if (!$hasActiveChannel) {
                 $callsToCleanup[] = $stuckCallData;
                 if ($this->isVerbose) {
@@ -597,12 +857,14 @@ class CleanupCalls extends Command
         $this->line("⏰ Ringing threshold: {$this->ringingThreshold} minutes");
         $this->line("⏰ Answered threshold: {$this->answeredThreshold} minutes");
         
-        if ($this->isDryRun) {
-            $this->line("🔍 Mode: DRY RUN (no changes will be made)");
+        if ($this->option('skip-ami')) {
+            $this->line("⚡ Mode: INSTANT (database-only, no AMI verification)");
+        } else {
+            $this->line("⚡ Mode: FAST (minimal timeouts, no confirmations)");
         }
         
-        if ($this->isFast) {
-            $this->line("⚡ Mode: FAST (minimal timeouts - fail-fast)");
+        if ($this->isDryRun) {
+            $this->line("🔍 Mode: DRY RUN (no changes will be made)");
         }
         
         $this->line('');

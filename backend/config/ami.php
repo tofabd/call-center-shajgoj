@@ -10,10 +10,10 @@ return [
     |
     */
     'connection' => [
-        'host' => env('AMI_HOST', '103.177.125.83'),
-        'port' => env('AMI_PORT', 5038),
-        'username' => env('AMI_USERNAME', 'admin'),
-        'password' => env('AMI_PASSWORD', 'admin123'),
+        'host' => env('AMI_HOST'),
+        'port' => env('AMI_PORT'),
+        'username' => env('AMI_USERNAME'),
+        'password' => env('AMI_PASSWORD'),
         'timeout' => env('AMI_TIMEOUT', 15000), // Connection timeout in milliseconds
     ],
 
@@ -29,7 +29,7 @@ return [
         'default_timeout' => 10000, // Default command timeout in milliseconds
         'retry_attempts' => 1, // Number of retry attempts for failed commands
         'batch_size' => 100, // Maximum number of commands in a batch
-        
+
         // Command-specific timeouts
         'timeouts' => [
             'ExtensionStateList' => 20000,
@@ -92,7 +92,7 @@ return [
         'log_level' => env('AMI_LOG_LEVEL', 'info'), // debug, info, warning, error
         'create_json_files' => env('AMI_DEBUG_JSON_FILES', true),
         'json_file_retention' => 7, // Days to keep debug JSON files
-        
+
         // Debug file paths (relative to storage/app)
         'paths' => [
             'extension_refresh' => 'debug/ami/extension-refresh',
@@ -146,27 +146,27 @@ return [
         'allowed_commands' => [
             // Extension commands
             'ExtensionStateList',
-            'ExtensionState', 
+            'ExtensionState',
             'DeviceStateList',
             'DeviceState',
-            
+
             // SIP commands
             'SIPpeers',
             'SIPshowpeer',
             'SIPshowregistry',
             'SIPqualifypeer',
-            
+
             // Channel commands
             'CoreShowChannels',
             'Status',
             'Hangup',
-            
+
             // Queue commands (when enabled)
             'QueueStatus',
             'QueueSummary',
             'QueueAdd',
             'QueueRemove',
-            
+
             // System commands
             'Ping',
             'CoreStatus',

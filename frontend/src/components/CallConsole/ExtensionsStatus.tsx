@@ -144,9 +144,12 @@ const ExtensionsStatus: React.FC = () => {
               ...ext, 
               agent_name: update.agent_name || ext.agent_name,
               status: update.status || ext.status,
+              availability_status: update.availability_status || ext.availability_status,
               status_code: update.status_code !== undefined ? update.status_code : ext.status_code,
+              status_text: update.status_text || ext.status_text,
               device_state: update.device_state || ext.device_state,
-              last_seen: update.last_seen || ext.last_seen,
+              last_status_change: update.last_status_change || ext.last_status_change,
+              status_changed_at: update.status_changed_at || ext.status_changed_at,
               updated_at: update.updated_at || ext.updated_at
             };
             
@@ -402,6 +405,33 @@ const ExtensionsStatus: React.FC = () => {
 
 
 
+  // Extension gradient and style functions based on design guide
+  const getExtensionGradient = (status: string, isOnCall: boolean): string => {
+    if (status === 'online') {
+      return isOnCall
+        ? 'bg-linear-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
+        : 'bg-linear-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50';
+    } else if (status === 'offline') {
+      return 'bg-linear-to-br from-red-400 to-rose-500 shadow-red-200/50 dark:from-red-500 dark:to-rose-600 dark:shadow-red-900/20';
+    } else if (status === 'unknown') {
+      return 'bg-linear-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50 dark:from-yellow-500 dark:to-amber-600 dark:shadow-yellow-900/20';
+    }
+    return 'bg-linear-to-br from-gray-400 to-slate-500 shadow-gray-200/50 dark:from-gray-500 dark:to-slate-600';
+  };
+
+  const getExtensionItemBackground = (status: string, isOnCall: boolean): string => {
+    if (status === 'online') {
+      return isOnCall
+        ? 'bg-linear-to-r from-green-100 via-green-200 to-green-100 dark:from-green-800/50 dark:via-green-700/50 dark:to-green-800/50 border-green-400 dark:border-green-600/50 ring-1 ring-green-300 dark:ring-green-700/40'
+        : 'bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700/30';
+    } else if (status === 'offline') {
+      return 'bg-linear-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700/30';
+    } else if (status === 'unknown') {
+      return 'bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-300 dark:border-yellow-700/30';
+    }
+    return 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600';
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'online':
@@ -425,32 +455,6 @@ const ExtensionsStatus: React.FC = () => {
         return 'text-yellow-600 dark:text-yellow-400';
       default:
         return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
-  const getCircleColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return 'bg-green-300';
-      case 'offline':
-        return 'bg-red-300';
-      case 'unknown':
-        return 'bg-yellow-300';
-      default:
-        return 'bg-gray-300';
-    }
-  };
-
-  const getBackgroundColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return 'bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-green-300 dark:border-green-700';
-      case 'offline':
-        return 'bg-linear-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700';
-      case 'unknown':
-        return 'bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-300 dark:border-yellow-700';
-      default:
-        return 'bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 border-gray-200 dark:border-gray-600';
     }
   };
 
@@ -604,69 +608,59 @@ const ExtensionsStatus: React.FC = () => {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
              <div className="p-4 space-y-3">
-                {sortedExtensions.map((extension) => (
-                  <div
-                    key={extension.id}
-                     className={`flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow duration-200 ${
-                       extension.status === 'online'
-                         ? (extension.device_state !== 'NOT_INUSE' && extension.status_code !== 0)
-                           ? 'bg-green-100 dark:bg-green-900/30 dark:border dark:border-green-700/40'
-                           : 'bg-green-50 dark:bg-green-900/20 dark:border dark:border-green-700/30'
-                         : extension.status === 'offline'
-                         ? 'bg-red-50 dark:bg-red-900/20 dark:border dark:border-red-700/30'
-                         : 'bg-white dark:bg-gray-800 dark:border dark:border-gray-600'
-                     }`}
-                    onClick={() => handleExtensionClick(extension)}
-                  >
-                    <div className="flex items-center space-x-3">
-                       <div className="shrink-0 relative">
-                           <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 shadow-md ${
-                             extension.status === 'online'
-                               ? isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code })
-                                 ? 'bg-linear-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
-                                 : 'bg-linear-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50'
-                               : extension.status === 'offline'
-                               ? 'bg-linear-to-br from-red-400 to-rose-500 shadow-red-200/50'
-                               : extension.status === 'unknown'
-                               ? 'bg-linear-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50'
-                               : 'bg-linear-to-br from-gray-400 to-slate-500 shadow-gray-200/50'
-                           }`}>
-                           <span className="text-white font-bold text-sm drop-shadow-md">
-                             {extension.extension}
-                           </span>
-                         </div>
+                 {sortedExtensions.map((extension) => {
+                   const isOnCall = isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code });
+                   
+                   return (
+                   <div
+                     key={extension.id}
+                      className={`group flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-all duration-200 transform hover:scale-[1.02] border ${
+                        getExtensionItemBackground(extension.status, isOnCall)
+                      }`}
+                     onClick={() => handleExtensionClick(extension)}
+                   >
+                     <div className="flex items-center space-x-3">
+                        <div className="shrink-0 relative">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 ${
+                              getExtensionGradient(extension.status, isOnCall)
+                            }`}>
+                            <span className="text-white font-bold text-sm drop-shadow-md">
+                              {extension.extension}
+                            </span>
+                          </div>
 
-                           {/* Pulse effect for online (not free) - outside the circle only */}
-                           {extension.status === 'online' && isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code }) && (
-                             <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
-                           )}
-                      </div>
-                      <div>
-                         <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
-                           {extension.agent_name || `Extension ${extension.extension}`}
-                         </h3>
-                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                           {getDeviceStateLabel(extension.device_state, extension.status_code)}
-                         </p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right flex flex-col">
-                      <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                        {getStatusIcon(extension.status)} {extension.status}
-                      </div>
-                      {extension.last_status_change && (
-                        <div className={`text-xs font-medium ${
-                          extension.status === 'online'
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-orange-600 dark:text-orange-400'
-                        }`}>
-                          {getDurationDisplay(extension)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                            {/* Pulse effect for extensions on call - outside the circle only */}
+                            {extension.status === 'online' && isOnCall && (
+                              <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
+                            )}
+                       </div>
+                       <div>
+                          <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
+                            {extension.agent_name || `Extension ${extension.extension}`}
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {getDeviceStateLabel(extension.device_state, extension.status_code)}
+                          </p>
+                       </div>
+                     </div>
+                     
+                     <div className="text-right flex flex-col">
+                       <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                         {getStatusIcon(extension.status)} {extension.status}
+                       </div>
+                       {extension.last_status_change && (
+                         <div className={`text-xs font-medium ${
+                           extension.status === 'online'
+                             ? 'text-blue-600 dark:text-blue-400'
+                             : 'text-orange-600 dark:text-orange-400'
+                         }`}>
+                           {getDurationDisplay(extension)}
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                   );
+                 })}
              </div>
           </div>
         )}
