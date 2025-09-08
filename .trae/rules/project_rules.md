@@ -1,2 +1,0 @@
-- Use Tailwind CSS version 4.x for all styling.
-- Use Git Bash as the default terminal environment.
