@@ -16,19 +16,21 @@ use Carbon\Carbon;
  * 
  * This command identifies stuck calls by:
  * 1. Finding calls in database that exceed time thresholds (ringing > 1min, answered > 2min)
- * 2. Querying AMI to get active channels
+ * 2. Querying AMI to get active channels (REQUIRED for safety - will abort if AMI fails)
  * 3. Cross-referencing to find calls with no active channels
  * 4. Cleaning up orphaned calls in database
  * 5. Broadcasting updates to frontend
  * 
+ * SAFETY: If AMI connection fails, cleanup will be aborted to prevent cleaning active calls
+ * 
      * Usage Examples:
      * - php artisan calls:cleanup-stuck --dry-run                    # Preview cleanup
-     * - php artisan calls:cleanup-stuck                              # Fast cleanup with AMI verification
-     * - php artisan calls:cleanup-stuck --skip-ami                   # INSTANT database-only cleanup (no network delays)
+     * - php artisan calls:cleanup-stuck                              # Safe cleanup with AMI verification
+     * - php artisan calls:cleanup-stuck --skip-ami                   # FORCE database-only cleanup (bypasses AMI verification)
      * - php artisan calls:cleanup-stuck --dry-run -v                 # Verbose preview
      * - php artisan calls:cleanup-stuck --ringing-threshold=3        # Custom threshold
      * 
-     * Note: Use --skip-ami for truly instant execution (skips AMI network calls)
+     * Note: Use --skip-ami ONLY when you're certain AMI is down and want to force cleanup
      */
 class CleanupCalls extends Command
 {
@@ -41,12 +43,12 @@ class CleanupCalls extends Command
                             {--answered-threshold=2 : Override answered threshold in minutes}
                             {--force : Deprecated - cleanup now runs without confirmation by default}
                             {--fast : Deprecated - all operations now use minimal timeouts}
-                            {--skip-ami : Skip AMI verification - database-only cleanup (instant)}';
+                            {--skip-ami : FORCE database-only cleanup - bypasses AMI verification (use with caution)}';
 
     /**
      * The console command description.
      */
-    protected $description = 'Cleanup stuck calls by querying AMI and updating database (fast execution, no confirmations)';
+     protected $description = 'Cleanup stuck calls with AMI verification (aborts if AMI fails - use --skip-ami to force)';
 
     private $host;
     private $port;
@@ -67,11 +69,18 @@ class CleanupCalls extends Command
     {
         parent::__construct();
 
-        // Get AMI credentials from configuration
-        $this->host = config('ami.connection.host');
-        $this->port = config('ami.connection.port');
-        $this->username = config('ami.connection.username');
-        $this->password = config('ami.connection.password');
+        // Use the same configuration source as the frontend AMI service
+        $config = config('ami.connection', [
+            'host' => env('AMI_HOST', '103.177.125.83'),
+            'port' => env('AMI_PORT', 5038),
+            'username' => env('AMI_USERNAME', 'admin'),
+            'password' => env('AMI_PASSWORD', 'admin123'),
+        ]);
+        
+        $this->host = $config['host'];
+        $this->port = $config['port'];
+        $this->username = $config['username'];
+        $this->password = $config['password'];
         $this->timeout = config('ami.commands.timeouts.CoreShowChannels', 30000);
     }
 
@@ -126,8 +135,14 @@ class CleanupCalls extends Command
                 $this->info('📞 AMI verification skipped - proceeding with database-only cleanup');
             } else {
                 $this->info('📡 Phase 2: Querying active channels from AMI...');
-                $activeChannels = $this->queryAmiChannels();
-                $this->info("📞 Found {$this->colorize(count($activeChannels), 'info')} active channels from AMI");
+                try {
+                    $activeChannels = $this->queryAmiChannels();
+                    $this->info("📞 Found {$this->colorize(count($activeChannels), 'info')} active channels from AMI");
+                } catch (\Exception $e) {
+                    // AMI connection failed - stop cleanup for safety
+                    $this->error('❌ Cleanup aborted due to AMI connection failure');
+                    return 1;
+                }
             }
 
             // Phase 3: Cross-reference calls with channels (or skip if AMI skipped)
@@ -222,7 +237,7 @@ class CleanupCalls extends Command
             ->get();
 
         foreach ($stuckRingingCalls as $call) {
-            $duration = $now->diffInMinutes($call->started_at);
+            $duration = $call->started_at->diffInMinutes($now); // Fixed: call->started_at->diffInMinutes($now)
             $stuckCalls[] = [
                 'call' => $call,
                 'reason' => "Ringing too long: {$duration} minutes",
@@ -237,7 +252,7 @@ class CleanupCalls extends Command
             ->get();
 
         foreach ($stuckAnsweredCalls as $call) {
-            $duration = $now->diffInMinutes($call->answered_at);
+            $duration = $call->answered_at->diffInMinutes($now); // Fixed: call->answered_at->diffInMinutes($now)
             $stuckCalls[] = [
                 'call' => $call,
                 'reason' => "Answered too long: {$duration} minutes",
@@ -297,34 +312,49 @@ class CleanupCalls extends Command
         $channels = [];
 
         try {
-            // Use reusable connection for better performance
-            $socket = $this->getAmiConnection();
+            // Use the same AMI service that works for the frontend
+            $amiService = new \App\Services\Ami\AmiServiceProvider();
+            
+            $result = $amiService->executeWithConnection(function($ami) use ($actionId) {
+                // Get active channels using the working AMI service
+                return $ami->channels()->getActiveChannels();
+            });
 
-            if ($this->isVerbose) {
-                $this->line('✅ Using optimized AMI connection');
+            if ($result && is_array($result) && count($result) > 0) {
+                $channels = $result; // channels are returned directly, not wrapped
+                $response = json_encode(['channels' => $result], JSON_PRETTY_PRINT);
+            } else {
+                $channels = [];
+                $response = "AMI query completed but no channels returned\r\n"
+                          . "Result: " . json_encode($result) . "\r\n"
+                          . "Timestamp: " . date('Y-m-d H:i:s') . "\r\n";
             }
 
-            // Query active channels
-            $channels = $this->queryActiveChannels($socket);
-
-            // Keep connection open for potential reuse (closed in cleanup)
+            if ($this->isVerbose) {
+                $this->line('✅ Successfully queried AMI using modern service');
+            }
 
         } catch (\Exception $e) {
-            // Close connection on error
-            $this->closeAmiConnection();
-            
             // Create error response for JSON logging
-            $response = "Error: Connection failed - " . $e->getMessage() . "\r\n"
-                      . "Host: {$this->host}:{$this->port}\r\n" 
+            $response = "Error: AMI service failed - " . $e->getMessage() . "\r\n"
+                      . "Service: App\\Services\\Ami\\AmiServiceProvider\r\n" 
                       . "Timestamp: " . date('Y-m-d H:i:s') . "\r\n";
             
-            $this->warn("⚠️ AMI query failed: {$e->getMessage()}");
-            $this->warn('   Continuing with database-only cleanup...');
+            $this->error("❌ AMI connection failed: {$e->getMessage()}");
+            $this->error('❌ Cannot verify active channels - aborting cleanup for safety');
+            $this->line('💡 Use --skip-ami flag to force database-only cleanup without AMI verification');
             
             // ALWAYS write JSON file even on connection failure
             $this->info("📄 Writing AMI error to JSON file...");
             $this->writeEventsToJsonImmediate($response, $actionId);
+            
+            // Re-throw exception to stop cleanup process
+            throw new \Exception("AMI connection failed - cannot safely verify active channels: " . $e->getMessage());
         }
+
+        // ALWAYS write JSON file after query - success or failure
+        $this->info("📄 Writing AMI events to JSON file...");
+        $this->writeEventsToJsonImmediate($response, $actionId);
 
         return $channels;
     }
@@ -340,13 +370,15 @@ class CleanupCalls extends Command
         }
 
         // Optimize socket for performance
-        socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 5, 'usec' => 0]);
+        socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 10, 'usec' => 0]); // Increased from 5 to 10 seconds
+        socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 10, 'usec' => 0]); // Add send timeout
         socket_set_option($socket, SOL_SOCKET, SO_SNDBUF, 65536); // 64KB send buffer
         socket_set_option($socket, SOL_SOCKET, SO_RCVBUF, 65536); // 64KB receive buffer
         socket_set_option($socket, SOL_TCP, TCP_NODELAY, 1);      // Disable Nagle algorithm
         
         if (!socket_connect($socket, $this->host, $this->port)) {
-            throw new \Exception("Socket connection failed: " . socket_strerror(socket_last_error($socket)));
+            $error = socket_strerror(socket_last_error($socket));
+            throw new \Exception("Socket connection failed to {$this->host}:{$this->port} - {$error}");
         }
 
         return $socket;
@@ -491,7 +523,7 @@ class CleanupCalls extends Command
 
         foreach ($lines as $line) {
             if (str_starts_with($line, 'Event: CoreShowChannel')) {
-                if ($currentChannel && count($currentChannel) >= 3) { // Minimum required fields
+                if ($currentChannel && isset($currentChannel['channel'])) { // Check for essential channel field
                     $channels[] = $currentChannel;
                 }
                 $currentChannel = [];
@@ -510,7 +542,7 @@ class CleanupCalls extends Command
         }
         
         // Add final channel if exists
-        if ($currentChannel && count($currentChannel) >= 3) {
+        if ($currentChannel && isset($currentChannel['channel'])) { // Check for essential channel field
             $channels[] = $currentChannel;
         }
         

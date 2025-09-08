@@ -269,21 +269,30 @@ class ExtensionService
         return $synced;
     }
 
-    /**
-     * Update extension status from Asterisk AMI event
-     */
-    public function updateExtensionFromAsterisk(string $extension, int $statusCode, ?string $statusText = null): bool
-    {
-        try {
-            $ext = Extension::where('extension', $extension)->first();
+     /**
+      * Update extension status from Asterisk AMI event
+      */
+     public function updateExtensionFromAsterisk(string $extension, int $statusCode, ?string $statusText = null): bool
+     {
+         try {
+             // Early validation: Check if extension looks like a valid agent extension (3-5 digits)
+             if (!preg_match('/^\d{3,5}$/', $extension)) {
+                 Log::debug("Skipping non-agent extension", [
+                     'extension' => $extension,
+                     'reason' => 'Not a 3-5 digit agent extension'
+                 ]);
+                 return false;
+             }
 
-            if (!$ext) {
-                Log::warning("Extension not found for status update", [
-                    'extension' => $extension,
-                    'status_code' => $statusCode
-                ]);
-                return false;
-            }
+             $ext = Extension::where('extension', $extension)->first();
+
+             if (!$ext) {
+                 Log::warning("Extension not found for status update", [
+                     'extension' => $extension,
+                     'status_code' => $statusCode
+                 ]);
+                 return false;
+             }
 
             $oldAvailabilityStatus = $ext->availability_status;
             $result = $ext->updateFromAsteriskEvent($statusCode, $statusText);
