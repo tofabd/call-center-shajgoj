@@ -45,7 +45,8 @@ if (!echo && reverbKey && reverbHost) {
     echo = new Echo({
       broadcaster: 'reverb',
       key: reverbKey,
-      wsHost: reverbHost,
+      //wsHost: reverbHost,
+      wsHost: window.location.hostname, // Use current host instead of hardcoded
       wsPort: import.meta.env.VITE_REVERB_PORT ?? 8080,
       wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
       forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',

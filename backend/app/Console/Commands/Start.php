@@ -62,11 +62,15 @@ class Start extends Command
 
         if ($tmuxAvailable) {
             // Use tmux for Linux to create multiple panes in a single window
-            $command = "tmux new-session -s call-center-services 'cd \"$projectPath\" && php artisan serve' ; ";
-            $command .= "tmux split-window -h 'cd \"$projectPath\" && php artisan queue:work' ; ";
-            $command .= "tmux split-window -v 'cd \"$projectPath\" && php artisan reverb:start' ; ";
-            $command .= "tmux select-pane -t 0 ; ";
-            $command .= "tmux split-window -v 'cd \"$projectPath\" && php artisan app:listen-to-ami' ; ";
+            $command = "tmux new-session -d -s call-center-services ; ";
+            $command .= "tmux send-keys -t call-center-services:0.0 'cd \"$projectPath\" && php artisan serve' Enter ; ";
+            $command .= "tmux split-window -t call-center-services -h ; ";
+            $command .= "tmux send-keys -t call-center-services:0.1 'cd \"$projectPath\" && php artisan queue:work' Enter ; ";
+            $command .= "tmux split-window -t call-center-services -v ; ";
+            $command .= "tmux send-keys -t call-center-services:0.2 'cd \"$projectPath\" && php artisan reverb:start' Enter ; ";
+            $command .= "tmux select-pane -t call-center-services:0.0 ; ";
+            $command .= "tmux split-window -t call-center-services -v ; ";
+            $command .= "tmux send-keys -t call-center-services:0.3 'cd \"$projectPath\" && php artisan app:listen-to-ami' Enter ; ";
             $command .= "tmux attach-session -t call-center-services";
         } else {
             // Fallback: Run sequentially in the current terminal (will block until stopped)
@@ -144,6 +148,8 @@ class Start extends Command
         $tmuxStatus = shell_exec('tmux list-sessions 2>/dev/null | grep call-center-services');
         if ($tmuxStatus) {
             $this->info('Tmux session "call-center-services" is running.');
+            $panes = shell_exec('tmux list-panes -t call-center-services 2>/dev/null | wc -l');
+            $this->info('Number of panes: ' . trim($panes));
         } else {
             $this->info('No tmux session found.');
         }

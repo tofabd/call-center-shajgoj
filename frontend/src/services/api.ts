@@ -2,8 +2,12 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
+
   // Laravel configuration
-  baseURL: 'http://127.0.0.1:8000/api',
+  // baseURL: 'http://127.0.0.1:8000/api',
+
+  // Use relative URL so it works with nginx proxy
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
