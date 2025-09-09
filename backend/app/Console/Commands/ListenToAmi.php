@@ -572,25 +572,23 @@ use App\Services\ExtensionService;
             'hangup_cause' => $fields['Cause'] ?? null,
         ]);
 
-        // ONLY set ended_at if this is the master call AND all active legs are gone
-        if ($fields['Uniqueid'] === $fields['Linkedid']) {
-            // Check if there are any active legs still in the call
-            $activeLegs = CallLeg::where('linkedid', $call->linkedid)
-                ->whereNull('hangup_at')
-                ->count();
+        // Check active legs count for this linkedid and set calls.ended_at when zero
+        // (do not require Uniqueid===Linkedid)
+        $activeLegs = CallLeg::where('linkedid', $call->linkedid)
+            ->whereNull('hangup_at')
+            ->count();
 
-            if ($activeLegs === 0) {
-                // All legs are gone, mark the call as ended
-                $call->ended_at = now();
-                if (!empty($fields['Cause'])) {
-                    $call->hangup_cause = (string)$fields['Cause'];
-                }
-                if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
-                    $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
-                }
-                $call->save();
-                broadcast(new CallUpdated($call));
+        if ($activeLegs === 0) {
+            // All legs are gone, mark the call as ended
+            $call->ended_at = now();
+            if (!empty($fields['Cause'])) {
+                $call->hangup_cause = (string)$fields['Cause'];
             }
+            if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
+                $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
+            }
+            $call->save();
+            broadcast(new CallUpdated($call));
         }
 
             $this->info("Call ended for Linkedid: {$fields['Linkedid']}");
