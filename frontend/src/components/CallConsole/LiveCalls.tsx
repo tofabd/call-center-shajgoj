@@ -46,33 +46,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPageVisible, setIsPageVisible] = useState(true);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
-  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState(30);
-
-  // Countdown timer effect
-  useEffect(() => {
-    if (!isRefreshing && !isAutoRefreshing) {
-      const countdownInterval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            return 30; // Reset to 30 seconds
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(countdownInterval);
-    }
-  }, [isRefreshing, isAutoRefreshing]);
-
-  // Reset countdown when refresh occurs
-  useEffect(() => {
-    if (isRefreshing || isAutoRefreshing) {
-      setCountdown(30);
-    }
-  }, [isRefreshing, isAutoRefreshing]);
 
   // Real-time connection and data management
   useEffect(() => {
@@ -94,33 +67,6 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     };
 
     fetchInitialData();
-
-    // Set up 30-second automatic refresh
-    const startAutoRefresh = () => {
-      const interval = setInterval(async () => {
-        if (isPageVisible && !isRefreshing) {
-          console.log('🔄 Auto refresh: Loading live calls (30s interval)');
-          setIsAutoRefreshing(true);
-          try {
-            const { callService } = await import('../../services/callService');
-            const calls = await callService.getLiveCalls();
-            setLiveCalls(calls);
-            setError(null);
-          } catch (err) {
-            console.error('Auto refresh error:', err);
-          } finally {
-            setTimeout(() => {
-              setIsAutoRefreshing(false);
-            }, 1000);
-          }
-        }
-      }, 30000); // 30 seconds
-      
-      setAutoRefreshInterval(interval);
-      console.log('⏰ Started automatic live calls refresh every 30 seconds');
-    };
-
-    startAutoRefresh();
 
     // Subscribe to real-time call updates
     const handleCallUpdate = (update: CallUpdate) => {
@@ -203,26 +149,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
     
     
-    // Handle page visibility changes
-    const handleVisibilityChange = () => {
-      const isVisible = !document.hidden;
-      setIsPageVisible(isVisible);
-      
-      if (isVisible) {
-        console.log('📱 Page became visible, checking live calls connection...');
-        handleRefresh();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     // Cleanup
     return () => {
       unsubscribe();
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -249,16 +178,10 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
   // Combined calls to display (only ringing and answered)
   const displayCalls = [...ringingCalls, ...answeredCalls];
 
-  // Manual refresh handler with new design pattern
+  // Manual refresh handler
   const handleRefresh = useCallback(async () => {
     console.log('🔄 Manual refresh triggered');
     setIsRefreshing(true);
-    
-    // Reset the periodic timer
-    if (autoRefreshInterval) {
-      clearInterval(autoRefreshInterval);
-      console.log('⏰ Periodic timer reset due to manual refresh');
-    }
     
     try {
       setError(null);
@@ -272,31 +195,9 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
-        
-        // Restart the periodic timer after manual refresh
-        const newInterval = setInterval(async () => {
-          if (isPageVisible && !isRefreshing) {
-            console.log('🔄 Auto refresh: Loading live calls (30s interval)');
-            setIsAutoRefreshing(true);
-            try {
-              const { callService } = await import('../../services/callService');
-                          const calls = await callService.getLiveCalls();
-            setLiveCalls(calls);
-            setError(null);
-            } catch (err) {
-              console.error('Auto refresh error:', err);
-            } finally {
-              setTimeout(() => {
-                setIsAutoRefreshing(false);
-              }, 1000);
-            }
-          }
-        }, 30000);
-        setAutoRefreshInterval(newInterval);
-        console.log('⏰ Restarted automatic live calls refresh timer');
       }, 1000); // Keep spinning for visual feedback
     }
-  }, [autoRefreshInterval, isPageVisible, isRefreshing]);
+  }, []);
 
 
 
@@ -405,29 +306,30 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             
             {/* Control buttons */}
             <div className="flex items-center space-x-2">
-              {/* Countdown Timer / Updating Status */}
-              <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
-                {!(isRefreshing || isAutoRefreshing) && <span className="mr-1">⏰</span>}
-                {isRefreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
-              </div>
+               {/* Real-time Status */}
+               {isRefreshing && (
+                 <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[80px] justify-center">
+                   Updating...
+                 </div>
+               )}
               
               {/* Refresh Button with TodayStatistics Design */}
-              <button
-                onClick={handleRefresh}
-                className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                  isRefreshing || isAutoRefreshing
-                    ? 'bg-blue-100 dark:bg-blue-900/30' 
-                    : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
-                }`}
-                title={(isRefreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh live calls'}
-                disabled={isRefreshing || isAutoRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                  isRefreshing || isAutoRefreshing
-                    ? 'text-blue-600 dark:text-blue-400 animate-spin'
-                    : 'text-gray-600 dark:text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 group-hover:scale-110'
-                }`} />
-              </button>
+               <button
+                 onClick={handleRefresh}
+                 className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
+                   isRefreshing
+                     ? 'bg-blue-100 dark:bg-blue-900/30' 
+                     : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
+                 }`}
+                 title={isRefreshing ? 'Refreshing...' : 'Click to refresh live calls'}
+                 disabled={isRefreshing}
+               >
+                 <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
+                   isRefreshing
+                     ? 'text-blue-600 dark:text-blue-400 animate-spin'
+                     : 'text-gray-600 dark:text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 group-hover:scale-110'
+                 }`} />
+               </button>
               
 
             </div>

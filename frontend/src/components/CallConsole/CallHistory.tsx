@@ -1,5 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
+import callRealtimeService from '../../services/callRealtimeService';
+import type { CallUpdate } from '../../services/callRealtimeService';
 
 
 // Interface for individual call
@@ -26,6 +28,7 @@ interface CallHistoryProps {
   onCallSelect: (callId: string) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  onCallCompleted?: (call: IndividualCall) => void; // Callback for when a call completes
 }
 
 // Animated ringing icon component that alternates between Phone and PhoneCall
@@ -58,95 +61,58 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   error,
   onCallSelect,
   onRefresh,
-  isRefreshing: propIsRefreshing
+  isRefreshing: propIsRefreshing,
+  onCallCompleted
 }) => {
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [isPageVisible, setIsPageVisible] = React.useState(true);
-  const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<NodeJS.Timeout | null>(null);
-  const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(false);
-  const [countdown, setCountdown] = React.useState(30);
+  // Use prop isRefreshing if provided, otherwise use local state  
+  const refreshing = propIsRefreshing ?? false;
   
-  // Use prop isRefreshing if provided, otherwise use local state
-  const refreshing = propIsRefreshing ?? isRefreshing;
-  
-  // Countdown timer effect
-  React.useEffect(() => {
-    if (!refreshing && !isAutoRefreshing) {
-      const countdownInterval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            return 30; // Reset to 30 seconds
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(countdownInterval);
-    }
-  }, [refreshing, isAutoRefreshing]);
-
-  // Reset countdown when refresh occurs
-  React.useEffect(() => {
-    if (refreshing || isAutoRefreshing) {
-      setCountdown(30);
-    }
-  }, [refreshing, isAutoRefreshing]);
+  // Real-time subscription to call completions
+  useEffect(() => {
+    // Subscribe to real-time call updates to catch completed calls
+    const handleCallUpdate = (update: CallUpdate) => {
+      // Only process calls that have ended (completed calls)
+      if (update.endTime && onCallCompleted) {
+        console.log('📞 Call completed, adding to history:', update);
+        
+        // Convert the call update to the format expected by CallHistory
+        const completedCall: IndividualCall = {
+          id: String(update.id),
+          callerNumber: update.otherParty || update.callerNumber || 'Unknown',
+          callerName: null,
+          startTime: update.startTime || new Date().toISOString(),
+          endTime: update.endTime,
+          status: update.status || 'completed',
+          duration: update.duration,
+          direction: update.direction,
+          agentExten: update.agentExten,
+          otherParty: update.otherParty,
+          created_at: update.timestamp || new Date().toISOString(),
+          disposition: update.status || 'completed'
+        };
+        
+        // Notify parent component about the completed call
+        onCallCompleted(completedCall);
+      }
+    };
+    
+    // Subscribe to call updates
+    const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
+    console.log('📡 CallHistory: Subscribed to real-time call completion updates');
+    
+    // Cleanup
+    return () => {
+      unsubscribe();
+      console.log('📡 CallHistory: Cleaned up real-time subscriptions');
+    };
+  }, [onCallCompleted]);
 
   const handleRefresh = useCallback(() => {
     if (onRefresh) {
       console.log('🔄 Manual refresh triggered');
-      setIsRefreshing(true);
-      
-      // Reset the periodic timer
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        console.log('⏰ Periodic timer reset due to manual refresh');
-      }
-      
       onRefresh();
-      setTimeout(() => {
-        setIsRefreshing(false);
-        
-        // Restart the periodic timer after manual refresh
-        const newInterval = setInterval(() => {
-          if (isPageVisible && !isRefreshing && onRefresh) {
-            console.log('🔄 Auto refresh: Loading call history (30s interval)');
-            setIsAutoRefreshing(true);
-            onRefresh();
-            setTimeout(() => {
-              setIsAutoRefreshing(false);
-            }, 1000);
-          }
-        }, 30000);
-        setAutoRefreshInterval(newInterval);
-        console.log('⏰ Restarted automatic call history refresh timer');
-      }, 1000); // Keep spinning for visual feedback
     }
-  }, [onRefresh, autoRefreshInterval, isPageVisible, isRefreshing]);
-
-  // Page visibility handling
-  React.useEffect(() => {
-    const handleVisibilityChange = () => {
-      const isVisible = !document.hidden;
-      setIsPageVisible(isVisible);
-      
-      if (isVisible) {
-        console.log('📱 Page became visible, checking call history connection...');
-        // Force refresh if refresh function is available
-        if (onRefresh) {
-          onRefresh();
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [onRefresh, isPageVisible, isRefreshing]);
-
-
+  }, [onRefresh]);
 
   // Show only completed/ended calls (filter out active calls)
   const sortedCalls = callLogs
@@ -228,7 +194,20 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          
+          .animate-spin {
+            animation: spin 2s linear infinite !important;
+          }
+        `}
+      </style>
+      <div className="flex flex-col h-full w-full">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
         {/* Card Header */}
         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 shrink-0">
@@ -243,25 +222,26 @@ const CallHistory: React.FC<CallHistoryProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-400">Completed and ended calls</p>
             </div>
             <div className="flex items-center space-x-2">
-              {/* Countdown Timer / Updating Status */}
-              <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
-                {!(refreshing || isAutoRefreshing) && <span className="mr-1">⏰</span>}
-                {refreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
-              </div>
+              {/* Real-time Status */}
+              {refreshing && (
+                <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[80px] justify-center">
+                  Updating...
+                </div>
+              )}
               
               {onRefresh && (
                 <button
                   onClick={handleRefresh}
                   className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                    refreshing || isAutoRefreshing
+                    refreshing
                       ? 'bg-blue-100 dark:bg-blue-900/30' 
                       : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                   }`}
-                  title={(refreshing || isAutoRefreshing) ? 'Refreshing...' : 'Click to refresh call history'}
-                  disabled={refreshing || isAutoRefreshing}
+                  title={refreshing ? 'Refreshing...' : 'Click to refresh call history'}
+                  disabled={refreshing}
                 >
                   <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                    refreshing || isAutoRefreshing
+                    refreshing
                       ? 'text-blue-600 dark:text-blue-400 animate-spin'
                       : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:scale-110'
                   }`} />
@@ -429,29 +409,30 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                           <div className="flex items-center space-x-1">
                             <Timer className="h-3 w-3 text-gray-400" />
                             <span className="text-xs text-gray-500 dark:text-gray-400">No duration</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center flex-1 p-6">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <PhoneIncoming className="h-10 w-10 text-gray-400" />
-                </div>
-                <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Completed Calls</h4>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are currently active or in progress</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           ) : (
+             <div className="flex items-center justify-center flex-1 p-6">
+               <div className="text-center">
+                 <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                   <PhoneIncoming className="h-10 w-10 text-gray-400" />
+                 </div>
+                 <h4 className="text-gray-900 dark:text-white font-medium mb-1">No Completed Calls</h4>
+                 <p className="text-gray-500 dark:text-gray-400 text-sm">All calls are currently active or in progress</p>
+               </div>
+             </div>
+           )}
+         </div>
+       </div>
+     </div>
+     </>
+   );
 };
 
 export default CallHistory;

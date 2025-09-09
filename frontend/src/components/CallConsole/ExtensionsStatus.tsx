@@ -53,11 +53,6 @@ const ExtensionsStatus: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [isPageVisible, setIsPageVisible] = useState(true);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
-  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState(60);
-  
   // Duration update timer for real-time duration display
   const [durationUpdateTimer, setDurationUpdateTimer] = useState<NodeJS.Timeout | null>(null);
   
@@ -68,29 +63,6 @@ const ExtensionsStatus: React.FC = () => {
   const [statsError, setStatsError] = useState<string | null>(null);
   
 
-
-  // Countdown timer effect
-  useEffect(() => {
-    if (!isRefreshing && !isAutoRefreshing) {
-      const countdownInterval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            return 30; // Reset to 30 seconds
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(countdownInterval);
-    }
-  }, [isRefreshing, isAutoRefreshing]);
-
-  // Reset countdown when refresh occurs
-  useEffect(() => {
-    if (isRefreshing || isAutoRefreshing) {
-      setCountdown(30);
-    }
-  }, [isRefreshing, isAutoRefreshing]);
 
   // Duration update timer effect - updates duration display every second
   useEffect(() => {
@@ -111,27 +83,6 @@ const ExtensionsStatus: React.FC = () => {
   useEffect(() => {
     // Initial load from database
     loadExtensions();
-    
-    // Set up 30-second automatic database refresh
-    const startAutoRefresh = () => {
-      const interval = setInterval(() => {
-        if (isPageVisible && !isRefreshing) {
-          console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
-          setIsAutoRefreshing(true);
-          loadExtensions(true).finally(() => {
-            setTimeout(() => {
-              setIsAutoRefreshing(false);
-            }, 1000);
-          });
-        }
-      }, 30000); // 30 seconds
-      
-      setAutoRefreshInterval(interval);
-      console.log('⏰ Started automatic database refresh every 30 seconds');
-      return interval;
-    };
-
-    startAutoRefresh();
     
     // Subscribe to real-time extension status updates
     const handleExtensionUpdate = (update: ExtensionStatusUpdate) => {
@@ -178,41 +129,8 @@ const ExtensionsStatus: React.FC = () => {
     const unsubscribe = extensionRealtimeService.subscribeToAll(handleExtensionUpdate);
     console.log('📡 ExtensionsStatus: Subscribed to real-time extension updates');
     
-    
-    // Handle page visibility changes
-    const handleVisibilityChange = () => {
-      const isVisible = !document.hidden;
-      setIsPageVisible(isVisible);
-      
-      if (isVisible) {
-        console.log('📱 Page became visible, refreshing extensions from database...');
-        loadExtensions(true);
-        
-        // Restart duration update timer
-        if (durationUpdateTimer) {
-          clearInterval(durationUpdateTimer);
-        }
-        const newTimer = setInterval(() => {
-          setExtensions(prevExtensions => [...prevExtensions]);
-        }, 1000);
-        setDurationUpdateTimer(newTimer);
-      } else {
-        // Clear duration timer when page becomes hidden to save resources
-        if (durationUpdateTimer) {
-          clearInterval(durationUpdateTimer);
-          setDurationUpdateTimer(null);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     // Cleanup on unmount
     return () => {
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        console.log('⏹️ Stopped automatic database refresh');
-      }
       if (durationUpdateTimer) {
         clearInterval(durationUpdateTimer);
         console.log('⏹️ Stopped duration update timer');
@@ -221,10 +139,8 @@ const ExtensionsStatus: React.FC = () => {
       // Clean up WebSocket listeners
       unsubscribe();
       console.log('📡 ExtensionsStatus: Cleaned up Echo listeners');
-      
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isPageVisible, isRefreshing]);
+  }, []);
 
   const loadExtensions = async (isRefresh = false, retryCount = 0) => {
     const dbStartTime = Date.now();
@@ -288,16 +204,10 @@ const ExtensionsStatus: React.FC = () => {
   };
 
   const handleRefresh = useCallback(() => {
-    console.log('🔄 Manual refresh triggered - loading from database (same as periodic refresh)');
+    console.log('🔄 Manual refresh triggered');
     setIsRefreshing(true);
     
-    // Reset the periodic timer
-    if (autoRefreshInterval) {
-      clearInterval(autoRefreshInterval);
-      console.log('⏰ Periodic timer reset due to manual refresh');
-    }
-    
-    // Load extensions from database (same as periodic refresh)
+    // Load extensions from database
     loadExtensions(true)
       .then(() => {
         console.log('✅ Manual refresh completed - extensions loaded from database');
@@ -308,34 +218,9 @@ const ExtensionsStatus: React.FC = () => {
       .finally(() => {
         setTimeout(() => {
           setIsRefreshing(false);
-          
-          // Restart the 30-second database polling timer
-          const newInterval = setInterval(() => {
-            if (isPageVisible && !isRefreshing) {
-              console.log('🔄 Auto refresh: Loading extensions from database (30s interval)');
-              setIsAutoRefreshing(true);
-              loadExtensions(true).finally(() => {
-                setTimeout(() => {
-                  setIsAutoRefreshing(false);
-                }, 1000);
-              });
-            }
-          }, 30000);
-          setAutoRefreshInterval(newInterval);
-          console.log('⏰ Restarted automatic database refresh timer');
-          
-          // Restart duration update timer
-          if (durationUpdateTimer) {
-            clearInterval(durationUpdateTimer);
-          }
-          const newDurationTimer = setInterval(() => {
-            setExtensions(prevExtensions => [...prevExtensions]);
-          }, 1000);
-          setDurationUpdateTimer(newDurationTimer);
-          console.log('⏰ Restarted duration update timer');
         }, 1000); // Keep spinning for visual feedback
       });
-  }, [autoRefreshInterval, isPageVisible, isRefreshing]);
+  }, []);
 
   // Add keyboard event listener for manual refresh (Ctrl+R or F5)
   useEffect(() => {
@@ -343,7 +228,7 @@ const ExtensionsStatus: React.FC = () => {
       // Ctrl+R or F5 for manual refresh
       if ((event.ctrlKey && event.key === 'r') || event.key === 'F5') {
         event.preventDefault(); // Prevent default browser refresh
-        if (!isRefreshing && !isAutoRefreshing) {
+        if (!isRefreshing) {
           console.log('⌨️ Keyboard shortcut detected - triggering manual refresh');
           handleRefresh();
         }
@@ -357,24 +242,24 @@ const ExtensionsStatus: React.FC = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+  }, [isRefreshing, handleRefresh]);
 
   // Add double-click event for manual refresh on the header
   const handleHeaderDoubleClick = useCallback(() => {
-    if (!isRefreshing && !isAutoRefreshing) {
+    if (!isRefreshing) {
       console.log('🖱️ Header double-click detected - triggering manual refresh');
       handleRefresh();
     }
-  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+  }, [isRefreshing, handleRefresh]);
 
   // Add right-click context menu event for manual refresh
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
-    if (!isRefreshing && !isAutoRefreshing) {
+    if (!isRefreshing) {
       console.log('🖱️ Right-click context menu detected - triggering manual refresh');
       handleRefresh();
     }
-  }, [isRefreshing, isAutoRefreshing, handleRefresh]);
+  }, [isRefreshing, handleRefresh]);
 
 
 
@@ -537,25 +422,26 @@ const ExtensionsStatus: React.FC = () => {
           
           {/* Refresh Button and Connection Status */}
           <div className="flex items-center space-x-3">
-            {/* Countdown Timer / Updating Status */}
-            <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[60px] justify-center">
-              {!(isRefreshing || isAutoRefreshing) && <span className="mr-1">⏰</span>}
-              {isRefreshing || isAutoRefreshing ? 'Updating...' : `${countdown}s`}
-            </div>
+            {/* Real-time Status */}
+            {isRefreshing && (
+              <div className="flex items-center px-2 py-1 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 min-w-[80px] justify-center">
+                Updating...
+              </div>
+            )}
             
                          {/* Refresh Button */}
              <button
                onClick={handleRefresh}
                className={`p-2 rounded-lg transition-all duration-200 group cursor-pointer ${
-                 isRefreshing || isAutoRefreshing
+                 isRefreshing
                    ? 'bg-blue-100 dark:bg-blue-900/30' 
                    : 'bg-white/80 dark:bg-gray-700/80 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'
                }`}
-                title={isRefreshing || isAutoRefreshing ? 'Refreshing...' : 'Manual refresh (queries AMI + updates database). Auto-refresh polls database every 30s'}
-               disabled={isRefreshing || isAutoRefreshing}
+                title={isRefreshing ? 'Refreshing...' : 'Click to refresh extensions'}
+               disabled={isRefreshing}
              >
               <RefreshCw className={`h-4 w-4 transition-all duration-200 ${
-                isRefreshing || isAutoRefreshing
+                isRefreshing
                   ? 'text-blue-600 dark:text-blue-400 animate-spin'
                   : 'text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110'
               }`} />

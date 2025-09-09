@@ -35,6 +35,7 @@ const CallConsole: React.FC = () => {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isHistoryRefreshing, setIsHistoryRefreshing] = useState(false);
   // Removed WooCommerce modal states
   // Removed WooCommerce notes states
 
@@ -248,8 +249,63 @@ const CallConsole: React.FC = () => {
   // Manual refresh for CallHistory
   const handleManualRefresh = useCallback(async () => {
     console.log('🔄 Manual refresh triggered for CallHistory');
-    await fetchData(false);
+    setIsHistoryRefreshing(true);
+    try {
+      await fetchData(false);
+    } finally {
+      setTimeout(() => {
+        setIsHistoryRefreshing(false);
+      }, 1000); // Keep spinning for visual feedback
+    }
   }, [fetchData]);
+
+  // Handle call completion events from CallHistory real-time subscription
+  const handleCallCompleted = useCallback((completedCall: any) => {
+    console.log('📞 Call completed, adding to history:', completedCall);
+    
+    setCallLogs(prevLogs => {
+      // Check if call already exists in history
+      const existingIndex = prevLogs.findIndex(call => call.id === completedCall.id);
+      
+      if (existingIndex >= 0) {
+        // Update existing call with completion data
+        const updatedLogs = [...prevLogs];
+        updatedLogs[existingIndex] = {
+          ...updatedLogs[existingIndex],
+          endTime: completedCall.endTime,
+          status: completedCall.status,
+          duration: completedCall.duration,
+          disposition: completedCall.disposition
+        };
+        
+        console.log('✅ Updated completed call in history:', completedCall.id);
+        return updatedLogs.sort((a, b) => 
+          new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+        );
+      } else {
+        // Add new completed call to history
+        const newCall: CallLog = {
+          id: completedCall.id,
+          callerNumber: completedCall.callerNumber,
+          callerName: completedCall.callerName,
+          startTime: completedCall.startTime,
+          endTime: completedCall.endTime,
+          status: completedCall.status,
+          duration: completedCall.duration,
+          direction: completedCall.direction,
+          agentExten: completedCall.agentExten,
+          otherParty: completedCall.otherParty,
+          created_at: completedCall.created_at,
+          disposition: completedCall.disposition
+        };
+        
+        console.log('➕ Added new completed call to history:', completedCall.id);
+        return [newCall, ...prevLogs].sort((a, b) => 
+          new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+        );
+      }
+    });
+  }, []);
 
   // Function to handle call selection
   const handleCallSelect = async (callId: string) => {
@@ -296,6 +352,8 @@ const CallConsole: React.FC = () => {
             error={error}
             onCallSelect={handleCallSelect}
             onRefresh={handleManualRefresh}
+            onCallCompleted={handleCallCompleted}
+            isRefreshing={isHistoryRefreshing}
           />
         </div>
 
