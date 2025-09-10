@@ -7,7 +7,7 @@ import type { LiveCall } from '../../services/callService';
 import { getUnifiedCallStatus, isCallRinging, getStatusPriority as getUnifiedStatusPriority, debugStatusMismatch } from '../../utils/statusUtils';
 
 interface LiveCallsProps {
-  selectedCallId: string | null; // Changed to string since MongoDB IDs are strings
+  selectedCallId: string | null; // Changed to string since Laravel API uses string IDs
   onCallSelect: (callId: string) => void; // Changed to string
 }
 
@@ -281,7 +281,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
          `}
        </style>
       <div className="flex flex-col h-full w-full">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 lg:rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 shrink-0">
           <div className="flex items-center space-x-3">
@@ -364,11 +364,11 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             </div>
                      ) : displayCalls.length > 0 ? (
             <div className="flex-1 overflow-y-auto narrow-scrollbar">
-              <div className="p-4 space-y-3">
+              <div className="p-2 space-y-2">
                 {sortedCalls.map((call) => (
                   <div
                     key={`${call.id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
-                     className={`group p-4 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center ${
+                     className={`group p-2 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center mx-0 shadow ${
                        selectedCallId === call.id
                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                          : (() => {
@@ -377,15 +377,15 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
                              if (['answered', 'in_progress'].includes(callStatus)) {
                                return direction === 'outgoing'
-                                 ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20'
-                                 : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20';
+                                 ? 'border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20'
+                                 : 'border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/20';
                              }
                              if (['ringing', 'ring', 'calling', 'incoming', 'started', 'start'].includes(callStatus)) {
                                return direction === 'outgoing'
-                                 ? 'border-indigo-300 dark:border-indigo-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-l-4 border-l-indigo-500'
-                                 : 'border-green-300 dark:border-green-700 bg-linear-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border-l-4 border-l-green-500';
+                                 ? 'border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500'
+                                 : 'border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/20 border-l-4 border-l-green-500';
                              }
-                             return 'border-gray-200 dark:border-gray-600 bg-linear-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800';
+                             return 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800';
                            })()
                      } ${
                        (() => {

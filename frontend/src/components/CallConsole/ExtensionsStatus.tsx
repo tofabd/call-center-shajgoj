@@ -389,7 +389,7 @@ const ExtensionsStatus: React.FC = () => {
   const offlineCount = sortedExtensions.filter(ext => ext.status === 'offline').length;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
+    <div className="bg-white dark:bg-gray-800 lg:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full flex flex-col">
              <div 
          className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-linear-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 shrink-0 cursor-pointer"
          onDoubleClick={handleHeaderDoubleClick}
@@ -493,17 +493,29 @@ const ExtensionsStatus: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto narrow-scrollbar">
-             <div className="p-4 space-y-3">
+             <div className="space-y-2 p-2">
                  {sortedExtensions.map((extension) => {
                    const isOnCall = isExtensionOnCall({ device_state: extension.device_state, status_code: extension.status_code });
+                   const statusColor = extension.status === 'online' ? 'bg-green-100 text-green-600' : extension.status === 'offline' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600';
+                   const duration = getDurationDisplay(extension);
+                   
+                   // Background color based on extension status
+                   const getCardBackground = () => {
+                     if (extension.status === 'online') {
+                       return isOnCall 
+                         ? 'bg-green-200 dark:bg-green-800/40 border-green-300 dark:border-green-600' // Deep green for on-call
+                         : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/30'; // Lite green for free
+                     } else if (extension.status === 'offline') {
+                       return 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700';
+                     } else {
+                       return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/30';
+                     }
+                   };
                    
                    return (
                    <div
                      key={extension.id}
-                      className={`group flex items-center justify-between shadow rounded-xl p-3 cursor-pointer hover:shadow-md transition-all duration-200 transform hover:scale-[1.02] border ${
-                        getExtensionItemBackground(extension.status, isOnCall)
-                      }`}
-                     onClick={() => handleExtensionClick(extension)}
+                      className={`flex items-center justify-between shadow p-2 rounded-xl hover:shadow-lg transition-all duration-200 border mx-0 ${getCardBackground()}`}
                    >
                      <div className="flex items-center space-x-3">
                         <div className="shrink-0 relative">

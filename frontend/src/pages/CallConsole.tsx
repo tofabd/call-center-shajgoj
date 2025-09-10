@@ -9,7 +9,7 @@ import LiveCalls from '@/components/CallConsole/LiveCalls';
 import CallDetails from '@/components/CallConsole/CallDetailsModal';
 import ExtensionsStatus from '@/components/CallConsole/ExtensionsStatus';
 
-// Real-time interface disabled for MongoDB API
+// Real-time interface for Laravel API
 // interface CallStatusUpdateData {
 //   id: number;
 //   callerNumber: string;
@@ -32,6 +32,7 @@ const CallConsole: React.FC = () => {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [isCallDetailsModalOpen, setIsCallDetailsModalOpen] = useState(false);
   const [isManualSelection, setIsManualSelection] = useState(false);
+  const [activeTab, setActiveTab] = useState<'history' | 'live' | 'extensions'>('history');
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,7 @@ const CallConsole: React.FC = () => {
         setLoading(true);
       }
       setError(null);
-      console.log('🚀 Fetching call data from MongoDB API...');
+      console.log('🚀 Fetching call data from Laravel API...');
       
       const logs = await callLogService.getCallLogs();
       console.log('📊 Received call data:', logs);
@@ -62,7 +63,7 @@ const CallConsole: React.FC = () => {
       setCallLogs(sortedLogs);
     } catch (err) {
       console.error('❌ Error fetching call data:', err);
-      setError('Failed to fetch call data from MongoDB API');
+      setError('Failed to fetch call data from Laravel API');
       setCallLogs([]);
     } finally {
       if (isInitial) {
@@ -161,7 +162,7 @@ const CallConsole: React.FC = () => {
     }
   }, [selectedCallId, isManualSelection]);
 
-  // Real-time Echo listener disabled for MongoDB API
+  // Real-time Echo listener for Laravel API
   // Set up real-time Echo listener for call updates (no auto-selection)
   // useEffect(() => {
   //   if (window.Echo) {
@@ -339,12 +340,80 @@ const CallConsole: React.FC = () => {
 
   return (
     <Tooltip.Provider>
-      <div className="bg-gray-50 dark:bg-gray-900 h-[calc(100vh-4rem)]">
+      <div className="bg-gray-50 dark:bg-gray-900 lg:h-[calc(100vh-4rem)]">
       {/* WooCommerce modals removed */}
 
-      <div className="flex gap-4 p-6 h-full overflow-hidden">
-        {/* Left Column - Call Monitor (All Calls) */}
-        <div className="flex-1 min-w-0">
+      {/* Mobile Tab Navigation */}
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <nav className="flex">
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'history'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            Call History
+          </button>
+          <button
+            onClick={() => setActiveTab('live')}
+            className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'live'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            Live Calls
+          </button>
+          <button
+            onClick={() => setActiveTab('extensions')}
+            className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'extensions'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            Extensions
+          </button>
+        </nav>
+      </div>
+
+      {/* Mobile Tab Content */}
+      <div className="lg:hidden h-[calc(100vh-8rem)] overflow-hidden">
+        {activeTab === 'history' && (
+          <div className="h-full">
+            <CallHistory
+              callLogs={callLogs}
+              selectedCallId={selectedCallId}
+              loading={loading}
+              error={error}
+              onCallSelect={handleCallSelect}
+              onRefresh={handleManualRefresh}
+              onCallCompleted={handleCallCompleted}
+              isRefreshing={isHistoryRefreshing}
+            />
+          </div>
+        )}
+        {activeTab === 'live' && (
+          <div className="h-full">
+            <LiveCalls
+              selectedCallId={selectedCallId}
+              onCallSelect={handleCallSelect}
+            />
+          </div>
+        )}
+        {activeTab === 'extensions' && (
+          <div className="h-full">
+            <ExtensionsStatus />
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: 3-column grid with 3:3:2 ratio */}
+      <div className="hidden lg:grid lg:grid-cols-8 gap-4 p-4 lg:p-6 lg:h-full lg:overflow-hidden">
+        {/* Call History - 3fr on desktop */}
+        <div className="lg:col-span-3 min-w-0 min-h-0 flex flex-col">
           <CallHistory
             callLogs={callLogs} // Now passing individual calls
             selectedCallId={selectedCallId}
@@ -357,16 +426,16 @@ const CallConsole: React.FC = () => {
           />
         </div>
 
-        {/* Center Column - Live Calls */}
-        <div className="flex-1 min-w-0">
+        {/* Live Calls - 3fr on desktop */}
+        <div className="lg:col-span-3 min-w-0 min-h-0 flex flex-col">
           <LiveCalls
             selectedCallId={selectedCallId}
             onCallSelect={handleCallSelect}
           />
         </div>
 
-        {/* Right Column: Extensions Status */}
-        <div className="flex-1 min-w-0">
+        {/* Extensions Status - 2fr on desktop */}
+        <div className="lg:col-span-2 min-w-0 min-h-0 flex flex-col">
           <ExtensionsStatus />
         </div>
       </div>
