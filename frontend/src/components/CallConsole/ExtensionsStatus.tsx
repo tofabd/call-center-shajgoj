@@ -271,9 +271,11 @@ const ExtensionsStatus: React.FC = () => {
     setExtensionStats(null);
 
     try {
-      // Extension statistics not yet implemented in backend
-      setStatsError('Extension statistics feature coming soon');
-      console.log('⚠️ Extension statistics not yet available');
+      // Import callService dynamically
+      const { callService } = await import('../../services/callService');
+      const stats = await callService.getExtensionStats(extension.extension, 'today');
+      setExtensionStats(stats);
+      console.log('📊 Extension statistics loaded:', stats);
     } catch (error) {
       console.error('❌ Failed to load extension statistics:', error);
       setStatsError('Failed to load call statistics for this extension');
@@ -513,10 +515,12 @@ const ExtensionsStatus: React.FC = () => {
                    };
                    
                    return (
-                   <div
-                     key={extension.id}
-                      className={`flex items-center justify-between shadow p-2 rounded-xl hover:shadow-lg transition-all duration-200 border mx-0 ${getCardBackground()}`}
-                   >
+                    <div
+                      key={extension.id}
+                       className={`flex items-center justify-between shadow p-2 rounded-xl hover:shadow-lg transition-all duration-200 border mx-0 cursor-pointer ${getCardBackground()}`}
+                       onClick={() => handleExtensionClick(extension)}
+                       title={`Click to view call statistics for ${extension.agent_name || extension.extension}`}
+                    >
                      <div className="flex items-center space-x-3">
                         <div className="shrink-0 relative">
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 ${

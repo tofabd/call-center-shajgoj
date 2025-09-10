@@ -95,6 +95,45 @@ export interface ComparisonStats {
   };
 }
 
+export interface ExtensionStatistics {
+  extension: string;
+  period: {
+    type: string;
+    date?: string;
+    start_date: string;
+    end_date: string;
+    label: string;
+  };
+  summary: {
+    total_calls: number;
+    answered_calls: number;
+    missed_calls: number;
+    answer_rate: number;
+  };
+  direction_breakdown: {
+    incoming: number;
+    outgoing: number;
+  };
+  status_breakdown: Record<string, number>;
+  incoming_by_status: Record<string, number>;
+  outgoing_by_status: Record<string, number>;
+  performance: {
+    average_ring_time: number;
+    average_talk_time: number;
+    total_talk_time: number;
+  };
+  recent_calls: Array<{
+    id: string;
+    direction: string;
+    other_party: string;
+    started_at: string;
+    answered_at?: string;
+    ended_at?: string;
+    duration: number;
+    status: string;
+  }>;
+}
+
 export const callService = {
   // Get all calls from Laravel
   async getCalls(): Promise<LiveCall[]> {
@@ -197,6 +236,13 @@ export const callService = {
   async getComparisonStats(period: 'week' | 'month' = 'week'): Promise<ComparisonStats> {
     const response = await api.get('/calls/statistics/comparison', {
       params: { period }
+    });
+    return response.data;
+  },
+
+  async getExtensionStats(extension: string, date: 'today' | 'week' | 'month' = 'today'): Promise<ExtensionStatistics> {
+    const response = await api.get(`/calls/statistics/extension/${extension}`, {
+      params: { date }
     });
     return response.data;
   },

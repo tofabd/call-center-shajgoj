@@ -358,6 +358,138 @@ class CallStatisticsController extends Controller
         ]);
     }
 
+    public function getExtensionStats(Request $request, string $extension)
+    {
+        // Get date parameter, default to today
+        $date = $request->get('date', 'today');
+        
+        // Set date range based on parameter
+        switch ($date) {
+            case 'week':
+                $startDate = Carbon::now()->startOfWeek();
+                $endDate = Carbon::now()->endOfWeek();
+                $label = 'This Week';
+                break;
+            case 'month':
+                $startDate = Carbon::now()->startOfMonth();
+                $endDate = Carbon::now()->endOfMonth();
+                $label = 'This Month';
+                break;
+            case 'today':
+            default:
+                $startDate = Carbon::today();
+                $endDate = Carbon::today()->endOfDay();
+                $label = 'Today';
+                break;
+        }
+
+        // Get all calls for this extension in the date range
+        $calls = Call::where('agent_exten', $extension)
+            ->whereBetween('started_at', [$startDate, $endDate])
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        // Calculate statistics
+        $totalCalls = $calls->count();
+        $incomingCalls = $calls->where('direction', 'incoming')->count();
+        $outgoingCalls = $calls->where('direction', 'outgoing')->count();
+
+        // Status breakdown
+        $statusBreakdown = [];
+        $incomingByStatus = [];
+        $outgoingByStatus = [];
+        
+        $totalRingTime = 0;
+        $totalTalkTime = 0;
+        $ringTimeCount = 0;
+        $talkTimeCount = 0;
+        $answeredCalls = 0;
+        $missedCalls = 0;
+
+        foreach ($calls as $call) {
+            $status = $this->deriveStatusFromCall($call);
+            
+            // Overall status breakdown
+            $statusBreakdown[$status] = ($statusBreakdown[$status] ?? 0) + 1;
+            
+            // Direction-specific status breakdown
+            if ($call->direction === 'incoming') {
+                $incomingByStatus[$status] = ($incomingByStatus[$status] ?? 0) + 1;
+            } else {
+                $outgoingByStatus[$status] = ($outgoingByStatus[$status] ?? 0) + 1;
+            }
+
+            // Calculate ring time (time from start to answer)
+            if ($call->started_at && $call->answered_at) {
+                $ringTime = $call->started_at->diffInSeconds($call->answered_at);
+                $totalRingTime += $ringTime;
+                $ringTimeCount++;
+                $answeredCalls++;
+            }
+
+            // Calculate talk time (duration of answered calls)
+            if ($call->answered_at && $call->ended_at) {
+                $talkTime = $call->answered_at->diffInSeconds($call->ended_at);
+                $totalTalkTime += $talkTime;
+                $talkTimeCount++;
+            }
+
+            // Count missed calls (no answer status)
+            if (in_array($status, ['no_answer', 'busy', 'rejected', 'canceled'])) {
+                $missedCalls++;
+            }
+        }
+
+        // Calculate averages
+        $avgRingTime = $ringTimeCount > 0 ? round($totalRingTime / $ringTimeCount, 2) : 0;
+        $avgTalkTime = $talkTimeCount > 0 ? round($totalTalkTime / $talkTimeCount, 2) : 0;
+        $answerRate = $totalCalls > 0 ? round(($answeredCalls / $totalCalls) * 100, 2) : 0;
+
+        // Get recent calls for display (limit to 10)
+        $recentCalls = $calls->take(10)->map(function ($call) {
+            return [
+                'id' => $call->id,
+                'direction' => $call->direction,
+                'other_party' => $call->other_party ?? $call->caller_number ?? 'Unknown',
+                'started_at' => $call->started_at,
+                'answered_at' => $call->answered_at,
+                'ended_at' => $call->ended_at,
+                'duration' => $call->duration ?? 0,
+                'status' => $this->deriveStatusFromCall($call)
+            ];
+        });
+
+        return response()->json([
+            'extension' => $extension,
+            'period' => [
+                'type' => $date,
+                'date' => $date === 'today' ? $startDate->toDateString() : null,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'label' => $label
+            ],
+            'summary' => [
+                'total_calls' => $totalCalls,
+                'answered_calls' => $answeredCalls,
+                'missed_calls' => $missedCalls,
+                'answer_rate' => $answerRate
+            ],
+            'direction_breakdown' => [
+                'incoming' => $incomingCalls,
+                'outgoing' => $outgoingCalls
+            ],
+            'status_breakdown' => $statusBreakdown,
+            'incoming_by_status' => $incomingByStatus,
+            'outgoing_by_status' => $outgoingByStatus,
+            'performance' => [
+                'average_ring_time' => $avgRingTime,
+                'average_talk_time' => $avgTalkTime,
+                'total_talk_time' => $totalTalkTime
+            ],
+            'recent_calls' => $recentCalls
+        ]);
+    }
+
     private function calculatePercentageChange($oldValue, $newValue)
     {
         if ($oldValue == 0) {

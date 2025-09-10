@@ -1,10 +1,11 @@
 import React from 'react';
 import { X, Phone, PhoneIncoming, PhoneOutgoing, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import type { ExtensionStatistics } from '../../services/callService';
 
 interface ExtensionStatsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  stats: any | null;
+  stats: ExtensionStatistics | null;
   loading: boolean;
   error: string | null;
 }
@@ -84,16 +85,16 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                 <div className="p-2 bg-indigo-600 rounded-lg">
                   <Phone className="h-5 w-5 text-white" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Call Statistics
-                  </h3>
-                  {stats && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {stats.agentName} • {stats.date}
-                    </p>
-                  )}
-                </div>
+                 <div>
+                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                     Extension {stats.extension} Statistics
+                   </h3>
+                   {stats && (
+                     <p className="text-sm text-gray-600 dark:text-gray-400">
+                       {stats.period.label}
+                     </p>
+                   )}
+                 </div>
               </div>
               <button
                 onClick={onClose}
@@ -126,9 +127,9 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                       <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                       <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Calls</span>
                     </div>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-2">
-                      {stats.summary.totalCalls}
-                    </p>
+                     <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                       {stats.summary.total_calls}
+                     </p>
                   </div>
                   
                   <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
@@ -136,9 +137,9 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                       <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                       <span className="text-sm font-medium text-green-600 dark:text-green-400">Answered</span>
                     </div>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-2">
-                      {stats.summary.answeredCalls}
-                    </p>
+                     <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-2">
+                       {stats.summary.answered_calls}
+                     </p>
                   </div>
                   
                   <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
@@ -146,9 +147,9 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                       <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                       <span className="text-sm font-medium text-red-600 dark:text-red-400">Missed</span>
                     </div>
-                    <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-2">
-                      {stats.summary.missedCalls}
-                    </p>
+                     <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-2">
+                       {stats.summary.missed_calls}
+                     </p>
                   </div>
                   
                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
@@ -156,9 +157,9 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                       <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                       <span className="text-sm font-medium text-purple-600 dark:text-purple-400">Answer Rate</span>
                     </div>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-2">
-                      {stats.summary.answerRate}%
-                    </p>
+                     <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-2">
+                       {stats.summary.answer_rate}%
+                     </p>
                   </div>
                 </div>
 
@@ -173,18 +174,18 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                           <PhoneIncoming className="h-4 w-4 text-green-600 dark:text-green-400" />
                           <span className="text-sm text-gray-600 dark:text-gray-400">Incoming</span>
                         </div>
-                        <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {stats.byDirection.incoming}
-                        </span>
+                         <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                           {stats.direction_breakdown.incoming}
+                         </span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <PhoneOutgoing className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           <span className="text-sm text-gray-600 dark:text-gray-400">Outgoing</span>
                         </div>
-                        <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {stats.byDirection.outgoing}
-                        </span>
+                         <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                           {stats.direction_breakdown.outgoing}
+                         </span>
                       </div>
                     </div>
                   </div>
@@ -193,7 +194,7 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                   <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Call Status</h4>
                     <div className="space-y-2">
-                      {Object.entries(stats.byStatus).map(([status, count]) => (
+                       {Object.entries(stats.status_breakdown).map(([status, count]) => (
                         <div key={status} className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             {getStatusIcon(status)}
@@ -214,68 +215,68 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Performance Metrics</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Avg Ring Time</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white">
-                        {formatDuration(stats.averages.ringTime)}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Avg Talk Time</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white">
-                        {formatDuration(stats.averages.talkTime)}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Total Talk Time</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white">
-                        {formatDuration(stats.averages.totalTalkTime)}
-                      </p>
-                    </div>
+                     <div className="text-center">
+                       <p className="text-sm text-gray-600 dark:text-gray-400">Avg Ring Time</p>
+                       <p className="text-xl font-bold text-gray-900 dark:text-white">
+                         {formatDuration(stats.performance.average_ring_time)}
+                       </p>
+                     </div>
+                     <div className="text-center">
+                       <p className="text-sm text-gray-600 dark:text-gray-400">Avg Talk Time</p>
+                       <p className="text-xl font-bold text-gray-900 dark:text-white">
+                         {formatDuration(stats.performance.average_talk_time)}
+                       </p>
+                     </div>
+                     <div className="text-center">
+                       <p className="text-sm text-gray-600 dark:text-gray-400">Total Talk Time</p>
+                       <p className="text-xl font-bold text-gray-900 dark:text-white">
+                         {formatDuration(stats.performance.total_talk_time)}
+                       </p>
+                     </div>
                   </div>
                 </div>
 
-                {/* Recent Calls */}
-                {stats.recentCalls.length > 0 && (
-                  <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Calls</h4>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {stats.recentCalls.map((call) => (
-                        <div key={call.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            {getStatusIcon(call.status)}
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {call.caller_name || call.caller_number || call.other_party || 'Unknown'}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {call.direction && (
-                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                    call.direction === 'incoming' 
-                                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                  }`}>
-                                    {call.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-900 dark:text-white">
-                              {formatTime(call.started_at)}
-                            </p>
-                            {call.talk_seconds && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatDuration(call.talk_seconds)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                 {/* Recent Calls */}
+                 {stats.recent_calls && stats.recent_calls.length > 0 && (
+                   <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Calls</h4>
+                     <div className="space-y-2 max-h-48 overflow-y-auto">
+                       {stats.recent_calls.map((call) => (
+                         <div key={call.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded-lg">
+                           <div className="flex items-center space-x-3">
+                             {getStatusIcon(call.status)}
+                             <div>
+                               <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                 {call.other_party || 'Unknown'}
+                               </p>
+                               <p className="text-xs text-gray-500 dark:text-gray-400">
+                                 {call.direction && (
+                                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                     call.direction === 'incoming' 
+                                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                                       : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                   }`}>
+                                     {call.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+                                   </span>
+                                 )}
+                               </p>
+                             </div>
+                           </div>
+                           <div className="text-right">
+                             <p className="text-sm text-gray-900 dark:text-white">
+                               {formatTime(call.started_at)}
+                             </p>
+                             {call.duration && (
+                               <p className="text-xs text-gray-500 dark:text-gray-400">
+                                 {formatDuration(call.duration)}
+                               </p>
+                             )}
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
               </div>
             ) : null}
           </div>
