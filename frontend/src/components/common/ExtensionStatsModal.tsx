@@ -240,15 +240,18 @@ const ExtensionStatsModal: React.FC<ExtensionStatsModalProps> = ({
   };
 
   const formatDuration = (seconds: number) => {
-    if (!seconds) return '0s';
+    if (!seconds) return '0.00s';
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
+    // Always show seconds with 2 decimal places
+    const secsDisplay = secs.toFixed(2);
+
     if (hours > 0) {
-      return `${hours}h ${mins}m`;
+      return `${hours}h ${mins}m ${secsDisplay}s`;
     }
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    return mins > 0 ? `${mins}m ${secsDisplay}s` : `${secsDisplay}s`;
   };
 
   const formatTime = (dateString: string) => {

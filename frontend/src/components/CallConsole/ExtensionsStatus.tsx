@@ -302,7 +302,7 @@ const ExtensionsStatus: React.FC = () => {
         ? 'bg-linear-to-br from-emerald-500 to-green-700 dark:from-emerald-700 dark:to-green-900 shadow-emerald-300/70'
         : 'bg-linear-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-green-800 shadow-emerald-200/50';
     } else if (status === 'offline') {
-      return 'bg-linear-to-br from-red-400 to-rose-500 shadow-red-200/50 dark:from-red-500 dark:to-rose-600 dark:shadow-red-900/20';
+      return 'bg-linear-to-br from-zinc-400 to-zinc-500 shadow-zinc-200/50 dark:from-zinc-500 dark:to-zinc-600 dark:shadow-zinc-900/20';
     } else if (status === 'unknown') {
       return 'bg-linear-to-br from-yellow-400 to-amber-500 shadow-yellow-200/50 dark:from-yellow-500 dark:to-amber-600 dark:shadow-yellow-900/20';
     }
@@ -327,7 +327,7 @@ const ExtensionsStatus: React.FC = () => {
       case 'online':
         return '🟢';
       case 'offline':
-        return '🔴';
+        return '⚫';
       case 'unknown':
         return '🟡';
       default:
@@ -340,7 +340,7 @@ const ExtensionsStatus: React.FC = () => {
       case 'online':
         return 'text-green-600 dark:text-green-400';
       case 'offline':
-        return 'text-red-600 dark:text-red-400';
+        return 'text-zinc-600 dark:text-zinc-400';
       case 'unknown':
         return 'text-yellow-600 dark:text-yellow-400';
       default:
@@ -504,65 +504,67 @@ const ExtensionsStatus: React.FC = () => {
                    const statusColor = extension.status === 'online' ? 'bg-green-100 text-green-600' : extension.status === 'offline' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600';
                    const duration = getDurationDisplay(extension);
                    
-                   // Background color based on extension status
-                   const getCardBackground = () => {
-                     if (extension.status === 'online') {
-                       return isOnCall 
-                         ? 'bg-green-200 dark:bg-green-800/40 border-green-300 dark:border-green-600' // Deep green for on-call
-                         : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/30'; // Lite green for free
-                     } else if (extension.status === 'offline') {
-                       return 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700';
-                     } else {
-                       return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/30';
-                     }
-                   };
+                    // Background color based on extension status
+                    const getCardBackground = () => {
+                      if (extension.status === 'online') {
+                        return isOnCall 
+                          ? 'bg-green-200 dark:bg-green-800/40 border-green-300 dark:border-green-600' // Deep green for on-call
+                          : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/30'; // Lite green for free
+                      } else if (extension.status === 'offline') {
+                        return 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700';
+                      } else {
+                        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/30';
+                      }
+                    };
                    
                    return (
-                    <div
-                      key={extension.id}
-                       className={`flex items-center justify-between shadow p-2 rounded-xl hover:shadow-lg transition-all duration-200 border mx-0 cursor-pointer ${getCardBackground()}`}
-                       onClick={() => handleExtensionClick(extension)}
-                       title={`Click to view call statistics for ${extension.agent_name || extension.extension}`}
-                    >
+                     <div
+                       key={extension.id}
+                        className={`flex items-center justify-between shadow p-2 rounded-xl hover:shadow-lg transition-all duration-200 border mx-0 cursor-pointer ${getCardBackground()}`}
+                        onClick={() => handleExtensionClick(extension)}
+                        title={`Click to view call statistics for ${extension.agent_name || extension.extension}`}
+                     >
                      <div className="flex items-center space-x-3">
-                        <div className="shrink-0 relative">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 ${
-                              getExtensionGradient(extension.status, isOnCall)
-                            }`}>
-                            <span className="text-white font-bold text-sm drop-shadow-md">
-                              {extension.extension}
-                            </span>
-                          </div>
+                         <div className="shrink-0 relative">
+                             <div className={`w-12 h-12 rounded-full flex items-center justify-center p-1 transition-all duration-300 group-hover:scale-110 ${
+                               getExtensionGradient(extension.status, isOnCall)
+                             }`}>
+                             <span className="text-white font-bold text-sm drop-shadow-md">
+                               {extension.extension}
+                             </span>
+                           </div>
 
-                            {/* Pulse effect for extensions on call - outside the circle only */}
-                            {extension.status === 'online' && isOnCall && (
-                              <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
-                            )}
-                       </div>
-                       <div>
-                          <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
-                            {extension.agent_name || `Extension ${extension.extension}`}
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {getDeviceStateLabel(extension.device_state, extension.status_code)}
-                          </p>
-                       </div>
+                             {/* Pulse effect for extensions on call - outside the circle only */}
+                             {extension.status === 'online' && isOnCall && (
+                               <div className="absolute inset-0 rounded-full bg-emerald-600 dark:bg-emerald-800 animate-ping opacity-60 dark:opacity-80"></div>
+                             )}
+                        </div>
+                        <div>
+                           <h3 className="text-gray-800 dark:text-gray-200 font-semibold">
+                             {extension.agent_name || `Extension ${extension.extension}`}
+                           </h3>
+                           <p className="text-sm text-gray-500 dark:text-gray-400">
+                             {getDeviceStateLabel(extension.device_state, extension.status_code)}
+                           </p>
+                        </div>
                      </div>
                      
-                     <div className="text-right flex flex-col">
-                       <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
-                         {getStatusIcon(extension.status)} {extension.status}
-                       </div>
-                       {extension.last_status_change && (
-                         <div className={`text-xs font-medium ${
-                           extension.status === 'online'
-                             ? 'text-blue-600 dark:text-blue-400'
-                             : 'text-orange-600 dark:text-orange-400'
-                         }`}>
-                           {getDurationDisplay(extension)}
-                         </div>
-                       )}
-                     </div>
+                      <div className="text-right flex flex-col">
+                        <div className={`text-sm font-medium ${getStatusColor(extension.status)}`}>
+                          {getStatusIcon(extension.status)} {extension.status}
+                        </div>
+                        {extension.last_status_change && (
+                          <div className={`text-xs font-medium ${
+                            extension.status === 'online'
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : extension.status === 'offline'
+                              ? 'text-zinc-600 dark:text-zinc-400'
+                              : 'text-orange-600 dark:text-orange-400'
+                          }`}>
+                            {getDurationDisplay(extension)}
+                          </div>
+                        )}
+                      </div>
                    </div>
                    );
                  })}
