@@ -279,8 +279,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                 {sortedCalls.map((call) => (
                   <div key={`${call.id}-${call.startTime}`} className="space-y-2">
                     {/* Individual Call Item */}
-                    <div
-                      className={`group p-2 border rounded-xl transition-all duration-200 hover:shadow-md min-h-[80px] flex flex-col justify-center cursor-pointer mx-0 shadow ${
+                     <div
+                       className={`group p-2 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer mx-0 shadow ${
                         selectedCallId === call.id
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                           : (() => {

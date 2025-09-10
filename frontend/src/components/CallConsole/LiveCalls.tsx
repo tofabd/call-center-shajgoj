@@ -368,7 +368,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                 {sortedCalls.map((call) => (
                   <div
                     key={`${call.id}-${call.ended_at ? 'ended' : call.answered_at ? 'answered' : 'ringing'}`}
-                     className={`group p-2 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer min-h-[80px] flex flex-col justify-center mx-0 shadow ${
+                     className={`group p-2 border rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer mx-0 shadow ${
                        selectedCallId === call.id
                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                          : (() => {

@@ -9,7 +9,7 @@
 - `.env` - Currently active configuration
 
 ### Frontend:
-- `.env.development` - Local development (localhost:5174)
+- `.env.development` - Local development (localhost:5173)
 - `.env.staging` - Staging server (staging.cc.shajgoj.shop)
 - `.env.production` - Production server (cc.shajgoj.shop)
 - `.env` - Currently active configuration
@@ -29,7 +29,7 @@ cp frontend/.env.development frontend/.env
 cd frontend && npm run dev
 ```
 
-**Access at:** `http://localhost:5174`
+**Access at:** `http://localhost:5173`
 
 ### 🚧 Staging Mode
 **Backend:**
