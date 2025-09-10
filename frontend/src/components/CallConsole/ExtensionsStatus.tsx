@@ -58,6 +58,7 @@ const ExtensionsStatus: React.FC = () => {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedExtensionNumber, setSelectedExtensionNumber] = useState<string>('');
   const [extensionStats, setExtensionStats] = useState<any | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -265,6 +266,7 @@ const ExtensionsStatus: React.FC = () => {
 
   const handleExtensionClick = useCallback(async (extension: Extension) => {
     console.log('📱 Extension clicked:', extension);
+    setSelectedExtensionNumber(extension.extension);
     setIsModalOpen(true);
     setStatsLoading(true);
     setStatsError(null);
@@ -286,6 +288,7 @@ const ExtensionsStatus: React.FC = () => {
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
+    setSelectedExtensionNumber('');
     setExtensionStats(null);
     setStatsError(null);
   }, []);
@@ -574,6 +577,7 @@ const ExtensionsStatus: React.FC = () => {
           stats={extensionStats}
           loading={statsLoading}
           error={statsError}
+          extensionNumber={selectedExtensionNumber}
         />
 
       </div>

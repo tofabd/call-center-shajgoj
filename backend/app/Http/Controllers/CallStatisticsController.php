@@ -490,6 +490,68 @@ class CallStatisticsController extends Controller
         ]);
     }
 
+    public function getExtensionCalls(Request $request, string $extension)
+    {
+        // Get date parameter, default to today
+        $date = $request->get('date', 'today');
+        
+        // Set date range based on parameter
+        switch ($date) {
+            case 'week':
+                $startDate = Carbon::now()->startOfWeek();
+                $endDate = Carbon::now()->endOfWeek();
+                $label = 'This Week';
+                break;
+            case 'month':
+                $startDate = Carbon::now()->startOfMonth();
+                $endDate = Carbon::now()->endOfMonth();
+                $label = 'This Month';
+                break;
+            case 'today':
+            default:
+                $startDate = Carbon::today();
+                $endDate = Carbon::today()->endOfDay();
+                $label = 'Today';
+                break;
+        }
+
+        // Get ALL calls for this extension in the date range (not limited)
+        $calls = Call::where('agent_exten', $extension)
+            ->whereBetween('started_at', [$startDate, $endDate])
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        // Map calls to the format expected by frontend
+        $allCalls = $calls->map(function ($call) {
+            return [
+                'id' => $call->id,
+                'direction' => $call->direction,
+                'other_party' => $call->other_party ?? $call->caller_number ?? 'Unknown',
+                'started_at' => $call->started_at,
+                'answered_at' => $call->answered_at,
+                'ended_at' => $call->ended_at,
+                'duration' => $call->answered_at && $call->ended_at 
+                    ? $call->answered_at->diffInSeconds($call->ended_at) 
+                    : 0,
+                'status' => $this->deriveStatusFromCall($call),
+                'linkedid' => $call->linkedid
+            ];
+        });
+
+        return response()->json([
+            'extension' => $extension,
+            'period' => [
+                'type' => $date,
+                'date' => $date === 'today' ? $startDate->toDateString() : null,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'label' => $label
+            ],
+            'total_calls' => $calls->count(),
+            'calls' => $allCalls
+        ]);
+    }
+
     private function calculatePercentageChange($oldValue, $newValue)
     {
         if ($oldValue == 0) {

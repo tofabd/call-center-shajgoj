@@ -247,6 +247,34 @@ export const callService = {
     return response.data;
   },
 
+  async getExtensionCalls(extension: string, date: 'today' | 'week' | 'month' = 'today'): Promise<{
+    extension: string;
+    period: {
+      type: string;
+      date?: string;
+      start_date: string;
+      end_date: string;
+      label: string;
+    };
+    total_calls: number;
+    calls: Array<{
+      id: string;
+      direction: string;
+      other_party: string;
+      started_at: string;
+      answered_at?: string;
+      ended_at?: string;
+      duration: number;
+      status: string;
+      linkedid?: string;
+    }>;
+  }> {
+    const response = await api.get(`/calls/statistics/extension/${extension}/calls`, {
+      params: { date }
+    });
+    return response.data;
+  },
+
   // Get call by ID with details from Laravel
   async getCallById(id: string): Promise<any> {
     const response = await api.get(`/calls/${id}/details`);

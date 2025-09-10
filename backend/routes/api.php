@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/agents', [CallStatisticsController::class, 'getAgentStats']);
         Route::get('/comparison', [CallStatisticsController::class, 'getComparisonStats']);
         Route::get('/extension/{extension}', [CallStatisticsController::class, 'getExtensionStats']);
+        Route::get('/extension/{extension}/calls', [CallStatisticsController::class, 'getExtensionCalls']);
     });
 
     // Test route to verify authentication
