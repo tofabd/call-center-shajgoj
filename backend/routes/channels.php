@@ -15,3 +15,8 @@ Broadcast::channel('call-received-{id}', function ($user, $id) {
 Broadcast::channel('extensions', function () {
     return true; // Allow anyone to listen to extension updates
 });
+
+// Public channel for call console real-time updates
+Broadcast::channel('call-console', function () {
+    return true; // Allow anyone to listen to call updates
+});
