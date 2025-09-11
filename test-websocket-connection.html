@@ -22,7 +22,7 @@
         const config = {
             broadcaster: 'reverb',
             key: 'otp1qepgz0gsohqgsypv',
-            wsHost: '154.89.7.108',
+            wsHost: '127.0.0.1',
             wsPort: 8080,
             forceTLS: false,
             enabledTransports: ['ws', 'wss']
@@ -110,7 +110,7 @@
         // Test Reverb connection manually
         setTimeout(() => {
             log('Testing direct WebSocket connection to Reverb...', 'info');
-            const ws = new WebSocket('ws://127.0.0.1:8080/app/otp1qepgz0gsohqgsypv?protocol=7&client=js&version=8.0.1&flash=false');
+                        const ws = new WebSocket('ws://127.0.0.1:8080/app/otp1qepgz0gsohqgsypv?protocol=7&client=js&version=8.0.1&flash=false');
             
             ws.onopen = () => {
                 log('Direct WebSocket connection successful!', 'success');

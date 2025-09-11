@@ -1,9 +1,14 @@
 import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+// Make Pusher available globally for Laravel Echo
+window.Pusher = Pusher;
 
 // Extend window type for global variables
 declare global {
   interface Window {
     Echo: any;
+    Pusher: any;
   }
 }
 
@@ -17,35 +22,61 @@ const reverbScheme = import.meta.env.VITE_REVERB_SCHEME;
 
 if (reverbKey && reverbHost) {
   try {
-    // For development, connect directly to Reverb without nginx proxy
-    const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    console.log('🔌 Attempting to initialize Echo with Reverb...', {
+      key: reverbKey ? 'present' : 'missing',
+      host: reverbHost,
+      port: reverbPort,
+      scheme: reverbScheme
+    });
     
     echo = new Echo({
-      broadcaster: 'reverb',
+      broadcaster: 'pusher',
       key: reverbKey,
       wsHost: reverbHost,
-      wsPort: reverbScheme === 'https' ? 443 : (reverbPort ?? 8080),
-      wssPort: 443,
-      // Only use wsPath for production (nginx proxy)
-      ...(isProduction ? { wsPath: '/app/' } : {}),
-      forceTLS: reverbScheme === 'https',
-      enabledTransports: ['ws', 'wss'],
-      auth: {
-        headers: {},
-      },
+      wsPort: parseInt(reverbPort) || 8080,
+      wssPort: parseInt(reverbPort) || 8080,
+      forceTLS: false,
+      disableStats: true,
+      enabledTransports: ['ws'],
+      cluster: '',
+      encrypted: false,
     });
+
+    // Add connection event listeners for debugging
+    if (echo.connector && echo.connector.pusher) {
+      echo.connector.pusher.connection.bind('connected', () => {
+        console.log('🔌 WebSocket connected successfully');
+      });
+      
+      echo.connector.pusher.connection.bind('disconnected', () => {
+        console.log('🔌 WebSocket disconnected');
+      });
+      
+      echo.connector.pusher.connection.bind('error', (error: any) => {
+        console.error('🔌 WebSocket connection error:', error);
+      });
+
+      echo.connector.pusher.connection.bind('state_change', (states: any) => {
+        console.log('🔌 WebSocket state change:', states);
+      });
+    }
 
     window.Echo = echo;
     console.log('✅ Echo initialized successfully with Laravel Reverb', {
       host: reverbHost,
-      port: reverbScheme === 'https' ? 443 : (reverbPort ?? 8080),
+      port: parseInt(reverbPort) || 8080,
       scheme: reverbScheme,
-      wsPath: isProduction ? '/app/' : 'none (direct connection)',
-      forceTLS: reverbScheme === 'https',
-      environment: isProduction ? 'production' : 'development'
+      forceTLS: false
     });
   } catch (error) {
     console.error('❌ Failed to initialize Echo with Reverb:', error);
+    console.error('🔍 Debug info:', {
+      reverbKey: reverbKey ? 'present' : 'missing',
+      reverbHost,
+      reverbPort,
+      reverbScheme,
+      userAgent: navigator.userAgent
+    });
   }
 }
 
@@ -56,11 +87,48 @@ if (!echo) {
   console.warn('Required variables: VITE_REVERB_APP_KEY, VITE_REVERB_HOST, VITE_REVERB_PORT, VITE_REVERB_SCHEME');
   
   window.Echo = {
-    channel: () => ({
-      listen: () => console.warn('Echo not configured - add Reverb configuration to .env file')
+    channel: (name: string) => ({
+      listen: (event: string, callback?: Function) => {
+        console.warn(`Echo not configured - cannot listen to ${name}:${event}`);
+        return {
+          stopListening: () => {},
+          listen: () => this
+        };
+      }
     }),
-    leaveChannel: () => {}
+    leaveChannel: (name: string) => {
+      console.warn(`Echo not configured - cannot leave channel ${name}`);
+    },
+    connector: null
   };
 }
+
+export const getEchoStatus = () => {
+  if (!echo) {
+    return {
+      available: false,
+      connected: false,
+      status: 'unavailable',
+      message: 'Echo not initialized'
+    };
+  }
+
+  let connected = false;
+  let status = 'disconnected';
+
+  // Check Reverb connection status
+  if (echo.connector && echo.connector.pusher) {
+    const connectionState = echo.connector.pusher.connection.state;
+    connected = connectionState === 'connected';
+    status = connectionState;
+  }
+
+  return {
+    available: true,
+    connected,
+    status,
+    message: connected ? 'WebSocket connected' : `WebSocket ${status}`
+  };
+};
 
 export default echo; 

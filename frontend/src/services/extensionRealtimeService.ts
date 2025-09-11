@@ -30,6 +30,12 @@ class ExtensionRealtimeService {
       return;
     }
 
+    // Check if Echo is available
+    if (!echo) {
+      console.error('❌ Echo not available - cannot start real-time extension listening');
+      return;
+    }
+
     try {
       echo.channel('extensions')
         .listen('.extension.status.updated', (update: ExtensionStatusUpdate) => {
@@ -76,12 +82,20 @@ class ExtensionRealtimeService {
       return;
     }
 
+    // Check if Echo is available
+    if (!echo) {
+      console.warn('⚠️ Echo not available - cannot stop real-time extension listening');
+      this.isListening = false;
+      return;
+    }
+
     try {
       echo.leaveChannel('extensions');
       this.isListening = false;
       console.log('🛑 Stopped listening to real-time extension updates');
     } catch (error) {
       console.error('❌ Failed to stop real-time listening:', error);
+      this.isListening = false;
     }
   }
 

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Echo Connection</title>
+</head>
+<body>
+    <h1>Testing Laravel Echo Connection</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script src="https://unpkg.com/pusher-js@8.4.0/dist/web/pusher.min.js"></script>
+    <script src="https://unpkg.com/laravel-echo@1.15.3/dist/echo.iife.js"></script>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        function log(message) {
+            console.log(message);
+            messagesDiv.innerHTML += '<p>' + message + '</p>';
+        }
+
+        try {
+            // Initialize Echo with same config as frontend
+            const echo = new Echo({
+                broadcaster: 'reverb',
+                key: 'otp1qepgz0gsohqgsypv',
+                wsHost: '127.0.0.1',
+                wsPort: 8080,
+                wssPort: 8080,
+                forceTLS: false,
+                disableStats: true,
+                enabledTransports: ['ws'],
+            });
+
+            if (echo.connector && echo.connector.pusher) {
+                echo.connector.pusher.connection.bind('connected', () => {
+                    statusDiv.innerHTML = '✅ Connected';
+                    log('WebSocket connected successfully');
+                });
+                
+                echo.connector.pusher.connection.bind('disconnected', () => {
+                    statusDiv.innerHTML = '❌ Disconnected';
+                    log('WebSocket disconnected');
+                });
+                
+                echo.connector.pusher.connection.bind('error', (error) => {
+                    statusDiv.innerHTML = '❌ Error';
+                    log('WebSocket error: ' + JSON.stringify(error));
+                });
+
+                // Test listening to a channel
+                echo.channel('call-console')
+                    .listen('CallUpdated', (e) => {
+                        log('Received CallUpdated: ' + JSON.stringify(e));
+                    });
+
+                log('Echo initialized, waiting for connection...');
+            } else {
+                statusDiv.innerHTML = '❌ No pusher connector';
+                log('No pusher connector found');
+            }
+        } catch (error) {
+            statusDiv.innerHTML = '❌ Error';
+            log('Error: ' + error.message);
+        }
+    </script>
+</body>
+</html>

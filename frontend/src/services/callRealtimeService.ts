@@ -26,6 +26,12 @@ class CallRealtimeService {
       return;
     }
 
+    // Check if Echo is available
+    if (!echo) {
+      console.error('❌ Echo not available - cannot start real-time call listening');
+      return;
+    }
+
     try {
       echo.channel('call-console')
         .listen('.call-updated', (update: CallUpdate) => {
@@ -37,6 +43,7 @@ class CallRealtimeService {
       console.log('✅ Started listening to real-time call updates');
     } catch (error) {
       console.error('❌ Failed to start real-time call listening:', error);
+      this.isListening = false;
     }
   }
 
@@ -48,12 +55,20 @@ class CallRealtimeService {
       return;
     }
 
+    // Check if Echo is available
+    if (!echo) {
+      console.warn('⚠️ Echo not available - cannot stop real-time call listening');
+      this.isListening = false;
+      return;
+    }
+
     try {
       echo.leaveChannel('call-console');
       this.isListening = false;
       console.log('🛑 Stopped listening to real-time call updates');
     } catch (error) {
       console.error('❌ Failed to stop real-time call listening:', error);
+      this.isListening = false;
     }
   }
 

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Echo Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Echo Test for Call Center</h1>
+    <div id="status"></div>
+    <div id="logs"></div>
+
+    <!-- Include the dependencies -->
+    <script src="http://localhost:5173/node_modules/pusher-js/dist/web/pusher.min.js"></script>
+    <script type="module">
+        import Echo from 'http://localhost:5173/node_modules/laravel-echo/dist/echo.esm.js';
+
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `status ${type}`;
+            logEntry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logsDiv.appendChild(logEntry);
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Test configuration
+        const config = {
+            reverbKey: 'otp1qepgz0gsohqgsypv',
+            reverbHost: '127.0.0.1',
+            reverbPort: 8080,
+            reverbScheme: 'http'
+        };
+
+        addLog('Starting WebSocket Echo test...', 'info');
+        addLog(`Testing connection to: ${config.reverbScheme}://${config.reverbHost}:${config.reverbPort}`, 'info');
+
+        try {
+            // Initialize Echo with the same configuration as the app
+            const echo = new Echo({
+                broadcaster: 'reverb',
+                key: config.reverbKey,
+                wsHost: config.reverbHost,
+                wsPort: config.reverbPort,
+                forceTLS: config.reverbScheme === 'https',
+                enabledTransports: ['ws', 'wss'],
+                auth: {
+                    headers: {},
+                },
+            });
+
+            addLog('✅ Echo instance created successfully', 'success');
+            updateStatus('🔌 Attempting to connect to WebSocket...', 'info');
+
+            // Add connection event listeners
+            if (echo.connector && echo.connector.pusher) {
+                echo.connector.pusher.connection.bind('connected', () => {
+                    addLog('🔌 WebSocket connected successfully!', 'success');
+                    updateStatus('✅ WebSocket Connection Established', 'success');
+                    
+                    // Test channel subscription
+                    const channel = echo.channel('call-console');
+                    addLog('📡 Subscribed to call-console channel', 'info');
+                    
+                    channel.listen('.call-updated', (data) => {
+                        addLog('📞 Received call update: ' + JSON.stringify(data), 'success');
+                    });
+                });
+
+                echo.connector.pusher.connection.bind('disconnected', () => {
+                    addLog('🔌 WebSocket disconnected', 'error');
+                    updateStatus('❌ WebSocket Disconnected', 'error');
+                });
+
+                echo.connector.pusher.connection.bind('error', (error) => {
+                    addLog('❌ WebSocket connection error: ' + JSON.stringify(error), 'error');
+                    updateStatus('❌ WebSocket Connection Failed', 'error');
+                });
+
+                echo.connector.pusher.connection.bind('state_change', (states) => {
+                    addLog(`🔄 Connection state changed: ${states.previous} → ${states.current}`, 'info');
+                });
+
+                // Show initial state
+                addLog(`Initial connection state: ${echo.connector.pusher.connection.state}`, 'info');
+            } else {
+                addLog('❌ Echo connector not available', 'error');
+                updateStatus('❌ Echo Initialization Failed', 'error');
+            }
+
+            // Set a timeout to show connection status
+            setTimeout(() => {
+                if (echo.connector && echo.connector.pusher) {
+                    const state = echo.connector.pusher.connection.state;
+                    addLog(`Connection status after 5 seconds: ${state}`, state === 'connected' ? 'success' : 'error');
+                }
+            }, 5000);
+
+        } catch (error) {
+            addLog('❌ Error initializing Echo: ' + error.message, 'error');
+            updateStatus('❌ Echo Initialization Failed', 'error');
+            console.error('Echo initialization error:', error);
+        }
+    </script>
+</body>
+</html>
