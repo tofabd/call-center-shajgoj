@@ -48,11 +48,11 @@ class Start extends Command
 
     private function startServices()
     {
-        // NOTE: This command supports both Windows and Linux environments.
-        // - For Windows: Uncomment the Windows-specific code block at the end of this method and comment out the Linux code below.
-        // - For Linux (Alma Linux): Keep the Linux code active (as it is now) and ensure tmux is installed for best results.
-        // To switch: Simply comment/uncomment the respective code blocks and adjust the return statement if needed.
+        // NOTE: This command is configured for Windows CMD environment.
+        // - Uses Windows Terminal (wt) to open multiple tabs for each service.
+        // - For Linux: Comment out the Windows code and uncomment the Linux code in startServices, stopServices, and showStatus methods.
 
+        /*
         $this->info('Starting all services for Call Center AI...');
 
         $projectPath = base_path();
@@ -93,9 +93,9 @@ class Start extends Command
             $this->info('All services started in background.');
         }
         $this->info('To stop services: php artisan app:start stop');
+        */
 
-        // Original Windows-specific code (commented out for Linux compatibility)
-        /*
+        // Windows-specific code
         $this->info('Starting all services for Call Center AI in a single window...');
 
         $projectPath = base_path();
@@ -114,27 +114,17 @@ class Start extends Command
         $this->info('Close the window or press Ctrl+C in each tab to stop the services when done.');
 
         return Command::SUCCESS;
-        */
     }
 
     private function stopServices()
     {
         $this->info('Stopping all services...');
 
-        // Kill tmux session if exists
-        $tmuxKill = shell_exec('tmux kill-session -t call-center-services 2>/dev/null');
-        if ($tmuxKill !== null) {
-            $this->info('Tmux session killed.');
-        }
-
-        // Kill background processes
-        $processes = ['artisan serve', 'artisan queue:work', 'artisan reverb:start', 'artisan app:listen-to-ami'];
-        foreach ($processes as $proc) {
-            $pids = shell_exec("ps aux | grep '$proc' | grep -v grep | awk '{print \$2}'");
-            if ($pids) {
-                shell_exec("kill $pids 2>/dev/null");
-                $this->info("Killed processes for: $proc");
-            }
+        // Kill Windows Terminal tabs
+        $titles = ['Laravel Server', 'Queue Worker', 'Reverb WebSocket', 'AMI Connection'];
+        foreach ($titles as $title) {
+            shell_exec("taskkill /FI \"WINDOWTITLE eq $title\" /F 2>nul");
+            $this->info("Attempted to kill window: $title");
         }
 
         $this->info('All services stopped.');
@@ -144,26 +134,15 @@ class Start extends Command
     {
         $this->info('Checking status of services...');
 
-        // Check tmux session
-        $tmuxStatus = shell_exec('tmux list-sessions 2>/dev/null | grep call-center-services');
-        if ($tmuxStatus) {
-            $this->info('Tmux session "call-center-services" is running.');
-            $panes = shell_exec('tmux list-panes -t call-center-services 2>/dev/null | wc -l');
-            $this->info('Number of panes: ' . trim($panes));
-        } else {
-            $this->info('No tmux session found.');
-        }
-
-        // Check individual processes
+        // Check Windows Terminal tabs
         $processes = [
-            'Laravel Server' => 'artisan serve',
-            'Queue Worker' => 'artisan queue:work',
-            'Reverb WebSocket' => 'artisan reverb:start',
-            'AMI Connection' => 'artisan app:listen-to-ami'
+            'Laravel Server' => 'Laravel Server',
+            'Queue Worker' => 'Queue Worker',
+            'Reverb WebSocket' => 'Reverb WebSocket',
+            'AMI Connection' => 'AMI Connection'
         ];
-
-        foreach ($processes as $name => $proc) {
-            $running = shell_exec("ps aux | grep '$proc' | grep -v grep");
+        foreach ($processes as $name => $title) {
+            $running = shell_exec("tasklist /FI \"WINDOWTITLE eq $title\" 2>nul | findstr \"$title\"");
             if ($running) {
                 $this->info("$name: Running");
             } else {
