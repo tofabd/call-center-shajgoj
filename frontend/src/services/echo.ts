@@ -33,13 +33,19 @@ if (reverbKey && reverbHost) {
       broadcaster: 'pusher',
       key: reverbKey,
       wsHost: reverbHost,
-      wsPort: parseInt(reverbPort) || 8080,
-      wssPort: parseInt(reverbPort) || 8080,
-      forceTLS: false,
+      wsPort: parseInt(reverbPort) || 443,
+      wssPort: parseInt(reverbPort) || 443,
+      forceTLS: reverbScheme === 'https',
       disableStats: true,
-      enabledTransports: ['ws'],
+      enabledTransports: ['ws', 'wss'],
       cluster: '',
-      encrypted: false,
+      encrypted: reverbScheme === 'https',
+      auth: {
+        headers: {
+          'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : undefined
+        }
+      },
+      authEndpoint: `${import.meta.env.VITE_API_URL}/broadcasting/auth`,
     });
 
     // Add connection event listeners for debugging
@@ -64,9 +70,10 @@ if (reverbKey && reverbHost) {
     window.Echo = echo;
     console.log('✅ Echo initialized successfully with Laravel Reverb', {
       host: reverbHost,
-      port: parseInt(reverbPort) || 8080,
+      port: parseInt(reverbPort) || 443,
       scheme: reverbScheme,
-      forceTLS: false
+      forceTLS: reverbScheme === 'https',
+      encrypted: reverbScheme === 'https'
     });
   } catch (error) {
     console.error('❌ Failed to initialize Echo with Reverb:', error);
