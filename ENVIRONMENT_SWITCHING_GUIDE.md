@@ -16,7 +16,7 @@
 
 ## ⚡ Quick Switch Commands
 
-### 🔧 Development Mode
+### 🔧 Development Mode (Local Server Access)
 **Backend:**
 ```bash
 cp backend/.env.development backend/.env
@@ -36,6 +36,42 @@ sudo supervisorctl status  # Verify ami-listener, laravel-queue, laravel-reverb 
 ```
 
 **Access at:** `http://localhost:5173`
+
+### 🖥️ Development Mode (Desktop Access with SSH)
+**Backend:**
+```bash
+cp backend/.env.development backend/.env
+cd backend && php artisan config:clear && php artisan cache:clear
+php artisan serve --host=0.0.0.0 --port=8000  # Network accessible
+```
+
+**Frontend:**
+```bash
+# Keep current .env with 127.0.0.1 configuration
+cd frontend && npm run dev
+```
+
+**SSH Port Forwarding (from Desktop):**
+```bash
+# Run on your desktop terminal
+ssh -L 5173:127.0.0.1:5173 -L 8000:127.0.0.1:8000 -L 8080:127.0.0.1:8080 user@154.89.7.108
+```
+
+**Services Check:**
+```bash
+sudo supervisorctl status  # All services should be RUNNING
+```
+
+**Access at:** `http://127.0.0.1:5173` (from desktop browser)
+
+**Environment Configuration:**
+```properties
+# frontend/.env
+VITE_API_URL=http://127.0.0.1:8000/api
+VITE_REVERB_HOST=127.0.0.1
+VITE_REVERB_PORT=8080
+VITE_REVERB_SCHEME=http
+```
 
 ### 🚧 Staging Mode
 **Backend:**
@@ -81,11 +117,12 @@ sudo supervisorctl restart all
 
 ## 🔍 Key Differences
 
-| Environment | Domain | SSL | Debug | Cache | WebSocket | Database | Services |
-|-------------|--------|-----|-------|-------|-----------|----------|----------|
-| Development | localhost:8000 | No | Yes | Redis | HTTP:8080 | call_center_shajgoj_db | Supervisor + Manual |
-| Staging | staging.cc.shajgoj.shop | Yes | Yes | Redis | HTTPS:8081 | call_center_shajgoj_staging_db | Supervisor |
-| Production | cc.shajgoj.shop | Yes | No | Redis | HTTPS:8080 | call_center_shajgoj_db | Supervisor |
+| Environment | Domain | SSL | Debug | Cache | WebSocket | Database | Services | Access Method |
+|-------------|--------|-----|-------|-------|-----------|----------|----------|---------------|
+| Development (Local) | localhost:8000 | No | Yes | Redis | HTTP:8080 | call_center_shajgoj_db | Supervisor + Manual | Direct localhost |
+| Development (Desktop) | 127.0.0.1:8000 | No | Yes | Redis | HTTP:8080 | call_center_shajgoj_db | Supervisor + Manual | SSH Port Forwarding |
+| Staging | staging.cc.shajgoj.shop | Yes | Yes | Redis | HTTPS:8081 | call_center_shajgoj_staging_db | Supervisor | Direct HTTPS |
+| Production | cc.shajgoj.shop | Yes | No | Redis | HTTPS:8080 | call_center_shajgoj_db | Supervisor | Direct HTTPS |
 
 ## ⚠️ Important Notes
 
@@ -95,9 +132,18 @@ When switching backend environments, supervisor services (queue:work, reverb:sta
 sudo supervisorctl restart all
 ```
 
-### Development Mode:
-- **Requires manual start**: `php artisan serve` (backend) + `npm run dev` (frontend)
-- **Supervisor services**: ami-listener, laravel-queue, laravel-reverb should be RUNNING
+### Development Mode (Desktop Access):
+- **SSH Port Forwarding Required**: Use tunneling for desktop access while keeping localhost config
+- **Vite Proxy**: Handles API routing automatically (`/api` → `127.0.0.1:8000`)
+- **WebSocket**: Connects through SSH tunnel to `127.0.0.1:8080`
+- **Live Coding**: Hot reload works through SSH tunnel
+- **Environment**: Uses `127.0.0.1` in `.env` files for clean configuration
+- **Benefits**: No external IP exposure, clean localhost setup, desktop access
+
+### Development Mode (Local Server Access):
+- **Direct localhost access**: Traditional development on server
+- **No SSH tunneling needed**: Access directly at `localhost:5173`
+- **Same services**: ami-listener, laravel-queue, laravel-reverb should be RUNNING
 - **Database**: Uses same database as production (be careful with data changes!)
 - **Real-time features**: WebSocket on port 8080, Queue processing enabled
 - **Switching backend to dev**: Breaks production until switched back
@@ -112,6 +158,8 @@ sudo supervisorctl restart all
 - ✅ **Broadcasting**: Fixed - Reverb working, channels authorized
 - ✅ **Queue processing**: Fixed - Workers listening to all queues
 - ✅ **Real-time updates**: Working in development mode
+- ✅ **Desktop Development**: SSH port forwarding setup documented
+- ✅ **Vite Proxy**: Configured for API routing
 - ✅ **Backup files**: Cleaned up (outdated files removed)
 
 ## 📋 After Switching:
@@ -141,19 +189,25 @@ sudo supervisorctl restart all
 
 ## 🔧 Troubleshooting
 
-### Development Mode Issues:
+### Development Mode Issues (Desktop Access):
 ```bash
-# Check if Laravel server is running
-netstat -tlnp | grep :8000
+# Check SSH tunnel is active
+netstat -tlnp | grep :5173  # Should show SSH tunnel
 
-# Check if frontend dev server is running
-netstat -tlnp | grep :5173
+# Check if Laravel server is running on server
+ssh user@154.89.7.108 "netstat -tlnp | grep :8000"
 
-# Check supervisor services
-sudo supervisorctl status
+# Check if frontend dev server is running on server
+ssh user@154.89.7.108 "netstat -tlnp | grep :5173"
 
-# Clear all caches
-cd backend && php artisan config:clear && php artisan cache:clear
+# Check supervisor services on server
+ssh user@154.89.7.108 "sudo supervisorctl status"
+
+# Test API connectivity through tunnel
+curl http://127.0.0.1:8000/api/calls
+
+# Clear all caches on server
+ssh user@154.89.7.108 "cd /var/www/call-center-shajgoj/backend && php artisan config:clear && php artisan cache:clear"
 ```
 
 ### Production Mode Issues:
@@ -210,4 +264,7 @@ sudo supervisorctl status
 
 # Web server status (development)
 netstat -tlnp | grep -E ":(8000|5173|8080)"
+
+# SSH tunnel check (for desktop development)
+ps aux | grep ssh  # Should show SSH port forwarding process
 ```
