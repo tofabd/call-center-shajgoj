@@ -4,7 +4,6 @@ export interface LiveCall {
   id: string;
   linkedid?: string;
   direction?: 'incoming' | 'outgoing';
-  other_party?: string;
   agent_exten?: string;
   started_at: string;
   answered_at?: string;
@@ -12,7 +11,12 @@ export interface LiveCall {
   caller_number?: string;
   caller_name?: string;
   duration?: number;
+  ringSeconds?: number;
+  talkSeconds?: number;
   status?: string;
+  dialStatus?: string;
+  hangupCause?: string;
+  disposition?: string;
   createdAt?: string;
   updatedAt?: string;
   // Legacy fields for compatibility
@@ -146,15 +150,19 @@ export const callService = {
       _id: call.id.toString(), // For legacy compatibility
       linkedid: call.linkedid || '',
       direction: call.direction,
-      other_party: call.otherParty,
+      caller_number: call.callerNumber,
       agent_exten: call.agentExten,
       started_at: call.startTime,
-      answered_at: call.answered_at,
+      answered_at: call.answeredAt,
       ended_at: call.endTime,
-      caller_number: call.callerNumber,
       caller_name: call.callerName,
       duration: call.duration,
+      ringSeconds: call.ringSeconds,
+      talkSeconds: call.talkSeconds,
       status: call.status,
+      dialStatus: call.dialStatus,
+      hangupCause: call.hangupCause,
+      disposition: call.disposition,
       createdAt: call.created_at,
       updatedAt: call.updated_at
     }));
@@ -171,15 +179,19 @@ export const callService = {
       _id: call.id.toString(), // For legacy compatibility
       linkedid: call.linkedid || '',
       direction: call.direction,
-      other_party: call.other_party,
-      agent_exten: call.agent_exten,
+      caller_number: call.callerNumber,
+      agent_exten: call.agentExten,
       started_at: call.started_at,
       answered_at: call.answered_at,
       ended_at: call.ended_at,
-      caller_number: call.caller_number,
-      caller_name: call.caller_name,
+      caller_name: call.callerName,
       duration: call.duration,
+      ringSeconds: call.ringSeconds,
+      talkSeconds: call.talkSeconds,
       status: call.status,
+      dialStatus: call.dialStatus,
+      hangupCause: call.hangupCause,
+      disposition: call.disposition,
       createdAt: call.createdAt,
       updatedAt: call.updatedAt
     }));

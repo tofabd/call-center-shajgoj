@@ -8,6 +8,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Call;
+use App\Helpers\CallStatusHelper;
 
 class CallUpdated implements ShouldBroadcast
 {
@@ -22,9 +23,21 @@ class CallUpdated implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [
-            new Channel('call-console'),
-        ];
+        $channels = [];
+
+        // Always broadcast to the original channel for backward compatibility
+        $channels[] = new Channel('call-console');
+
+        // Always broadcast to live calls channel so frontend can handle call removal
+        $channels[] = new Channel('live-calls');
+
+        // Broadcast to specific channels based on call state
+        if ($this->call->ended_at) {
+            // Completed call - also broadcast to call history channel
+            $channels[] = new Channel('call-history');
+        }
+
+        return $channels;
     }
 
     public function broadcastWith(): array
@@ -35,13 +48,18 @@ class CallUpdated implements ShouldBroadcast
             'callerName' => null,
             'startTime' => $this->call->started_at,
             'endTime' => $this->call->ended_at,
+            'answeredAt' => $this->call->answered_at,
             'status' => $this->deriveStatus($this->call),
             'duration' => ($this->call->started_at && $this->call->ended_at)
                 ? max(0, $this->call->started_at->diffInSeconds($this->call->ended_at, true))
                 : null,
+            'ringSeconds' => $this->call->ring_seconds,
+            'talkSeconds' => $this->call->talk_seconds,
             'direction' => $this->call->direction,
             'agentExten' => $this->call->agent_exten,
-            'otherParty' => $this->call->other_party,
+            'dialStatus' => $this->call->dial_status,
+            'hangupCause' => $this->call->hangup_cause,
+            'disposition' => $this->call->disposition,
             'timestamp' => now()->toISOString(),
         ];
     }
@@ -53,35 +71,7 @@ class CallUpdated implements ShouldBroadcast
 
     private function deriveStatus(Call $call): string
     {
-        $disposition = strtolower((string)($call->disposition ?? ''));
-
-        // If call has ended, prioritize completion status over disposition
-        if ($call->ended_at) {
-            // For successfully answered calls that ended, show as completed
-            if ($disposition === 'answered') {
-                return 'completed';
-            }
-            // For other dispositions (busy, canceled, no_answer, etc.), show the disposition
-            if (!empty($disposition)) {
-                return $disposition;
-            }
-            // If no disposition but call ended, default to completed
-            return 'completed';
-        }
-
-        // For ongoing calls, use disposition if available
-        if (!empty($disposition)) {
-            return $disposition;
-        }
-
-        // For calls without disposition, derive from timestamps
-        if ($call->answered_at) {
-            return 'answered';
-        }
-        if ($call->started_at) {
-            return 'ringing';
-        }
-        return 'unknown';
+        return CallStatusHelper::deriveStatus($call);
     }
 }
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Phone, PhoneCall, Clock, PhoneIncoming, PhoneOutgoing, Timer, RefreshCw, CircleDashed } from 'lucide-react';
-import callRealtimeService from '../../services/callRealtimeService';
-import type { CallUpdate } from '../../services/callRealtimeService';
+import liveCallsRealtimeService, { type CallUpdate } from '../../services/liveCallsRealtimeService';
 import type { LiveCall } from '../../services/callService';
 
 import { getUnifiedCallStatus, isCallRinging, getStatusPriority as getUnifiedStatusPriority, debugStatusMismatch } from '../../utils/statusUtils';
@@ -85,30 +84,45 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
           
           // Debug logging for status changes
           const oldStatus = getUnifiedCallStatus(existingCall);
-          const newStatus = update.status || getUnifiedCallStatus(update);
+          const newStatus = update.status || 'unknown';
           
           if (oldStatus !== newStatus) {
-            debugStatusMismatch(existingCall.agent_exten || 'unknown', undefined, `${oldStatus} → ${newStatus}`, {
+            debugStatusMismatch(existingCall.agent_exten || 'unknown', oldStatus, `${oldStatus} → ${newStatus}`, {
               call_id: existingCall.id,
               old_answered_at: existingCall.answered_at,
-              new_answered_at: update.startTime,
+              new_answered_at: update.startTime || undefined,
               old_ended_at: existingCall.ended_at,
-              new_ended_at: update.endTime,
+              new_ended_at: update.endTime || undefined,
               update_source: 'echo'
             });
           }
           
+          // If call has ended, remove it from live calls
+          if (update.endTime) {
+            console.log('📞 Call ended, removing from live calls:', update.id);
+            updatedCalls.splice(existingIndex, 1);
+            return updatedCalls;
+          }
+          
+          // Otherwise, update the call
           updatedCalls[existingIndex] = {
             ...existingCall,
             // Update fields from the update event
-            direction: update.direction || existingCall.direction,
-            other_party: update.otherParty || existingCall.other_party,
+            direction: (update.direction === 'incoming' || update.direction === 'outgoing') 
+              ? update.direction as 'incoming' | 'outgoing'
+              : existingCall.direction,
+            caller_number: update.callerNumber || existingCall.caller_number,
             agent_exten: update.agentExten || existingCall.agent_exten,
             started_at: update.startTime || existingCall.started_at,
-            answered_at: update.startTime || existingCall.answered_at,
+            answered_at: update.answeredAt || existingCall.answered_at,
             ended_at: update.endTime || existingCall.ended_at,
             duration: update.duration ?? existingCall.duration,
+            ringSeconds: update.ringSeconds ?? existingCall.ringSeconds,
+            talkSeconds: update.talkSeconds ?? existingCall.talkSeconds,
             status: update.status || existingCall.status,
+            dialStatus: update.dialStatus ?? existingCall.dialStatus,
+            hangupCause: update.hangupCause ?? existingCall.hangupCause,
+            disposition: update.disposition ?? existingCall.disposition,
             updatedAt: update.timestamp || new Date().toISOString()
           };
           return updatedCalls;
@@ -118,27 +132,31 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
             const newCall: LiveCall = {
               id: String(update.id),
               linkedid: String(update.id),
-              direction: update.direction,
-              other_party: update.otherParty,
-              agent_exten: update.agentExten,
+              direction: (update.direction === 'incoming' || update.direction === 'outgoing') 
+                ? update.direction as 'incoming' | 'outgoing'
+                : undefined,
+              caller_number: update.callerNumber || 'Unknown',
+              agent_exten: update.agentExten || undefined,
               started_at: update.startTime || new Date().toISOString(),
-              answered_at: update.startTime,
-              ended_at: update.endTime,
-              caller_number: update.otherParty || update.callerNumber || 'Unknown',
-              duration: update.duration,
+              answered_at: update.startTime || undefined,
+              ended_at: update.endTime || undefined,
+              duration: update.duration ?? undefined,
               status: update.status,
               createdAt: update.timestamp || new Date().toISOString(),
               updatedAt: update.timestamp || new Date().toISOString()
             };
             
             // Debug logging for new calls
-            debugStatusMismatch(newCall.agent_exten || 'unknown', undefined, 'new call: ' + (newCall.status || 'unknown'), {
+            debugStatusMismatch(newCall.agent_exten || 'unknown', 'new_call', 'new call: ' + (newCall.status || 'unknown'), {
               call_id: newCall.id,
               direction: newCall.direction,
               update_source: 'echo'
             });
             
             return [...prevCalls, newCall];
+          } else {
+            // Ended call that we don't have in our list - ignore it
+            console.log('📞 Received ended call update for unknown call, ignoring:', update.id);
           }
           return prevCalls;
         }
@@ -146,7 +164,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
     };
     
     // Subscribe to call updates
-    const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
+    const unsubscribe = liveCallsRealtimeService.subscribeToAll(handleCallUpdate);
     
     
     // Cleanup
@@ -166,8 +184,8 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
 
   // Computed values (replacing hook return values)
   const ringingCalls = liveCalls.filter(call => {
-    // Use unified ringing detection
-    return isCallRinging(call);
+    // Use unified ringing detection and ensure call hasn't ended
+    return isCallRinging(call) && !call.ended_at;
   });
 
   const answeredCalls = liveCalls.filter(call => {
@@ -239,6 +257,10 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
       return direction === 'outgoing'
         ? 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300'
         : 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
+    }
+    
+    if (['congestion'].includes(baseStatus)) {
+      return 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300';
     }
     
     return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
@@ -416,10 +438,7 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                       {/* Phone Number */}
                       <div className="flex-1 min-w-0">
                         <span className="text-base font-bold text-gray-900 dark:text-gray-100 font-mono truncate">
-                          {call.direction === 'outgoing' 
-                            ? (call.other_party || call.caller_number || 'Unknown') 
-                            : (call.caller_number || 'Unknown')
-                          }
+                          {call.caller_number || 'Unknown'}
                         </span>
                       </div>
 
@@ -489,16 +508,60 @@ const LiveCalls: React.FC<LiveCallsProps> = ({
                         </p>
                       </div>
                       
-                      {/* Duration - Right side of start time */}
-                      <div className="flex items-center space-x-1">
-                        <Timer className="h-3 w-3 text-gray-400" />
-                        <span className={`text-xs font-medium ${
-                          call.direction === 'outgoing' 
-                            ? 'text-indigo-600 dark:text-indigo-400' 
-                            : 'text-green-600 dark:text-green-400'
-                        }`}>
-                          {getRealTimeDuration(call.started_at)}
-                        </span>
+                      {/* Call quality indicators and duration breakdown */}
+                      <div className="flex items-center space-x-3">
+                        {/* For answered calls, show ring + talk breakdown */}
+                        {call.answered_at && (
+                          <>
+                            {/* Ring time (from start to answer) */}
+                            {call.ringSeconds && call.ringSeconds > 0 ? (
+                              <div className="flex items-center space-x-1">
+                                <Phone className="h-3 w-3 text-yellow-500" />
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                                  Ring: {formatDuration(call.ringSeconds)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-1">
+                                <Phone className="h-3 w-3 text-yellow-500" />
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                                  Ring: {formatDuration(Math.floor((new Date(call.answered_at).getTime() - new Date(call.started_at).getTime()) / 1000))}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Talk time (from answer to now) */}
+                            {call.talkSeconds && call.talkSeconds > 0 ? (
+                              <div className="flex items-center space-x-1">
+                                <PhoneCall className="h-3 w-3 text-green-500" />
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  Talk: {formatDuration(call.talkSeconds)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-1">
+                                <PhoneCall className="h-3 w-3 text-green-500" />
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  Talk: {formatDuration(Math.floor((currentTime.getTime() - new Date(call.answered_at).getTime()) / 1000))}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* For ringing calls, show total ring time */}
+                        {!call.answered_at && (
+                          <div className="flex items-center space-x-1">
+                            <Timer className="h-3 w-3 text-gray-400" />
+                            <span className={`text-xs font-medium ${
+                              call.direction === 'outgoing' 
+                                ? 'text-indigo-600 dark:text-indigo-400' 
+                                : 'text-green-600 dark:text-green-400'
+                            }`}>
+                              {getRealTimeDuration(call.started_at)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

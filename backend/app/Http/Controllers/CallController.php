@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Call;
 use App\Models\CallLeg;
+use App\Helpers\CallStatusHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -11,85 +12,7 @@ class CallController extends Controller
 {
 	private function deriveStatusFromCall(Call $call): string
 	{
-		$disposition = strtolower((string)($call->disposition ?? ''));
-		$dialStatus = strtolower((string)($call->dial_status ?? ''));
-		$hangupCause = strtolower((string)($call->hangup_cause ?? ''));
-
-		// FIRST: Check for ongoing calls (answered but not ended)
-		if ($call->answered_at && !$call->ended_at) {
-			// Check if this is a recent answer (within last 10 seconds)
-			$secondsSinceAnswer = $call->answered_at->diffInSeconds(now());
-			if ($secondsSinceAnswer < 10) {
-				return 'answered';  // Keep as 'answered' for recent answers
-			}
-			// Call is currently active and answered - this is "in progress"
-			return 'in_progress';
-		}
-
-		// SECOND: Check for ended calls
-		if ($call->ended_at) {
-			// If call was answered and ended, it's completed
-			if ($call->answered_at) {
-				return 'completed';
-			}
-
-			// Handle specific dispositions for ended calls
-			if ($disposition === 'busy') {
-				return 'busy';
-			}
-			if ($disposition === 'no_answer' || $disposition === 'no answer') {
-				return 'no_answer';
-			}
-			if ($disposition === 'canceled' || $disposition === 'cancelled') {
-				return 'canceled';
-			}
-			if ($disposition === 'failed') {
-				return 'failed';
-			}
-			if ($disposition === 'rejected') {
-				return 'rejected';
-			}
-
-			// Check hangup cause for more specific status
-			if (!empty($hangupCause)) {
-				if (str_contains($hangupCause, 'busy')) {
-					return 'busy';
-				}
-				if (str_contains($hangupCause, 'no answer') || str_contains($hangupCause, 'noanswer')) {
-					return 'no_answer';
-				}
-				if (str_contains($hangupCause, 'cancel') || str_contains($hangupCause, 'cancelled')) {
-					return 'canceled';
-				}
-				if (str_contains($hangupCause, 'failed') || str_contains($hangupCause, 'failure')) {
-					return 'failed';
-				}
-				if (str_contains($hangupCause, 'rejected') || str_contains($hangupCause, 'reject')) {
-					return 'rejected';
-				}
-			}
-
-			// If no specific disposition but call ended, check if it was answered
-			if ($disposition === 'answered') {
-				return 'completed';
-			}
-
-			// Default for ended calls without clear status
-			return 'unknown';
-		}
-
-		// THIRD: Check for calls that started but haven't been answered yet
-		if ($call->started_at && !$call->answered_at) {
-			// Call started but not yet answered - it's ringing
-			return 'ringing';
-		}
-
-		// FOURTH: For calls without clear status
-		if (!empty($disposition)) {
-			return $disposition;
-		}
-
-		return 'unknown';
+		return CallStatusHelper::deriveStatus($call);
 	}
 
 	public function index()
@@ -104,11 +27,16 @@ class CallController extends Controller
 					'callerName' => null,
 					'startTime' => $call->started_at,
 					'endTime' => $call->ended_at,
+					'answeredAt' => $call->answered_at,
 					'status' => $this->deriveStatusFromCall($call),
 					'duration' => ($call->started_at && $call->ended_at) ? max(0, $call->started_at->diffInSeconds($call->ended_at, true)) : null,
+					'ringSeconds' => $call->ring_seconds,
+					'talkSeconds' => $call->talk_seconds,
 					'direction' => $call->direction,
 					'agentExten' => $call->agent_exten,
-					'otherParty' => $call->other_party,
+					'dialStatus' => $call->dial_status,
+					'hangupCause' => $call->hangup_cause,
+					'disposition' => $call->disposition,
 				];
 			})->toArray();
 
@@ -129,15 +57,19 @@ class CallController extends Controller
 					'id' => $call->id,
 					'linkedid' => $call->linkedid,
 					'direction' => $call->direction,
-					'other_party' => $call->other_party,
-					'agent_exten' => $call->agent_exten,
+					'agentExten' => $call->agent_exten,
 					'started_at' => $call->started_at,
 					'answered_at' => $call->answered_at,
 					'ended_at' => $call->ended_at,
-					'caller_number' => $call->other_party,
-					'caller_name' => null,
+					'callerNumber' => $call->other_party,
+					'callerName' => null,
 					'duration' => $call->started_at ? max(0, $call->started_at->diffInSeconds(now(), true)) : null,
+					'ringSeconds' => $call->ring_seconds,
+					'talkSeconds' => $call->talk_seconds,
 					'status' => $this->deriveStatusFromCall($call),
+					'dialStatus' => $call->dial_status,
+					'hangupCause' => $call->hangup_cause,
+					'disposition' => $call->disposition,
 					'createdAt' => $call->created_at,
 					'updatedAt' => $call->updated_at,
 				];
@@ -242,6 +174,7 @@ class CallController extends Controller
 		$callsByStatus = array_merge([
 			'completed' => 0,
 			'in_progress' => 0,
+			'congestion' => 0,
 			'ringing' => 0,
 			'no_answer' => 0,
 			'busy' => 0,
@@ -254,6 +187,7 @@ class CallController extends Controller
 		$incomingByStatus = array_merge([
 			'completed' => 0,
 			'in_progress' => 0,
+			'congestion' => 0,
 			'ringing' => 0,
 			'no_answer' => 0,
 			'busy' => 0,
@@ -266,6 +200,7 @@ class CallController extends Controller
 		$outgoingByStatus = array_merge([
 			'completed' => 0,
 			'in_progress' => 0,
+			'congestion' => 0,
 			'ringing' => 0,
 			'no_answer' => 0,
 			'busy' => 0,
@@ -367,7 +302,6 @@ class CallController extends Controller
 			'callInstanceId' => null,
 			'direction' => $call->direction,
 			'agentExten' => $call->agent_exten,
-			'otherParty' => $call->other_party,
 			'createdAt' => $call->created_at,
 			'updatedAt' => $call->updated_at,
 			'callFlow' => $callFlow,

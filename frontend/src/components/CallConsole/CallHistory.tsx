@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { PhoneIncoming, PhoneOutgoing, Phone, PhoneCall, Clock, Timer, RefreshCw } from 'lucide-react';
-import callRealtimeService from '../../services/callRealtimeService';
-import type { CallUpdate } from '../../services/callRealtimeService';
+import callHistoryRealtimeService from '../../services/callHistoryRealtimeService';
+import type { CallUpdate } from '../../services/callHistoryRealtimeService';
 
 
 // Interface for individual call
@@ -11,13 +11,17 @@ interface IndividualCall {
   callerName: string | null;
   startTime: string;
   endTime?: string;
+  answeredAt?: string;
   status: string;
   duration?: number;
+  ringSeconds?: number;
+  talkSeconds?: number;
   direction?: 'incoming' | 'outgoing';
   agentExten?: string | null;
-  otherParty?: string | null;
+  dialStatus?: string;
+  hangupCause?: string;
+  disposition?: string;
   created_at?: string;
-  disposition?: string; // Added for completed calls
 }
 
 interface CallHistoryProps {
@@ -78,17 +82,23 @@ const CallHistory: React.FC<CallHistoryProps> = ({
         // Convert the call update to the format expected by CallHistory
         const completedCall: IndividualCall = {
           id: String(update.id),
-          callerNumber: update.otherParty || update.callerNumber || 'Unknown',
+          callerNumber: update.callerNumber || 'Unknown',
           callerName: null,
           startTime: update.startTime || new Date().toISOString(),
           endTime: update.endTime,
+          answeredAt: update.answeredAt,
           status: update.status || 'completed',
-          duration: update.duration,
-          direction: update.direction,
+          duration: update.duration ?? undefined,
+          ringSeconds: update.ringSeconds ?? undefined,
+          talkSeconds: update.talkSeconds ?? undefined,
+          direction: (update.direction === 'incoming' || update.direction === 'outgoing') 
+            ? update.direction as 'incoming' | 'outgoing'
+            : undefined,
           agentExten: update.agentExten,
-          otherParty: update.otherParty,
-          created_at: update.timestamp || new Date().toISOString(),
-          disposition: update.status || 'completed'
+          dialStatus: update.dialStatus,
+          hangupCause: update.hangupCause,
+          disposition: update.disposition || update.status || 'completed',
+          created_at: update.timestamp || new Date().toISOString()
         };
         
         // Notify parent component about the completed call
@@ -97,7 +107,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
     };
     
     // Subscribe to call updates
-    const unsubscribe = callRealtimeService.subscribeToAll(handleCallUpdate);
+    const unsubscribe = callHistoryRealtimeService.subscribeToAll(handleCallUpdate);
     console.log('📡 CallHistory: Subscribed to real-time call completion updates');
     
     // Cleanup
@@ -359,10 +369,7 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                         {/* Phone Number */}
                         <div className="flex-1 min-w-0">
                           <span className="text-base font-bold text-gray-900 dark:text-gray-100 font-mono truncate">
-                            {call.direction === 'outgoing' 
-                              ? (call.otherParty || call.callerNumber || 'Unknown') 
-                              : (call.callerNumber || 'Unknown')
-                            }
+                            {call.callerNumber || 'Unknown'}
                           </span>
                         </div>
 
@@ -419,20 +426,45 @@ const CallHistory: React.FC<CallHistoryProps> = ({
                           <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(call.startTime)}</p>
                         </div>
                         
-                        {/* Duration - Right side of start time */}
-                        {call.duration && (
-                          <div className="flex items-center space-x-1">
-                            <Timer className="h-3 w-3 text-gray-400" />
-                            <span className={`text-xs font-medium ${
-                              call.direction === 'outgoing' 
-                                ? 'text-indigo-600 dark:text-indigo-400' 
-                                : 'text-green-600 dark:text-green-400'
-                            }`}>
-                              {formatDuration(call.duration)}
-                            </span>
+                        {/* Duration breakdown - Ring and Talk times */}
+                        {(call.ringSeconds || call.talkSeconds || call.duration) && (
+                          <div className="flex items-center space-x-3">
+                            {/* Ring time */}
+                            {call.ringSeconds && call.ringSeconds > 0 && (
+                              <div className="flex items-center space-x-1">
+                                <Phone className="h-3 w-3 text-yellow-500" />
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                                  Ring: {formatDuration(call.ringSeconds)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Talk time */}
+                            {call.talkSeconds && call.talkSeconds > 0 && (
+                              <div className="flex items-center space-x-1">
+                                <PhoneCall className="h-3 w-3 text-green-500" />
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  Talk: {formatDuration(call.talkSeconds)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Total duration fallback */}
+                            {(!call.ringSeconds && !call.talkSeconds && call.duration) && (
+                              <div className="flex items-center space-x-1">
+                                <Timer className="h-3 w-3 text-gray-400" />
+                                <span className={`text-xs font-medium ${
+                                  call.direction === 'outgoing' 
+                                    ? 'text-indigo-600 dark:text-indigo-400' 
+                                    : 'text-green-600 dark:text-green-400'
+                                }`}>
+                                  {formatDuration(call.duration)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {!call.duration && (
+                        {(!call.ringSeconds && !call.talkSeconds && !call.duration) && (
                           <div className="flex items-center space-x-1">
                             <Timer className="h-3 w-3 text-gray-400" />
                             <span className="text-xs text-gray-500 dark:text-gray-400">No duration</span>

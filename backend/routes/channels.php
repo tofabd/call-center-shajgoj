@@ -20,3 +20,13 @@ Broadcast::channel('extensions', function () {
 Broadcast::channel('call-console', function () {
     return true; // Allow anyone to listen to call updates
 });
+
+// Public channel for live call updates (active calls only)
+Broadcast::channel('live-calls', function () {
+    return true; // Allow anyone to listen to live call updates
+});
+
+// Public channel for call history updates (completed calls only)
+Broadcast::channel('call-history', function () {
+    return true; // Allow anyone to listen to completed call updates
+});
