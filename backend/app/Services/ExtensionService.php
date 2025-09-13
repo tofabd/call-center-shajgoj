@@ -336,6 +336,126 @@ class ExtensionService
     }
 
     /**
+     * Update extension status from call events (primary method for call-based updates)
+     */
+    public function updateExtensionStatusFromCall(string $extension, int $statusCode, string $callId, string $source = 'call_event'): bool
+    {
+        try {
+            // Early validation: Check if extension looks like a valid agent extension (3-5 digits)
+            if (!preg_match('/^\d{3,5}$/', $extension)) {
+                Log::debug("Skipping non-agent extension for call status update", [
+                    'extension' => $extension,
+                    'call_id' => $callId,
+                    'reason' => 'Not a 3-5 digit agent extension'
+                ]);
+                return false;
+            }
+
+            $ext = Extension::where('extension', $extension)->first();
+
+            if (!$ext) {
+                Log::warning("Extension not found for call status update", [
+                    'extension' => $extension,
+                    'call_id' => $callId,
+                    'status_code' => $statusCode,
+                    'source' => $source
+                ]);
+                return false;
+            }
+
+            $oldAvailabilityStatus = $ext->availability_status;
+            $oldStatusCode = $ext->status_code;
+            
+            // Check if this is a valid status transition from call event
+            if (!$this->isValidCallStatusTransition($oldStatusCode, $statusCode, $callId)) {
+                Log::debug("Skipping invalid call status transition", [
+                    'extension' => $extension,
+                    'old_status_code' => $oldStatusCode,
+                    'new_status_code' => $statusCode,
+                    'call_id' => $callId
+                ]);
+                return false;
+            }
+
+            $result = $ext->updateFromAsteriskEvent($statusCode);
+
+            Log::info("Extension status update from call event", [
+                'extension' => $extension,
+                'call_id' => $callId,
+                'old_status_code' => $oldStatusCode,
+                'new_status_code' => $statusCode,
+                'old_availability' => $oldAvailabilityStatus,
+                'new_availability' => $ext->availability_status,
+                'source' => $source,
+                'result' => $result
+            ]);
+
+            // Broadcast status update if availability actually changed
+            if ($result && $oldAvailabilityStatus !== $ext->availability_status) {
+                $ext->refresh(); // Refresh to get updated timestamps
+
+                try {
+                    broadcast(new \App\Events\ExtensionStatusUpdated($ext));
+                    Log::info("Extension status broadcasted successfully from call event", [
+                        'extension' => $extension,
+                        'call_id' => $callId,
+                        'availability_status' => $ext->availability_status,
+                        'source' => $source
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to broadcast extension status update from call", [
+                        'extension' => $extension,
+                        'call_id' => $callId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("Error updating extension status from call", [
+                'extension' => $extension,
+                'call_id' => $callId,
+                'status_code' => $statusCode,
+                'source' => $source,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Validate if a status transition from call events is allowed
+     */
+    private function isValidCallStatusTransition(int $oldStatusCode, int $newStatusCode, string $callId): bool
+    {
+        // Allow all transitions for now, but log them for analysis
+        // In the future, we can add more sophisticated validation
+        
+        $transitions = [
+            0 => [8, 1], // NotInUse -> Ringing or InUse
+            8 => [0, 1], // Ringing -> NotInUse or InUse  
+            1 => [0, 8], // InUse -> NotInUse or Ringing (call waiting)
+            2 => [0, 8], // Busy -> NotInUse or Ringing
+        ];
+
+        $isValid = !isset($transitions[$oldStatusCode]) || 
+                   in_array($newStatusCode, $transitions[$oldStatusCode]) ||
+                   $oldStatusCode === $newStatusCode; // Allow same status (idempotent)
+
+        if (!$isValid) {
+            Log::warning("Invalid call status transition detected", [
+                'old_status' => $oldStatusCode,
+                'new_status' => $newStatusCode,
+                'call_id' => $callId,
+                'allowed_transitions' => $transitions[$oldStatusCode] ?? 'none'
+            ]);
+        }
+
+        return $isValid;
+    }
+
+    /**
      * Update extension status (legacy method - kept for backward compatibility)
      */
     public function updateExtensionStatus(string $extension, string $status, ?int $statusCode = null): bool
@@ -360,7 +480,7 @@ class ExtensionService
             
             $result = $ext->updateFromAsteriskEvent($statusCode);
 
-            Log::info("Extension status update attempt", [
+            Log::info("Extension status update attempt (legacy)", [
                 'extension' => $extension,
                 'old_status' => $oldStatus,
                 'new_status' => $status,
@@ -374,12 +494,12 @@ class ExtensionService
 
                 try {
                     broadcast(new \App\Events\ExtensionStatusUpdated($ext));
-                    Log::info("Extension status broadcasted successfully", [
+                    Log::info("Extension status broadcasted successfully (legacy)", [
                         'extension' => $extension,
                         'status' => $ext->availability_status
                     ]);
                 } catch (\Exception $e) {
-                    Log::error("Failed to broadcast extension status update", [
+                    Log::error("Failed to broadcast extension status update (legacy)", [
                         'extension' => $extension,
                         'error' => $e->getMessage()
                     ]);
@@ -388,7 +508,7 @@ class ExtensionService
 
             return $result;
         } catch (\Exception $e) {
-            Log::error("Exception in updateExtensionStatus", [
+            Log::error("Exception in updateExtensionStatus (legacy)", [
                 'extension' => $extension,
                 'status' => $status,
                 'status_code' => $statusCode,

@@ -88,6 +88,14 @@ const ExtensionsStatus: React.FC = () => {
     // Subscribe to real-time extension status updates
     const handleExtensionUpdate = (update: ExtensionStatusUpdate) => {
       console.log('📱 Real-time extension update received:', update);
+      console.log('📱 Extension update details:', {
+        extension: update.extension,
+        old_status_code: extensions.find(ext => ext.extension === update.extension)?.status_code,
+        new_status_code: update.status_code,
+        old_device_state: extensions.find(ext => ext.extension === update.extension)?.device_state,
+        new_device_state: update.device_state,
+        timestamp: new Date().toISOString()
+      });
       
       setExtensions(prevExtensions => 
         prevExtensions.map(ext => {
@@ -110,6 +118,17 @@ const ExtensionsStatus: React.FC = () => {
             const newStatus = getUnifiedExtensionStatus({ device_state: updatedExt.device_state, status_code: updatedExt.status_code });
             
             if (oldStatus !== newStatus) {
+              console.log('📱 Extension status changed:', {
+                extension: ext.extension,
+                old_status: oldStatus,
+                new_status: newStatus,
+                old_status_code: ext.status_code,
+                new_status_code: updatedExt.status_code,
+                old_device_state: ext.device_state,
+                new_device_state: updatedExt.device_state,
+                update_source: 'echo'
+              });
+              
               debugStatusMismatch(ext.extension, `${oldStatus} → ${newStatus}`, undefined, {
                 update_source: 'echo',
                 old_device_state: ext.device_state,

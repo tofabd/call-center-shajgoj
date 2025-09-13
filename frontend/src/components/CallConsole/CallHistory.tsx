@@ -127,16 +127,8 @@ const CallHistory: React.FC<CallHistoryProps> = ({
   // Show only completed/ended calls (filter out active calls)
   const sortedCalls = callLogs
     .filter(call => {
-      // Show calls that are completed (have endTime OR disposition)
-      if (call.endTime || call.disposition) {
-        return true; // Show all completed calls including answered+ended
-      }
-      
-      // If no endTime and no disposition, filter out active calls
-      return ![
-        'ringing', 'ring', 'calling', 'incoming', 
-        'started', 'start', 'answered', 'in_progress'
-      ].includes(call.status?.toLowerCase());
+      // Only show calls that have actually ended (have endTime)
+      return call.endTime && call.endTime !== null;
     })
     .sort((a, b) => {
       // Sort by start time (most recent first)

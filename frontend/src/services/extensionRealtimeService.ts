@@ -39,7 +39,8 @@ class ExtensionRealtimeService {
     try {
       echo.channel('extensions')
         .listen('.extension.status.updated', (update: ExtensionStatusUpdate) => {
-          console.log('📱 Real-time extension status update:', update);
+          console.log('📱 [ExtensionRealtimeService] Raw update received:', update);
+          console.log('📱 [ExtensionRealtimeService] Update timestamp:', new Date().toISOString());
           
           // Map backend broadcast data to frontend format for compatibility
           const mappedUpdate: ExtensionStatusUpdate = {
@@ -48,6 +49,9 @@ class ExtensionRealtimeService {
             device_state: this.getDeviceStateFromStatusCode(update.status_code || 0),
             last_status_change: update.status_changed_at || update.last_status_change,
           };
+          
+          console.log('📱 [ExtensionRealtimeService] Mapped update:', mappedUpdate);
+          console.log('📱 [ExtensionRealtimeService] Notifying', this.listeners.size, 'listeners');
           
           this.notifyListeners(mappedUpdate);
         });

@@ -484,19 +484,38 @@ use App\Services\ExtensionService;
 
          try {
              // Option B (clean model): ensure master Call and CallLeg are tracked
-             $this->ensureCall($fields);
+             $call = $this->ensureCall($fields);
              $this->upsertCallLeg($fields, [
                  'start_time' => now(),
              ]);
-                         // Check if this is a new call (uniqueid equals linkedid)
-            if ($fields['Uniqueid'] === $fields['Linkedid']) {
-                // Also broadcast call created/ringing for the clean calls API
-                $masterCall = Call::where('linkedid', $fields['Linkedid'])->first();
-                if ($masterCall) {
-                    broadcast(new CallUpdated($masterCall));
-                    $this->info("📡 New call broadcasted (linkedid: {$masterCall->linkedid})");
-                }
-            }
+
+             // Check if this is a new call (uniqueid equals linkedid) to trigger extension status
+             if ($fields['Uniqueid'] === $fields['Linkedid']) {
+                 // Extract agent extension from the channel
+                 $agentExtension = $this->extractAgentExtension($fields['Channel'] ?? '');
+                 
+                 // Update extension status to "Ringing" when agent receives a call
+                 if ($agentExtension) {
+                     $this->updateExtensionStatusFromCallEvent(
+                         $agentExtension,
+                         8, // Ringing status code
+                         $fields['Linkedid'],
+                         'Newchannel'
+                     );
+                 }
+
+                  // Also broadcast call created/ringing for the clean calls API
+                  $masterCall = Call::where('linkedid', $fields['Linkedid'])->first();
+                  if ($masterCall) {
+                      broadcast(new CallUpdated($masterCall));
+                      $this->info("📡 New call broadcasted (linkedid: {$masterCall->linkedid})");
+                      
+                      // CRITICAL: Immediately broadcast extension status after call broadcast
+                      if ($agentExtension) {
+                          $this->broadcastExtensionStatus($agentExtension, 'Newchannel - call status broadcasted');
+                      }
+                  }
+             }
 
             $this->info("New call tracked with Linkedid: {$fields['Linkedid']}");
             $this->line("Caller: {$fields['CallerIDNum']} ({$fields['CallerIDName']})");
@@ -527,17 +546,44 @@ use App\Services\ExtensionService;
              // Now safely create CallLeg
              $this->upsertCallLeg($fields);
 
-             if ($call && empty($call->answered_at)) {
-                 $stateDesc = strtolower((string)($fields['ChannelStateDesc'] ?? ''));
-                 if ($stateDesc === 'up') {
-                     $call->answered_at = now();
-                     if ($call->started_at) {
-                         $call->ring_seconds = max(0, $call->started_at->diffInSeconds($call->answered_at, true));
-                     }
-                     $call->save();
-                     broadcast(new CallUpdated($call));
+              if ($call && empty($call->answered_at)) {
+                  $stateDesc = strtolower((string)($fields['ChannelStateDesc'] ?? ''));
+                  if ($stateDesc === 'up') {
+                      $call->answered_at = now();
+                      if ($call->started_at) {
+                          $call->ring_seconds = max(0, $call->started_at->diffInSeconds($call->answered_at, true));
+                      }
+                      
+                      // Update extension status to "In Use" when call is answered
+                      $agentExtension = $call->agent_exten ?: $this->extractAgentExtension($fields['Channel'] ?? '');
+                      if ($agentExtension) {
+                          $this->updateExtensionStatusFromCallEvent(
+                              $agentExtension,
+                              1, // In Use status code
+                              $call->linkedid,
+                              'Newstate'
+                          );
+                      }
+                      
+                      $call->save();
+        broadcast(new CallUpdated($call));
+        
+        // CRITICAL: Immediately broadcast extension status after call broadcast
+        if ($agentExtension) {
+            $this->broadcastExtensionStatus($agentExtension, 'BridgeEnter - call answered broadcasted');
+        }
+                  
+                  // CRITICAL: Immediately broadcast extension status after call broadcast
+                  if ($agentExtension) {
+                      $this->broadcastExtensionStatus($agentExtension, 'Hangup - call ended broadcasted');
+                  }
+                      
+                      // CRITICAL: Immediately broadcast extension status after call broadcast
+                      if ($agentExtension) {
+                          $this->broadcastExtensionStatus($agentExtension, 'Newstate - call answered broadcasted');
+                      }
                  }
-             }
+              }
 
             $this->info("Call state updated for Linkedid: {$fields['Linkedid']}");
             $this->line("Channel: {$fields['Channel']}");
@@ -566,30 +612,47 @@ use App\Services\ExtensionService;
                  return;
              }
 
-                     // Update the specific leg that hung up
-        $this->upsertCallLeg($fields, [
-            'hangup_at' => now(),
-            'hangup_cause' => $fields['Cause'] ?? null,
-        ]);
+             // Update the specific leg that hung up
+             $this->upsertCallLeg($fields, [
+                 'hangup_at' => now(),
+                 'hangup_cause' => $fields['Cause'] ?? null,
+             ]);
 
-        // Check active legs count for this linkedid and set calls.ended_at when zero
-        // (do not require Uniqueid===Linkedid)
-        $activeLegs = CallLeg::where('linkedid', $call->linkedid)
-            ->whereNull('hangup_at')
-            ->count();
+             // Check active legs count for this linkedid and set calls.ended_at when zero
+             // (do not require Uniqueid===Linkedid)
+             $activeLegs = CallLeg::where('linkedid', $call->linkedid)
+                 ->whereNull('hangup_at')
+                 ->count();
 
-        if ($activeLegs === 0) {
-            // All legs are gone, mark the call as ended
-            $call->ended_at = now();
-            if (!empty($fields['Cause'])) {
-                $call->hangup_cause = (string)$fields['Cause'];
-            }
-            if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
-                $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
-            }
-            $call->save();
-            broadcast(new CallUpdated($call));
-        }
+             if ($activeLegs === 0) {
+                 // All legs are gone, mark the call as ended
+                 $call->ended_at = now();
+                 if (!empty($fields['Cause'])) {
+                     $call->hangup_cause = (string)$fields['Cause'];
+                 }
+                 if ($call->answered_at && $call->ended_at && empty($call->talk_seconds)) {
+                     $call->talk_seconds = max(0, $call->answered_at->diffInSeconds($call->ended_at, true));
+                 }
+                 $call->save();
+
+                 // Update extension status to "Not In Use" when all call legs end
+                 $agentExtension = $call->agent_exten ?: $this->extractAgentExtension($fields['Channel'] ?? '');
+                 if ($agentExtension) {
+                     $this->updateExtensionStatusFromCallEvent(
+                         $agentExtension,
+                         0, // Not In Use status code
+                         $call->linkedid,
+                         'Hangup'
+                     );
+                 }
+
+                  broadcast(new CallUpdated($call));
+                  
+                  // CRITICAL: Immediately broadcast extension status after call broadcast
+                  if ($agentExtension) {
+                      $this->broadcastExtensionStatus($agentExtension, 'Hangup - call ended broadcasted');
+                  }
+             }
 
             $this->info("Call ended for Linkedid: {$fields['Linkedid']}");
             $this->line("Extension: {$fields['Exten']}");
@@ -628,6 +691,12 @@ use App\Services\ExtensionService;
 
             // Broadcast the updated call with phone number
             broadcast(new CallUpdated($call));
+            
+            // CRITICAL: Immediately broadcast extension status after call broadcast
+            $agentExtension = $this->extractAgentExtension($fields['Channel'] ?? '');
+            if ($agentExtension) {
+                $this->broadcastExtensionStatus($agentExtension, 'DialBegin - outgoing call broadcasted');
+            }
 
             $this->info("📞 Outgoing call to: {$outgoingNumber} (linkedid: {$call->linkedid})");
         } else {
@@ -665,6 +734,12 @@ use App\Services\ExtensionService;
 
             // Broadcast the call status update in real-time
             broadcast(new CallUpdated($call));
+            
+            // CRITICAL: Immediately broadcast extension status after call broadcast
+            $agentExtension = $this->extractAgentExtension($fields['Channel'] ?? '');
+            if ($agentExtension) {
+                $this->broadcastExtensionStatus($agentExtension, 'DialEnd - call disposition broadcasted');
+            }
 
             $this->info("📡 Call disposition updated: {$status} -> {$call->disposition} (linkedid: {$call->linkedid})");
         }
@@ -695,6 +770,17 @@ use App\Services\ExtensionService;
             }
         }
         $call->save();
+
+        // Update extension status to "In Use" when agent answers a call
+        $agentExtension = $call->agent_exten ?: $this->extractAgentExtension($fields['Channel'] ?? '');
+        if ($agentExtension) {
+            $this->updateExtensionStatusFromCallEvent(
+                $agentExtension,
+                1, // In Use status code
+                $linkedid,
+                'BridgeEnter'
+            );
+        }
 
         broadcast(new CallUpdated($call));
 
@@ -738,6 +824,7 @@ use App\Services\ExtensionService;
     /**
      * Handle ExtensionStatus events from Asterisk AMI
      * Now handles both numeric status values (like Status: 1) and text values
+     * Filters out invalid extension formats and non-agent contexts
      */
     private function handleExtensionStatus(array $fields): void
     {
@@ -762,6 +849,29 @@ use App\Services\ExtensionService;
             return;
         }
 
+        // IMPORTANT: Filter out invalid extension formats early
+        // Only process clean 3-5 digit agent extensions
+        if (!preg_match('/^\d{3,5}$/', $extension)) {
+            Log::debug("Skipping ExtensionStatus for invalid extension format", [
+                'extension' => $extension,
+                'context' => $context,
+                'reason' => 'Not a 3-5 digit agent extension'
+            ]);
+            return;
+        }
+
+        // IMPORTANT: Filter by context - only process agent extension contexts
+        // Common agent contexts: ext-local, from-internal, agents, extensions
+        $validContexts = ['ext-local', 'from-internal', 'agents', 'extensions'];
+        if ($context && !in_array($context, $validContexts)) {
+            Log::debug("Skipping ExtensionStatus for non-agent context", [
+                'extension' => $extension,
+                'context' => $context,
+                'reason' => 'Context is not an agent context'
+            ]);
+            return;
+        }
+
         try {
             // Map status for database update
             $statusCode = (int)$status;
@@ -771,7 +881,8 @@ use App\Services\ExtensionService;
                 'extension' => $extension,
                 'status_code' => $statusCode,
                 'availability_status' => $availabilityStatus,
-                'status_text' => $statusText
+                'status_text' => $statusText,
+                'context' => $context
             ]);
 
             // Update extension status in database
@@ -787,14 +898,16 @@ use App\Services\ExtensionService;
                     'extension' => $extension,
                     'status_code' => $statusCode,
                     'availability_status' => $availabilityStatus,
-                    'status_text' => $statusText
+                    'status_text' => $statusText,
+                    'context' => $context
                 ]);
             } else {
                 $this->warn("⚠️ Failed to update extension status: {$extension} -> {$statusCode}");
                 Log::warning("Failed to update extension status", [
                     'extension' => $extension,
                     'status_code' => $statusCode,
-                    'availability_status' => $availabilityStatus
+                    'availability_status' => $availabilityStatus,
+                    'context' => $context
                 ]);
             }
 
@@ -803,6 +916,7 @@ use App\Services\ExtensionService;
             Log::error("ExtensionStatus handler error", [
                 'extension' => $extension,
                 'status' => $status,
+                'context' => $context,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -876,6 +990,131 @@ use App\Services\ExtensionService;
     }
 
     /**
+     * Extract agent extension from channel name consistently across all call events
+     * Filters out AMI-generated codes like *47*1001*600 and only returns clean 3-5 digit extensions
+     */
+    private function extractAgentExtension(string $channel): ?string
+    {
+        // Handle various channel formats and filter out AMI-generated codes:
+        // SIP/1001-12345678 -> 1001 ✓
+        // PJSIP/1002-12345678 -> 1002 ✓
+        // Local/1003@from-queue/n -> 1003 ✓
+        // SIP/*47*1001*600-12345678 -> 1001 ✓ (extract real extension from AMI code)
+        // SIP/*47*1001-12345678 -> 1001 ✓ (extract real extension from AMI code)
+        // SIP/Local/s@pbx-queue:1234/n -> null ✗ (not an agent extension)
+        
+        if (!$channel) {
+            return null;
+        }
+
+        // First, try to extract from simple format: SIP/1001-xxxxx or PJSIP/1002-xxxxx
+        if (preg_match('/(?:SIP|PJSIP)\/(\d{3,5})-/', $channel, $matches)) {
+            return $matches[1];
+        }
+        
+        // Handle Local channels: Local/1003@context/n
+        if (preg_match('/Local\/(\d{3,5})@/', $channel, $matches)) {
+            return $matches[1];
+        }
+        
+        // Handle AMI-generated codes: SIP/*47*1001*600-xxxxx or SIP/*47*1001-xxxxx
+        // Extract the 3-5 digit number that appears after one or more *XX* patterns
+        if (preg_match('/(?:SIP|PJSIP)\/(?:\*\d+\*)*(\d{3,5})(?:\*\d+)*-/', $channel, $matches)) {
+            return $matches[1];
+        }
+        
+        // Fallback: look for any 3-5 digit number after SIP/PJSIP/Local prefix
+        if (preg_match('/(?:SIP|PJSIP|Local)\/[^\/]*?(\d{3,5})/', $channel, $matches)) {
+            $extension = $matches[1];
+            // Validate it's a proper extension (3-5 digits only)
+            if (preg_match('/^\d{3,5}$/', $extension)) {
+                return $extension;
+            }
+        }
+        
+        Log::debug("Could not extract agent extension from channel", [
+            'channel' => $channel,
+            'reason' => 'No valid 3-5 digit extension found'
+        ]);
+        
+        return null;
+    }
+
+    /**
+     * Update extension status based on call events
+     * Now includes validation to filter out invalid extension formats
+     */
+    private function updateExtensionStatusFromCallEvent(string $extension, int $statusCode, string $callId, string $eventType): void
+    {
+        // IMPORTANT: Early validation to filter out invalid extensions
+        if (!preg_match('/^\d{3,5}$/', $extension)) {
+            Log::debug("Skipping extension status update for invalid extension format", [
+                'extension' => $extension,
+                'status_code' => $statusCode,
+                'call_id' => $callId,
+                'event_type' => $eventType,
+                'reason' => 'Not a 3-5 digit agent extension'
+            ]);
+            return;
+        }
+
+        try {
+            $success = $this->extensionService->updateExtensionStatusFromCall(
+                $extension,
+                $statusCode,
+                $callId,
+                $eventType
+            );
+
+            if ($success) {
+                $statusText = $this->getStatusText($statusCode);
+                $this->info("📱 Extension status updated from {$eventType}: {$extension} -> {$statusCode} ({$statusText}) for call {$callId}");
+                Log::info("Extension status updated from call event", [
+                    'extension' => $extension,
+                    'status_code' => $statusCode,
+                    'call_id' => $callId,
+                    'event_type' => $eventType,
+                    'status_text' => $statusText
+                ]);
+            } else {
+                $this->warn("⚠️ Failed to update extension status from {$eventType}: {$extension} -> {$statusCode} for call {$callId}");
+                Log::warning("Failed to update extension status from call event", [
+                    'extension' => $extension,
+                    'status_code' => $statusCode,
+                    'call_id' => $callId,
+                    'event_type' => $eventType,
+                    'reason' => 'Extension not found in database or validation failed'
+                ]);
+            }
+        } catch (\Exception $e) {
+            $this->error("❌ Error updating extension status from {$eventType}: " . $e->getMessage());
+            Log::error("Extension status update error from call event", [
+                'extension' => $extension,
+                'status_code' => $statusCode,
+                'call_id' => $callId,
+                'event_type' => $eventType,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Get human-readable status text from status code
+     */
+    private function getStatusText(int $statusCode): string
+    {
+        return match($statusCode) {
+            0 => 'Not In Use',
+            1 => 'In Use',
+            2 => 'Busy',
+            4 => 'Unavailable',
+            8 => 'Ringing',
+            16 => 'Ringing In Use',
+            default => 'Unknown'
+        };
+    }
+
+    /**
      * Map Asterisk extension status to device state for detailed status tracking
      * This provides the most detailed state information available from Asterisk
      */
@@ -931,6 +1170,55 @@ use App\Services\ExtensionService;
 
         return 'UNKNOWN';
     }
+
+     /**
+      * Immediately broadcast current extension status to ensure frontend sync
+      * Includes validation to filter out invalid extension formats
+      */
+     private function broadcastExtensionStatus(string $extension, string $context): void
+     {
+         // IMPORTANT: Early validation to filter out invalid extensions
+         if (!preg_match('/^\d{3,5}$/', $extension)) {
+             Log::debug("Skipping extension status broadcast for invalid extension format", [
+                 'extension' => $extension,
+                 'context' => $context,
+                 'reason' => 'Not a 3-5 digit agent extension'
+             ]);
+             return;
+         }
+
+         try {
+             // Get current extension from database
+             $extensionModel = Extension::where('extension', $extension)->first();
+             
+             if ($extensionModel) {
+                 // Fire the ExtensionStatusUpdated event to broadcast current status
+                 broadcast(new ExtensionStatusUpdated($extensionModel));
+                 
+                 $this->info("📡 Extension status broadcasted: {$extension} -> {$extensionModel->status_code} ({$context})");
+                 Log::info("Extension status broadcasted after call event", [
+                     'extension' => $extension,
+                     'status_code' => $extensionModel->status_code,
+                     'device_state' => $extensionModel->device_state,
+                     'context' => $context
+                 ]);
+             } else {
+                 $this->warn("⚠️ Extension not found for broadcast: {$extension} ({$context})");
+                 Log::warning("Extension not found for broadcast", [
+                     'extension' => $extension,
+                     'context' => $context,
+                     'reason' => 'Extension not found in database'
+                 ]);
+             }
+         } catch (\Exception $e) {
+             $this->error("❌ Failed to broadcast extension status for {$extension}: " . $e->getMessage());
+             Log::error("Extension status broadcast error", [
+                 'extension' => $extension,
+                 'context' => $context,
+                 'error' => $e->getMessage()
+             ]);
+         }
+     }
 
      public function __destruct()
      {
